@@ -134,7 +134,11 @@ keeps them as artifact-receipt warnings. In automatic showcase layouts without
 an authored canvas or node widths, the renderer compares clear detours with
 visibly separated crossovers. It prefers a short clear route, but may retain
 a shorter automatic crossing with an opaque halo instead of a long perimeter
-detour. Both crossing paths need matching halos; the artifact check verifies
+detour. Before comparing crossings, bounded route searches try to repair
+automatic paths that enter unrelated nodes or share ambiguous corridors.
+They preserve node clearance and corridor separation; failed searches still
+leave the obstruction diagnostic in place. Both crossing paths need matching
+halos; the artifact check verifies
 their geometry and reports `resolvedCrossovers` for visual review. Supplied
 `via`, non-auto `route`, and channel coordinates retain their geometry and
 crossing diagnostics. Collinear stage corridors are outside
