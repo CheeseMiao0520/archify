@@ -582,18 +582,18 @@ function pathFor(flow) {
       accept: points => {
         if ([...nodes.values()].some(node => node.id !== from.id && node.id !== to.id
             && segmentIntersectsRect({ start: points[0], end: points[1] }, node, 2))) return false;
-        // A pinned route is not in automaticPortSpread, but it still occupies
-        // its endpoint. Do not move the free end onto a neighbouring arrow.
-        for (const [rect, side, original, point] of [
-          [from, fromSide, start, points[0]], [to, toSide, end, points[1]],
+        // A pinned route still occupies its endpoint. Check both ends: on a
+        // short crowded side, keeping the bridge also preserves space for
+        // labels between neighbouring branches.
+        for (const [rect, side, point] of [
+          [from, fromSide, points[0]], [to, toSide, points[1]],
         ]) {
-          if (point[0] === original[0] && point[1] === original[1]) continue;
           for (const other of asArray(dataflow.flows)) {
             if (other === flow || !nodes.has(other.from) || !nodes.has(other.to)) continue;
             for (const field of ['from', 'to']) {
               if (other[field] !== rect.id || flowSides(other)[field === 'from' ? 'fromSide' : 'toSide'] !== side) continue;
               const occupied = automaticPorts.get(other)?.[field] || anchor(rect, side);
-              if (Math.hypot(point[0] - occupied[0], point[1] - occupied[1]) < 18) return false;
+              if (Math.hypot(point[0] - occupied[0], point[1] - occupied[1]) < 18 - 0.0001) return false;
             }
           }
         }
