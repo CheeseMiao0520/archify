@@ -250,7 +250,7 @@ export function verifyRepositoryEvidence(diagramType, diagram, repoRootInput) {
 
   // The batch is an optimization only: every path, line-range, file and line
   // check still runs in source order in the verification loop below, so a
-  // citation the batch cannot answer for never reorders the first diagnostic.
+  // citation the batch cannot answer for never reorders the diagnostics.
   const citedObjects = new Map();
   for (const [nodeIndex, node] of authoredNodes.entries()) {
     if (!Array.isArray(node.sources) || node.sources.length === 0) continue;
@@ -269,6 +269,7 @@ export function verifyRepositoryEvidence(diagramType, diagram, repoRootInput) {
   const prefetchedBlobs = prefetchBlobs(realRoot, citedObjects);
 
   const nodes = Object.create(null);
+  const sourceDiagnostics = [];
   let referenceCount = 0;
   for (const [nodeIndex, node] of authoredNodes.entries()) {
     if (!Array.isArray(node.sources) || node.sources.length === 0) continue;
@@ -281,78 +282,93 @@ export function verifyRepositoryEvidence(diagramType, diagram, repoRootInput) {
     for (const [sourceIndex, authored] of node.sources.entries()) {
       const at = `/${collection}/${nodeIndex}/sources/${sourceIndex}`;
       const where = `${at}/path`;
-      const source = {
-        path: verifiedSourcePath(authored.path, where),
-        ...(authored.line ? { line: authored.line } : {}),
-        ...(authored.end_line ? { endLine: authored.end_line } : {}),
-        ...(authored.label ? { label: authored.label } : {}),
-      };
-      if (source.endLine && !source.line) {
-        evidenceFailure('repository-evidence/line-required', `${at}/end_line requires line.`, {
-          subject: { path: `${at}/end_line`, ...nodeSubject },
-          supportedFixes: ['add line or remove end_line'],
-        });
-      }
-      if (source.endLine && source.endLine < source.line) {
-        evidenceFailure('repository-evidence/line-range-invalid', `${at}/end_line must be greater than or equal to line.`, {
-          subject: { path: at, ...nodeSubject },
-          evidence: { line: source.line, endLine: source.endLine },
-          supportedFixes: ['use an end_line greater than or equal to line'],
-        });
-      }
-      const object = `${revision}:${source.path}`;
-      const prefetched = prefetchedBlobs ? prefetchedBlobs.get(object) : undefined;
-      const objectIsBlob = prefetched
-        ? !prefetched.missing && prefetched.type === 'blob'
-        : (() => {
-          const type = runGit(realRoot, ['cat-file', '-t', object]);
-          return type.status === 0 && type.stdout.trim() === 'blob';
-        })();
-      if (!objectIsBlob) {
-        // A promisor blob can exist in the pinned tree without being stored
-        // locally. Do not tell the caller to change a correct source path.
-        const tree = runGit(realRoot, ['ls-tree', '-z', revision, '--', source.path]);
-        const knownBlob = tree.status === 0 && tree.stdout.split('\0').some((entry) => {
-          const separator = entry.indexOf('\t');
-          return entry.slice(separator + 1) === source.path
-            && /^\d+ blob [a-f0-9]+$/.test(entry.slice(0, separator));
-        });
-        if (knownBlob) {
-          evidenceFailure('repository-evidence/object-unavailable', `${where} exists at revision ${revision}, but its content is unavailable in the local repository.`, {
+      try {
+        const source = {
+          path: verifiedSourcePath(authored.path, where),
+          ...(authored.line ? { line: authored.line } : {}),
+          ...(authored.end_line ? { endLine: authored.end_line } : {}),
+          ...(authored.label ? { label: authored.label } : {}),
+        };
+        if (source.endLine && !source.line) {
+          evidenceFailure('repository-evidence/line-required', `${at}/end_line requires line.`, {
+            subject: { path: `${at}/end_line`, ...nodeSubject },
+            supportedFixes: ['add line or remove end_line'],
+          });
+        }
+        if (source.endLine && source.endLine < source.line) {
+          evidenceFailure('repository-evidence/line-range-invalid', `${at}/end_line must be greater than or equal to line.`, {
+            subject: { path: at, ...nodeSubject },
+            evidence: { line: source.line, endLine: source.endLine },
+            supportedFixes: ['use an end_line greater than or equal to line'],
+          });
+        }
+        const object = `${revision}:${source.path}`;
+        const prefetched = prefetchedBlobs ? prefetchedBlobs.get(object) : undefined;
+        const objectIsBlob = prefetched
+          ? !prefetched.missing && prefetched.type === 'blob'
+          : (() => {
+            const type = runGit(realRoot, ['cat-file', '-t', object]);
+            return type.status === 0 && type.stdout.trim() === 'blob';
+          })();
+        if (!objectIsBlob) {
+          // A promisor blob can exist in the pinned tree without being stored
+          // locally. Do not tell the caller to change a correct source path.
+          const tree = runGit(realRoot, ['ls-tree', '-z', revision, '--', source.path]);
+          const knownBlob = tree.status === 0 && tree.stdout.split('\0').some((entry) => {
+            const separator = entry.indexOf('\t');
+            return entry.slice(separator + 1) === source.path
+              && /^\d+ blob [a-f0-9]+$/.test(entry.slice(0, separator));
+          });
+          if (knownBlob) {
+            evidenceFailure('repository-evidence/object-unavailable', `${where} exists at revision ${revision}, but its content is unavailable in the local repository.`, {
+              subject: { path: where, ...nodeSubject },
+              evidence: { sourcePath: source.path, revision },
+              supportedFixes: ['explicitly fetch the pinned source objects into the local checkout, then retry verification'],
+            });
+          }
+          evidenceFailure('repository-evidence/file-missing', `${where} does not identify a file at revision ${revision}.`, {
             subject: { path: where, ...nodeSubject },
             evidence: { sourcePath: source.path, revision },
-            supportedFixes: ['explicitly fetch the pinned source objects into the local checkout, then retry verification'],
+            supportedFixes: ['use a file path that exists at the pinned revision'],
           });
         }
-        evidenceFailure('repository-evidence/file-missing', `${where} does not identify a file at revision ${revision}.`, {
-          subject: { path: where, ...nodeSubject },
-          evidence: { sourcePath: source.path, revision },
-          supportedFixes: ['use a file path that exists at the pinned revision'],
-        });
-      }
-      if (source.line) {
-        const content = prefetched && Object.hasOwn(prefetched, 'content')
-          ? { status: 0, stdout: prefetched.content }
-          : runGit(realRoot, ['show', object]);
-        if (content.status !== 0) evidenceFailure('repository-evidence/file-unreadable', `${where} could not be read at revision ${revision}.`, {
-          subject: { path: where, ...nodeSubject },
-          evidence: { sourcePath: source.path, revision },
-          supportedFixes: ['verify the pinned blob is readable in the local checkout'],
-        });
-        const lineCount = sourceLineCount(content.stdout);
-        const requestedLine = source.endLine || source.line;
-        if (requestedLine > lineCount) {
-          evidenceFailure('repository-evidence/line-out-of-range', `${at} requests line ${requestedLine}, but ${source.path} has ${lineCount} lines at revision ${revision}.`, {
-            subject: { path: at, ...nodeSubject },
-            evidence: { sourcePath: source.path, requestedLine, lineCount, revision },
-            supportedFixes: ['use a line range that exists at the pinned revision'],
+        if (source.line) {
+          const content = prefetched && Object.hasOwn(prefetched, 'content')
+            ? { status: 0, stdout: prefetched.content }
+            : runGit(realRoot, ['show', object]);
+          if (content.status !== 0) evidenceFailure('repository-evidence/file-unreadable', `${where} could not be read at revision ${revision}.`, {
+            subject: { path: where, ...nodeSubject },
+            evidence: { sourcePath: source.path, revision },
+            supportedFixes: ['verify the pinned blob is readable in the local checkout'],
           });
+          const lineCount = sourceLineCount(content.stdout);
+          const requestedLine = source.endLine || source.line;
+          if (requestedLine > lineCount) {
+            evidenceFailure('repository-evidence/line-out-of-range', `${at} requests line ${requestedLine}, but ${source.path} has ${lineCount} lines at revision ${revision}.`, {
+              subject: { path: at, ...nodeSubject },
+              evidence: { sourcePath: source.path, requestedLine, lineCount, revision },
+              supportedFixes: ['use a line range that exists at the pinned revision'],
+            });
+          }
+        }
+        verified.push({ ...source, ...(linkMode === 'web' ? { href: repositorySourceHref(location.provider, location.url, revision, source) } : {}) });
+        referenceCount += 1;
+      } catch (error) {
+        // Independent citations can be repaired together. Keep the first
+        // diagnostic and source order; an invalid reference never verifies.
+        if (!error?.archifyDiagnostics?.length) throw error;
+        sourceDiagnostics.push(...error.archifyDiagnostics);
+        // An unavailable Git process or an oversized read is not a bad
+        // citation. Stop rather than repeat that failure for every source.
+        if (error.archifyDiagnostics.some(({ code }) => code === 'repository-evidence/git-unavailable')) {
+          throwDiagnosticError(sourceDiagnostics[0].message, sourceDiagnostics);
         }
       }
-      verified.push({ ...source, ...(linkMode === 'web' ? { href: repositorySourceHref(location.provider, location.url, revision, source) } : {}) });
-      referenceCount += 1;
     }
     nodes[node.id] = verified;
+  }
+  if (sourceDiagnostics.length) {
+    throwDiagnosticError(sourceDiagnostics[0].message, sourceDiagnostics);
   }
   if (referenceCount === 0) {
     evidenceFailure('repository-evidence/source-required', `/meta/repository requires at least one /${collection} source reference.`, {

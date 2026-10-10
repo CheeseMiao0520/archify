@@ -34,7 +34,7 @@ function verifyRemoteEvidence(data, output, { cli: throughCli = false, command =
   return evidence;
 }
 
-test('evidence prefetch preserves the first source diagnostic in JSON output', (t) => {
+test('evidence reports independent source problems in authored order', (t) => {
   const data = fixture();
   t.after(() => fs.rmSync(data.root, { recursive: true, force: true }));
   data.diagram.components[0].sources = [{ path: 'src/missing.js' }, { path: '../escape' }];
@@ -44,7 +44,37 @@ test('evidence prefetch preserves the first source diagnostic in JSON output', (
   const report = JSON.parse(result.stdout);
   assert.deepEqual(report.diagnostics.map(({ code, subject }) => [code, subject.path]), [
     ['repository-evidence/file-missing', '/components/0/sources/0/path'],
+    ['repository-evidence/path-escape', '/components/0/sources/1/path'],
   ]);
+});
+
+test('delivery reports all invalid source ranges for one repair and preserves the previous artifact', (t) => {
+  const data = fixture();
+  t.after(() => fs.rmSync(data.root, { recursive: true, force: true }));
+  data.diagram.components[0].sources = [{ path: 'src/router.js', line: 1, end_line: 99 }];
+  data.diagram.components[1].sources = [{ path: 'src/store.js', line: 1, end_line: 9 }];
+  fs.writeFileSync(data.input, JSON.stringify(data.diagram));
+  const output = path.join(data.root, 'trusted.html');
+  fs.writeFileSync(output, 'trusted previous artifact');
+  const args = ['deliver', 'architecture', data.input, output, '--repo-root', data.root, '--json'];
+  const failed = run(args);
+  assert.equal(failed.status, 1);
+  const report = JSON.parse(failed.stdout);
+  assert.deepEqual(report.diagnostics.map(({ code, subject, evidence }) =>
+    [code, subject.path, evidence.requestedLine, evidence.lineCount]), [
+    ['repository-evidence/line-out-of-range', '/components/0/sources/0', 99, 3],
+    ['repository-evidence/line-out-of-range', '/components/1/sources/0', 9, 1],
+  ]);
+  assert.equal(fs.readFileSync(output, 'utf8'), 'trusted previous artifact');
+
+  // Both corrections are available from one failed call; no source is removed.
+  data.diagram.components[0].sources[0].end_line = report.diagnostics[0].evidence.lineCount;
+  data.diagram.components[1].sources[0].end_line = report.diagnostics[1].evidence.lineCount;
+  fs.writeFileSync(data.input, JSON.stringify(data.diagram));
+  const repaired = run(args);
+  assert.equal(repaired.status, 0, repaired.stdout + repaired.stderr);
+  assert.equal(JSON.parse(repaired.stdout).evidence.references, 2);
+  assert.equal(evidencePayload(fs.readFileSync(output, 'utf8')).referenceCount, 2);
 });
 
 test('path-only evidence verifies types without reading blob contents', (t) => {
@@ -67,11 +97,18 @@ test('line evidence retains the per-file read limit after batch prefetch', (t) =
   git(data.root, 'add', 'large.txt');
   git(data.root, 'commit', '-m', 'large source');
   data.diagram.meta.repository.revision = git(data.root, 'rev-parse', 'HEAD');
-  data.diagram.components[0].sources = [{ path: 'large.txt', line: 1 }];
+  data.diagram.components[0].sources = [
+    { path: 'src/router.js', line: 99 },
+    { path: 'large.txt', line: 1 },
+    { path: 'src/store.js', line: 99 },
+  ];
   fs.writeFileSync(data.input, JSON.stringify(data.diagram));
   const result = run(['validate', 'architecture', data.input, '--repo-root', data.root, '--json']);
   assert.equal(result.status, 1, result.stdout);
-  assert.equal(JSON.parse(result.stdout).diagnostics[0].code, 'repository-evidence/git-unavailable');
+  assert.deepEqual(JSON.parse(result.stdout).diagnostics.map(({ code }) => code), [
+    'repository-evidence/line-out-of-range',
+    'repository-evidence/git-unavailable',
+  ], 'preserve earlier errors but stop at the read limit instead of checking later citations');
 });
 
 test('repository root accepts a different spelling of the same physical Git top-level', (t) => {
