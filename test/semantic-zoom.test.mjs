@@ -28,11 +28,13 @@ function render(mode, example) {
   return fs.readFileSync(output, 'utf8');
 }
 
-test('all typed renderers emit explicit context and fine reading-depth semantics', () => {
+test('typed renderers keep primary labels and classify optional reading detail', () => {
   for (const [mode, example] of Object.entries(CASES)) {
     const html = render(mode, example);
     assert.match(html, /data-detail="context"/, mode);
-    assert.match(html, /data-detail="fine"/, mode);
+    // Sequence notes are reading context; their Read/Map/Full visibility
+    // and complete exports are protected by sequence-note-export-browser.
+    if (mode !== 'sequence') assert.match(html, /data-detail="fine"/, mode);
     assert.match(html, /data-detail-anchor/, mode);
     assert.doesNotMatch(html, /<text[^>]*data-detail="(?:context|fine)"[^>]*class="t-primary"/, mode);
     assert.match(html, /class="diagram-container" data-detail-level="read"/, mode);

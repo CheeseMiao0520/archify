@@ -7,8 +7,8 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ChromeVisualBrowser, findChrome } from '../archify/bin/visual-check.mjs';
 
-// Wrapped sequence notes are fine-detail text, hidden at the default zoom, so
-// exports must still carry every line (#676).
+// Sequence notes explain the messages at the normal reading zoom. Map may
+// hide them, but exports must still carry every line (#676).
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'archify');
 const chrome = process.env.ARCHIFY_CHROME ? findChrome() : null;
 const LONG_NOTE = 'this note explains the whole retry and backoff policy in a lot of detail so it is very long';
@@ -69,17 +69,47 @@ test('SVG and PNG exports keep every line of a wrapped sequence note', {
   await run('document.fonts.ready');
   await run('Archify.readerLayout.whenStable()');
 
-  // The default zoom hides fine detail; the export must not.
-  assert.equal(await run(`getComputedStyle(document.querySelector('text[data-detail="fine"]')).opacity`), '0');
+  // Conditions and failure details remain visible at the initial reading
+  // zoom. Changing depth never reflows the authored note or message geometry.
+  const noteState = () => run(`(() => {
+    const note = document.querySelector('g[data-edge-from="client"][data-edge-to="api"] > text');
+    const svg = note.ownerSVGElement;
+    return { opacity: getComputedStyle(note).opacity,
+      detail: document.querySelector('.diagram-container').dataset.detailLevel,
+      viewBox: svg.getAttribute('viewBox'), x: note.getAttribute('x'), y: note.getAttribute('y'),
+      font: note.getAttribute('font-size'), text: note.textContent,
+      path: svg.querySelector('g[data-edge-from="client"][data-edge-to="api"] path').getAttribute('d') };
+  })()`);
+  const initial = await noteState();
+  assert.equal(initial.detail, 'read');
+  assert.equal(initial.opacity, '1', 'initial reading exposes the complete note');
+  const geometry = ({ opacity, detail, ...rest }) => rest;
+  for (const [action, detail, opacity] of [['zoomOut', 'map', '0'], ['reset', 'read', '1']]) {
+    await run(`Archify.view.${action}();new Promise((resolve,reject)=>{
+      const deadline=performance.now()+2000;
+      function settled(){
+        const note=document.querySelector('g[data-edge-from="client"][data-edge-to="api"] > text');
+        if(getComputedStyle(note).opacity===${JSON.stringify(opacity)})return resolve();
+        if(performance.now()>deadline)return reject(new Error('Note depth did not settle'));
+        requestAnimationFrame(settled);
+      }settled();
+    })`);
+    const current = await noteState();
+    assert.equal(current.detail, detail);
+    assert.equal(current.opacity, opacity);
+    assert.deepEqual(geometry(current), geometry(initial));
+  }
+  // Export from Map as well: hidden-on-screen never means dropped content.
+  await run('Archify.view.zoomOut()');
   const svg = await run(`noteExport('svg').then(blob=>blob.text())`);
   for (const line of lines) assert.ok(svg.includes(`>${line}</tspan>`), `SVG export keeps "${line}"`);
-  assert.doesNotMatch(svg, /data-detail="fine"/, 'SVG export removes the zoom-only marker');
+  assert.doesNotMatch(svg, /data-detail=/, 'SVG export removes the zoom-only marker');
 
   // Compare PNG exports with and without the note text: the difference is the
   // note itself, and it must be as tall as its wrapped lines.
   const diff = await run(`(async()=>{
     const withNote=await notePixels(await noteExport('png'));
-    const note=document.querySelector('text[data-detail="fine"]');const saved=note.innerHTML;note.innerHTML='';
+    const note=document.querySelector('g[data-edge-from="client"][data-edge-to="api"] > text');const saved=note.innerHTML;note.innerHTML='';
     const withoutNote=await notePixels(await noteExport('png'));note.innerHTML=saved;
     if(withNote.width!==withoutNote.width||withNote.height!==withoutNote.height)return {sameSize:false};
     let top=Infinity,bottom=-1,left=Infinity,right=-1;
@@ -102,22 +132,25 @@ test('SVG and PNG exports keep every line of a wrapped sequence note', {
   // This fixture has no segment overlays: the note sits on the panel over
   // the body background. Measure computed colors in Full detail, not a class
   // name, and retain the default Read/export checks above.
-  await run(`for(let i=0;i<3;i++) Archify.view.zoomIn();
+  await run(`Archify.view.reset();for(let i=0;i<3;i++) Archify.view.zoomIn();
     new Promise((resolve,reject)=>{
       const deadline=performance.now()+2000;
       function settled(){
-        if(getComputedStyle(document.querySelector('text[data-detail="fine"]')).opacity==='1') return resolve();
+        if(getComputedStyle(document.querySelector('g[data-edge-from="client"][data-edge-to="api"] > text')).opacity==='1') return resolve();
         if(performance.now()>deadline) return reject(new Error('Full-detail note did not become visible'));
         requestAnimationFrame(settled);
       }
       settled();
     })`);
+  const full = await noteState();
+  assert.equal(full.detail, 'full');
+  assert.deepEqual(geometry(full), geometry(initial), 'Full retains note content and authored geometry');
   for (const theme of ['dark', 'light']) {
     await t.test(`${theme} Full-detail note has at least 4.5:1 contrast`, async () => {
       await run(`document.documentElement.setAttribute('data-theme', ${JSON.stringify(theme)});
         new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);
       const colors = await run(`(() => {
-        const note = document.querySelector('text[data-detail="fine"]');
+        const note = document.querySelector('g[data-edge-from="client"][data-edge-to="api"] > text');
         const panel = document.querySelector('.diagram-container');
         const style = getComputedStyle(note);
         const rgba = value => {

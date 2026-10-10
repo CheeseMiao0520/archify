@@ -50,7 +50,7 @@ function lifelines(html) {
 }
 
 function notes(html) {
-  return [...html.matchAll(/<text data-detail="fine" x="([\d.]+)" y="([\d.]+)" class="[^"]*" font-size="7">([\s\S]*?)<\/text>/g)]
+  return [...html.matchAll(/<text data-detail="context" x="([\d.]+)" y="([\d.]+)" class="[^"]*" font-size="7">([\s\S]*?)<\/text>/g)]
     .map((match) => {
       const tspans = [...match[3].matchAll(/<tspan x="([\d.]+)" dy="([\d.]+)">([^<]*)<\/tspan>/g)];
       return {

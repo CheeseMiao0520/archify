@@ -442,7 +442,7 @@ test('automatic header fallback wraps boundary notes before height while preserv
   const html = render(doc, true);
   const boxes = participantBoxes(html);
   const lanes = boxes.map(box => box.x + box.width / 2);
-  const note = html.match(/<text data-detail="fine" x="([\d.]+)" y="([\d.]+)"[^>]*>(.*?)<\/text>/);
+  const note = html.match(/<text data-detail="context" x="([\d.]+)" y="([\d.]+)"[^>]*>(.*?)<\/text>/);
   assert.ok(note);
   const lines = [...note[3].matchAll(/<tspan[^>]*>([^<]*)<\/tspan>/g)].map(match => match[1]);
   assert.ok(lines.length > 1, 'the note crosses the final gap wrapping boundary');

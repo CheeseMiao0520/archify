@@ -184,7 +184,7 @@ test('sequence legend stays below a late message with a note', () => {
     const html = fs.readFileSync(output, 'utf8');
     const legendTitle = Number(html.match(/<text x="[\d.]+" y="([\d.]+)"[^>]*>Legend<\/text>/)[1]);
     const lateY = Number(html.match(/data-edge-id="late"[\s\S]*?d="M [\d.]+ ([\d.]+) L/)[1]);
-    const noteY = Number(html.match(/<text data-detail="fine"[^>]*>completed<\/text>/)[0].match(/ y="([\d.]+)"/)[1]);
+    const noteY = Number(html.match(/<text data-detail="context"[^>]*>completed<\/text>/)[0].match(/ y="([\d.]+)"/)[1]);
     assert.ok(noteY + 2 < legendTitle - 12, `note at ${noteY} must stay above the legend title at ${legendTitle}`);
     for (const match of html.matchAll(/<path d="M ([\d.]+) 142 L \1 ([\d.]+)" class="a-default" stroke-width="0.8" stroke-dasharray="3,7"\/>/g)) {
       const end = Number(match[2]);
@@ -227,7 +227,7 @@ test('sequence repair height also holds a wrapped legend', () => {
   assert.equal([...html.matchAll(/data-legend-semantic-kind="/g)].length, variants.length, 'every variant appears in the repaired legend');
   assert.ok(baselines.size >= 2, 'the fixture must exercise a wrapped legend');
   const legendTitle = Number(html.match(/<text x="[\d.]+" y="([\d.]+)"[^>]*>Legend<\/text>/)[1]);
-  const noteY = Number(html.match(/<text data-detail="fine"[^>]*>completed<\/text>/)[0].match(/ y="([\d.]+)"/)[1]);
+  const noteY = Number(html.match(/<text data-detail="context"[^>]*>completed<\/text>/)[0].match(/ y="([\d.]+)"/)[1]);
   assert.ok(noteY + 2 < legendTitle - 12, `note at ${noteY}, legend title at ${legendTitle}`);
 });
 

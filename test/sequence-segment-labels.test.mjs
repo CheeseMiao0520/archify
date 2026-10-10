@@ -131,7 +131,7 @@ function assertAuthoredTimeline(html, diagram) {
   const routes = [...html.matchAll(/<path data-composition-edge-from="[^"]+"[^>]* d="M [\d.]+ ([\d.]+) L [\d.]+ \1"/g)]
     .map((match) => +match[1]);
   assert.deepEqual(routes, diagram.messages.map(({ y }) => y), 'authored arrows stay fixed');
-  const note = html.match(/<text data-detail="fine" x="[\d.]+" y="([\d.]+)"[^>]*font-size="([\d.]+)">keep this annotation<\/text>/);
+  const note = html.match(/<text data-detail="context" x="[\d.]+" y="([\d.]+)"[^>]*font-size="([\d.]+)">keep this annotation<\/text>/);
   assert.ok(note, 'the authored note stays complete');
   assert.deepEqual(note.slice(1).map(Number), [diagram.messages.find((message) => message.note).y + 18, 7],
     'the annotation keeps its authored baseline and font');
@@ -200,7 +200,7 @@ test('inside segment title clears a message note after avoiding participant head
   const result = render(diagram, true);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const [title] = labels(result.html);
-  const note = result.html.match(/<text data-detail="fine" x="([\d.]+)" y="([\d.]+)" class="[^"]*" font-size="([\d.]+)">diagnostic annotation<\/text>/);
+  const note = result.html.match(/<text data-detail="context" x="([\d.]+)" y="([\d.]+)" class="[^"]*" font-size="([\d.]+)">diagnostic annotation<\/text>/);
   assert.ok(note, 'the full authored annotation remains visible');
   assert.deepEqual(note.slice(1).map(Number), [176, 178, 7], 'note position and font remain authored geometry');
   assert.ok(title.y >= PARTICIPANT_BOTTOM, 'title clears the participant headers');
