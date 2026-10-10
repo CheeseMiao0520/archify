@@ -323,9 +323,9 @@ First-draft shape: every message needs an `id`, `from`, `to`, `label`, and integ
 
 ### Dataflow
 
-Stages express transformation or custody. Rows separate parallel streams. Label only data contracts, classifications, or cross-boundary movement that is not obvious.
+Stages express transformation or custody. Rows separate parallel streams. Give every flow a concise data-contract or movement label; choose its visual convention using the required [Dataflow authoring defaults](authoring-defaults.md#presentation-and-modes).
 
-First-draft shape: declare `stages[]` (each a `{label}`), then place every node with integer `stage` and `row` — not `pos`/`size`. Flows are `flows[]` with `from`, `to`, and optional `label`.
+First-draft shape: declare `stages[]` (each a `{label}`), then place every node with integer `stage` and `row` — not `pos`/`size`. Flows are `flows[]` with required `from`, `to`, and non-empty `label`.
 
 Omit `meta.viewBox` to fit canvas width to all stages and nodes in either quality
 profile, including explicit node widths. Width uses content + 24px right padding
