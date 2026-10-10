@@ -23,6 +23,7 @@ import {
   cleanBorderRunProblems,
   frameBorderSegments,
   cleanRouteRhythmProblems,
+  collectRouteRhythmIssues,
   cleanLabelRouteClearanceProblems,
   cleanLabelCanvasContainmentProblems,
   suggestLabelObstacleFix,
@@ -633,21 +634,52 @@ function pathFor(flow) {
 }
 
 const resolvedCrossoverFlows = new Set();
+const routable = asArray(dataflow.flows).filter(flow => nodes.has(flow.from) && nodes.has(flow.to));
+const segmentsOf = points => points.slice(1).map((end, index) => ({ start: points[index], end }));
+const related = (left, right) => [left.from, left.to].some(id => id === right.from || id === right.to);
+const crosses = (left, right) => segmentsOf(pathFor(left).points).some(a => segmentsOf(pathFor(right).points).some(b => (
+  properSegmentIntersection(a.start, a.end, b.start, b.end))));
+const unrelated = flow => routable.filter(other => other !== flow && !related(flow, other));
+const length = points => segmentsOf(points).reduce((sum, { start, end }) => sum + Math.abs(end[0] - start[0]) + Math.abs(end[1] - start[1]), 0);
+const DETOUR_NODE_GAP = 12;
+const ENDPOINT_STUB = 24;
+function intrudesNode(flow, points) {
+  return [...nodes.values()].some(node => segmentsOf(points).some((segment, index) => (
+    segmentIntersectsRect(segment, node, 2)
+    && !((node.id === flow.from && index === 0) || (node.id === flow.to && index === points.length - 2))
+  )));
+}
+function sharesCorridor(flow, points, deferred = new Set()) {
+  return unrelated(flow).some(other => {
+    const occupied = deferred.has(other)
+      ? endpointStubs(other).map(({ start, end }) => [start, end])
+      : [pathFor(other).points];
+    return occupied.some(otherPoints => collectAmbiguousCorridors({
+      routedRelations: [{ relation: flow, points }, { relation: other, points: otherPoints }],
+    }).length > 0);
+  });
+}
+function endpointStubs(flow) {
+  const points = pathFor(flow).points;
+  const { fromSide, toSide } = flowSides(flow);
+  const directions = { left: [-1, 0], right: [1, 0], top: [0, -1], bottom: [0, 1] };
+  return [[points[0], fromSide], [points.at(-1), toSide]].map(([start, side]) => ({
+    start, end: start.map((value, axis) => value + directions[side][axis] * ENDPOINT_STUB),
+  }));
+}
+function crossingFlows(flow, points) {
+  return unrelated(flow).filter(other => segmentsOf(points).some(a => segmentsOf(pathFor(other).points).some(b => (
+    properSegmentIntersection(a.start, a.end, b.start, b.end)))));
+}
+function readingCost(flow, points) {
+  return length(points) + Math.max(0, points.length - 2) * 48 + crossingFlows(flow, points).length * 160;
+}
 
 // Preset paths can cross unrelated flows. Prefer a short clear detour, but
 // give resolved crossings the same finite reading cost as Architecture rather
 // than forcing a perimeter excursion. Crossings with authored routes still
 // need a clear detour; only actual automatic/automatic crosses get halos.
 if (automaticShowcase) {
-  const routable = asArray(dataflow.flows).filter(flow => nodes.has(flow.from) && nodes.has(flow.to));
-  const segmentsOf = points => points.slice(1).map((end, index) => ({ start: points[index], end }));
-  const related = (left, right) => [left.from, left.to].some(id => id === right.from || id === right.to);
-  const crosses = (left, right) => segmentsOf(pathFor(left).points).some(a => segmentsOf(pathFor(right).points).some(b => (
-    properSegmentIntersection(a.start, a.end, b.start, b.end))));
-  const unrelated = flow => routable.filter(other => other !== flow && !related(flow, other));
-  const length = points => segmentsOf(points).reduce((sum, { start, end }) => sum + Math.abs(end[0] - start[0]) + Math.abs(end[1] - start[1]), 0);
-  const DETOUR_NODE_GAP = 12;
-  const ENDPOINT_STUB = 24;
   // The stage bottoms are fitted below the final routes and labels later.
   // Reserve the fixed tops/sides now, extending sides past the search area.
   const routingBottom = Math.max(viewBox[1], ...[...nodes.values()].map(node => node.y + node.height),
@@ -656,37 +688,6 @@ if (automaticShowcase) {
     ...stageFrame(stage, index), height: routingBottom - layout.stageY,
   }));
   const stageBorders = routingFrames.flatMap(frame => frameBorderSegments(frame).filter(border => border.side !== 'bottom'));
-  function intrudesNode(flow, points) {
-    return [...nodes.values()].some(node => segmentsOf(points).some((segment, index) => (
-      segmentIntersectsRect(segment, node, 2)
-      && !((node.id === flow.from && index === 0) || (node.id === flow.to && index === points.length - 2))
-    )));
-  }
-  function sharesCorridor(flow, points, deferred = new Set()) {
-    return unrelated(flow).some(other => {
-      const occupied = deferred.has(other)
-        ? endpointStubs(other).map(({ start, end }) => [start, end])
-        : [pathFor(other).points];
-      return occupied.some(otherPoints => collectAmbiguousCorridors({
-        routedRelations: [{ relation: flow, points }, { relation: other, points: otherPoints }],
-      }).length > 0);
-    });
-  }
-  function endpointStubs(flow) {
-    const points = pathFor(flow).points;
-    const { fromSide, toSide } = flowSides(flow);
-    const directions = { left: [-1, 0], right: [1, 0], top: [0, -1], bottom: [0, 1] };
-    return [[points[0], fromSide], [points.at(-1), toSide]].map(([start, side]) => ({
-      start, end: start.map((value, axis) => value + directions[side][axis] * ENDPOINT_STUB),
-    }));
-  }
-  function crossingFlows(flow, points) {
-    return unrelated(flow).filter(other => segmentsOf(points).some(a => segmentsOf(pathFor(other).points).some(b => (
-      properSegmentIntersection(a.start, a.end, b.start, b.end)))));
-  }
-  function readingCost(flow, points) {
-    return length(points) + Math.max(0, points.length - 2) * 48 + crossingFlows(flow, points).length * 160;
-  }
   function gridDetour(flow, allowAvoidedCrossings = false, deferred = new Set()) {
     const { points } = pathFor(flow);
     const { fromSide, toSide } = flowSides(flow);
@@ -791,14 +792,13 @@ if (automaticShowcase) {
     });
     if (!chosen) break;
   }
-  for (const [index, left] of routable.entries()) {
-    for (const right of routable.slice(index + 1)) {
-      if (!related(left, right) && supportsAutomaticCrossover(left) && supportsAutomaticCrossover(right) && crosses(left, right)) {
-        resolvedCrossoverFlows.add(left);
-        resolvedCrossoverFlows.add(right);
-      }
-    }
-  }
+}
+
+function extraLabelLineMasksRoute(rect, points) {
+  if (rect.height <= layout.labelH) return false;
+  const segments = segmentsOf(points);
+  return segments.some(segment => segmentIntersectsRect(segment, rect))
+    && !segments.some(segment => segmentIntersectsRect(segment, { ...rect, height: layout.labelH }));
 }
 
 const resolvedLabelPoints = new Map();
@@ -815,10 +815,7 @@ const initialLabelRects = asArray(dataflow.flows).flatMap((flow, relationIndex) 
   // single-line plate may intentionally interrupt its own route, especially
   // on a vertical segment; that established placement remains authoritative.
   if (flow.classification && !['labelAt', 'labelDx', 'labelDy', 'labelSegment'].some(key => flow[key] !== undefined)) {
-    const points = pathFor(flow).points;
-    const segments = points.slice(1).map((end, index) => ({ start: points[index], end }));
-    if (segments.some(segment => segmentIntersectsRect(segment, rect))
-      && !segments.some(segment => segmentIntersectsRect(segment, { ...rect, height: layout.labelH }))) {
+    if (extraLabelLineMasksRoute(rect, pathFor(flow).points)) {
       twoLineOcclusions.add(flow);
     }
   }
@@ -826,11 +823,10 @@ const initialLabelRects = asArray(dataflow.flows).flatMap((flow, relationIndex) 
 });
 // Routing depends on node geometry and canvas width, so its actual footprint
 // can determine height without another copy of routeVia's preset rules.
-const geometryBottom = Math.max(0,
-  ...[...nodes.values()].map(node => node.y + node.height),
-  ...asArray(dataflow.flows).flatMap(flow => nodes.has(flow.from) && nodes.has(flow.to)
-    ? pathFor(flow).points.map(point => point[1]) : []));
 function heightForLabels(labels) {
+  const geometryBottom = Math.max(0,
+    ...[...nodes.values()].map(node => node.y + node.height),
+    ...routable.flatMap(flow => pathFor(flow).points.map(point => point[1])));
   const contentBottom = Math.max(geometryBottom, ...labels.map(rect => rect.y + rect.height));
   return Math.max(360, Math.ceil(contentBottom + 24 + layout.stageBottomPad));
 }
@@ -924,6 +920,110 @@ for (const [index, rect] of resolvedLabelRects.entries()) {
   const resolved = { ...replacement, ly: replacement.ly + 1 };
   resolvedLabelRects[index] = resolved;
   resolvedLabelPoints.set(rect.relation, [resolved.lx, resolved.ly]);
+}
+
+// Labels may occupy the only useful part of an inter-stage corridor after
+// ordinary routing has finished. Try shifting one interior segment past the
+// actual plate, then re-place only the labels that this move obstructs. Valid
+// labels keep their positions. Endpoint geometry and authored controls remain
+// authoritative, and every accepted route clears all final foreign labels.
+if (automaticShowcase) {
+  const titles = compositionFrames.map(frame => ({ ...frame, height: layout.stageH }));
+  const labelGap = 4;
+  // Bound the complete candidate checks, including rejected geometry, across
+  // the diagram. Each accepted move clears one route's label collisions.
+  let attempts = 0;
+  const intersectionCount = (points, otherPoints) => segmentsOf(points).reduce((count, a) => count
+    + segmentsOf(otherPoints).filter(b => properSegmentIntersection(a.start, a.end, b.start, b.end)).length, 0);
+  const foldsBack = points => {
+    const segments = segmentsOf(points);
+    return segments.some((segment, index) => segments.slice(index + 2).some(other => segmentIntersectsRect(segment, {
+      x: Math.min(other.start[0], other.end[0]), y: Math.min(other.start[1], other.end[1]),
+      width: Math.abs(other.end[0] - other.start[0]), height: Math.abs(other.end[1] - other.start[1]),
+    })));
+  };
+  const nearOwnRoute = (rect, points) => segmentsOf(points)
+    .some(segment => segmentRectClearanceWithin(segment, rect, 36) <= 36);
+  const masksLabel = (points, rect) => segmentsOf(points)
+    .some(segment => segmentRectClearanceWithin(segment, rect, labelGap) + 0.0001 < labelGap);
+  for (const flow of routable) {
+    if (attempts >= 16) break;
+    if (!supportsAutomaticCrossover(flow)
+      || ['labelAt', 'labelDx', 'labelDy', 'labelSegment'].some(key => flow[key] !== undefined)) continue;
+    const current = normalizeRoutePoints(pathFor(flow).points);
+    const blocked = resolvedLabelRects.filter(rect => rect.relation !== flow && masksLabel(current, rect));
+    if (!blocked.length) continue;
+    const candidates = new Map();
+    for (const rect of blocked) {
+      for (let index = 1; index < current.length - 2; index++) {
+        const [start, end] = [current[index], current[index + 1]];
+        if (segmentRectClearanceWithin({ start, end }, rect, labelGap) + 0.0001 >= labelGap) continue;
+        const axis = start[0] === end[0] ? 0 : start[1] === end[1] ? 1 : -1;
+        if (axis === -1) continue;
+        const [low, size] = axis === 0 ? [rect.x, rect.width] : [rect.y, rect.height];
+        for (const coordinate of [low - labelGap, low + size + labelGap]) {
+          const points = current.map(point => [...point]);
+          points[index][axis] = points[index + 1][axis] = coordinate;
+          // Do not reverse either neighbouring segment into a doubled-back
+          // path. A zero-length neighbour can be removed by normalization.
+          if ([index - 1, index + 1].some(k => [0, 1].reduce((dot, axis) => dot
+            + (current[k + 1][axis] - current[k][axis]) * (points[k + 1][axis] - points[k][axis]), 0) < 0)) continue;
+          const normalized = normalizeRoutePoints(points);
+          candidates.set(JSON.stringify(normalized), normalized);
+        }
+      }
+    }
+    const { fromSide, toSide } = flowSides(flow);
+    const oldCrossings = new Map(unrelated(flow).map(other => [other, intersectionCount(current, pathFor(other).points)]));
+    const oldCost = readingCost(flow, current);
+    const ranked = [...candidates.values()].map(points => ({ points, cost: readingCost(flow, points) }))
+      .sort((a, b) => a.cost - b.cost);
+    for (const { points, cost } of ranked) {
+      if (attempts >= 16) break;
+      attempts++;
+      // At most two bend-costs of extra distance; never add bends, crossings,
+      // self-overlaps, shared corridors or a new route through a node.
+      if (points.length > current.length || cost > oldCost + 96 || foldsBack(points)
+        || !routeHonorsEndpointSides(points, fromSide, toSide)
+        || points.some(([x, y]) => x < 0 || y < 0 || x > viewBox[0] || y > viewBox[1] - layout.stageBottomPad)
+        || intrudesNode(flow, points) || sharesCorridor(flow, points)
+        || collectRouteRhythmIssues({ routedRelations: [{ points }] }).length
+        || collectBorderRuns({ routedRelations: [{ points }], frames: compositionFrames }).length
+        || [...oldCrossings].some(([other, count]) => {
+          const nextCount = intersectionCount(points, pathFor(other).points);
+          return nextCount > count || nextCount > 0 && !supportsAutomaticCrossover(other);
+        })) continue;
+      const labels = resolvedLabelRects.map(rect => ({ ...rect, ly: rect.ly - 1 }));
+      const routes = asArray(dataflow.flows).flatMap((other, relationIndex) => (
+        nodes.has(other.from) && nodes.has(other.to)
+          ? [{ relationIndex, points: other === flow ? points : pathFor(other).points }] : []
+      ));
+      const placed = placeAutomaticLabels({ labels, routes, components: [...nodes.values()], titles,
+        viewBox, placementBottom: viewBox[1] - layout.stageBottomPad, maxOwnRouteDistance: 36 });
+      if (placed.some(rect => rect.relation !== flow && masksLabel(points, rect))) continue;
+      if (placed.some((rect, index) => {
+        const oldPoints = pathFor(rect.relation).points;
+        const ownPoints = rect.relation === flow ? points : oldPoints;
+        return ((rect.relation === flow || rect !== labels[index]) && !nearOwnRoute(rect, ownPoints))
+          || (extraLabelLineMasksRoute(rect, ownPoints) && !extraLabelLineMasksRoute(labels[index], oldPoints));
+      })) continue;
+      pathCache.set(flow, { points, d: polylinePath(points) });
+      for (const [index, rect] of placed.entries()) {
+        const resolved = { ...rect, ly: rect.ly + 1 };
+        resolvedLabelRects[index] = resolved;
+        resolvedLabelPoints.set(rect.relation, [resolved.lx, resolved.ly]);
+      }
+      break;
+    }
+  }
+  for (const [index, left] of routable.entries()) {
+    for (const right of routable.slice(index + 1)) {
+      if (!related(left, right) && supportsAutomaticCrossover(left) && supportsAutomaticCrossover(right) && crosses(left, right)) {
+        resolvedCrossoverFlows.add(left);
+        resolvedCrossoverFlows.add(right);
+      }
+    }
+  }
 }
 
 // A shared placement search may retain an unpinned original plate when none

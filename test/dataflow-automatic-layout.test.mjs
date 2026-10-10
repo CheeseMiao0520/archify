@@ -477,3 +477,76 @@ test('automatic dataflow routes across stages turn in a clear gap, not inside a 
   const { result, receipt } = inspect(t, diagram);
   assert.equal(result.status, 0, JSON.stringify(receipt.diagnostics));
 });
+
+function labelCorridorDiagram() {
+  return {
+    schema_version: 1, diagram_type: 'dataflow',
+    meta: { title: 'Window and summary data', output: 'diagram.html', quality_profile: 'showcase' },
+    stages: ['Input', 'Prepare', 'Fields', 'Store'].map(label => ({ label })),
+    nodes: [
+      {type: 'external', stage: 0, row: 0, id: 'input', label: 'Input'},
+      {type: 'external', stage: 0, row: 4, id: 'metadata', label: 'Metadata'},
+      {type: 'backend', stage: 1, row: 0, id: 'normalize', label: 'Normalize'},
+      {type: 'backend', stage: 1, row: 1, id: 'window', label: 'Window'},
+      {type: 'backend', stage: 1, row: 2, id: 'popular', label: 'Popular'},
+      {type: 'backend', stage: 1, row: 3, id: 'series', label: 'Series'},
+      {type: 'backend', stage: 1, row: 4, id: 'coverage', label: 'Coverage'},
+      {type: 'backend', stage: 2, row: 0, id: 'derive', label: 'Derive'},
+      {type: 'backend', stage: 2, row: 1, id: 'fields', label: 'Fields', sublabel: 'start / end / source fields'},
+      {type: 'backend', stage: 2, row: 2, id: 'entries', label: 'Entries'},
+      {type: 'backend', stage: 2, row: 3, id: 'daily', label: 'Daily'},
+      {type: 'database', stage: 3, row: 0, id: 'snapshot', label: 'Snapshot'},
+      {type: 'database', stage: 3, row: 3, id: 'history', label: 'History'},
+    ],
+    flows: [
+      {id: 'f4', from: 'input', to: 'window', label: 'Timing'},
+      {id: 'f6', from: 'normalize', to: 'snapshot', label: 'Total data'},
+      {id: 'f8', from: 'window', to: 'fields', label: 'Range data'},
+      {id: 'f2', from: 'popular', to: 'entries', label: 'Raw data'},
+      {id: 'f7', from: 'window', to: 'series', label: 'Filtered'},
+      {id: 'f0', from: 'metadata', to: 'history', label: 'Value count'},
+      {id: 'f3', from: 'series', to: 'history', label: 'Value total'},
+      {id: 'f5', from: 'normalize', to: 'coverage', label: 'Completion'},
+      {id: 'f1', from: 'popular', to: 'coverage', label: 'Completion'},
+    ],
+  };
+}
+
+test('automatic dataflow makes room for a complete label without adding bends or losing content', t => {
+  const diagram = labelCorridorDiagram();
+  const { result, receipt, input, output, env } = inspect(t, diagram);
+  assert.equal(result.status, 0, JSON.stringify(receipt.diagnostics));
+  const rendered = spawnSync(process.execPath, [cli, 'render', 'dataflow', input, output], { encoding: 'utf8', env });
+  assert.equal(rendered.status, 0, rendered.stderr);
+  const html = fs.readFileSync(output, 'utf8');
+  assert.equal((html.match(/data-node-label=""/g) || []).length, diagram.nodes.length);
+  const routes = diagram.flows.map(flow => ({ flow, points: html.match(new RegExp(
+    `<path[^>]*data-edge-id="${flow.id}"[^>]*data-composition-points="([^"]+)"`))[1]
+    .split(';').map(point => point.split(',').map(Number)) }));
+  for (const flow of diagram.flows) {
+    assert.ok(html.includes(flow.label), flow.label);
+    const mask = html.match(new RegExp(`<g data-detail="context"[^>]*data-edge-id="${flow.id}"[^>]*>\\s*<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"`));
+    const [x, y, width, height] = mask.slice(1).map(Number);
+    for (const { flow: other, points } of routes.filter(route => route.flow !== flow)) {
+      assert.ok(points.slice(1).every((end, index) => segmentRectClearanceWithin(
+        { start: points[index], end }, { x, y, width, height }, 4) + 0.0001 >= 4), `${flow.id} vs ${other.id}`);
+    }
+  }
+  const { points } = routes.find(route => route.flow.id === 'f5');
+  const routeLength = points.slice(1).reduce((total, end, index) => total
+    + Math.abs(end[0] - points[index][0]) + Math.abs(end[1] - points[index][1]), 0);
+  const direct = Math.abs(points.at(-1)[0] - points[0][0]) + Math.abs(points.at(-1)[1] - points[0][1]);
+  assert.ok(points.length - 2 <= 4, 'making room must not add bends');
+  assert.ok(routeLength <= direct * 1.35, 'a label repair must not become a perimeter excursion');
+});
+
+for (const pin of [{ labelDx: 0 }, { labelDy: 0 }, { labelSegment: 0 }, { labelAt: [368, 217] }]) {
+  test(`label-aware routing preserves authored ${Object.keys(pin)[0]} on its obstructing route`, t => {
+    const diagram = labelCorridorDiagram();
+    Object.assign(diagram.flows.find(flow => flow.id === 'f5'), pin);
+    const { result, receipt } = inspect(t, diagram);
+    assert.equal(result.status, 1);
+    assert.ok(receipt.diagnostics.some(({ code, message }) => code === 'composition/label-route-clearance'
+      && message.includes('Range data')), 'the original collision stays actionable when the route is pinned');
+  });
+}
