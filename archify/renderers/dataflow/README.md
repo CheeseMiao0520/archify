@@ -128,9 +128,16 @@ clearance), or stages that exceed the viewBox. Stage frames remain intentional
 pass-through containers. Text width
 is estimated CJK-aware: fullwidth glyphs count as two units.
 
-Set `meta.quality_profile` to `showcase` for polished delivery. Unrelated proper
-X crossings then fail with `composition/proper-crossing`; default `standard`
-keeps them as artifact-receipt warnings. Collinear stage corridors are outside
+Set `meta.quality_profile` to `showcase` for polished delivery. Unresolved proper
+X crossings fail with `composition/proper-crossing`; default `standard`
+keeps them as artifact-receipt warnings. In automatic showcase layouts without
+an authored canvas or node widths, the renderer compares clear detours with
+visibly separated crossovers. It prefers a short clear route, but may retain
+a shorter automatic crossing with an opaque halo instead of a long perimeter
+detour. Both crossing paths need matching halos; the artifact check verifies
+their geometry and reports `resolvedCrossovers` for visual review. Supplied
+`via`, non-auto `route`, and channel coordinates retain their geometry and
+crossing diagnostics. Collinear stage corridors are outside
 the proper-X rule, but a separate gate warns in `standard` and fails in
 `showcase` when unrelated flows overlap for at least 8px. Shared semantic
 endpoints, point touches, and shorter overlaps remain valid. Showcase also
