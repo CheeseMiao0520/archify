@@ -58,26 +58,35 @@
       function logicalViewport() {
         var metrics = contentMetrics();
         if (!metrics) return null;
+        var camera = sampleRenderedState();
         var x;
         var y;
         var width;
         var height;
-        if (window.innerWidth <= 720 && container.hasAttribute('data-wide-diagram') && state.scale >= 1) {
+        if (window.innerWidth <= 720 && container.hasAttribute('data-wide-diagram') && camera.scale >= 1) {
           x = viewBox.x + container.scrollLeft / metrics.scale;
           y = viewBox.y;
           width = Math.min(viewBox.width, Math.max(1, container.clientWidth / metrics.scale));
           height = viewBox.height;
         } else {
-          x = viewBox.x + (((container.scrollLeft - state.x) / state.scale) - metrics.offsetX) / metrics.scale;
-          y = viewBox.y + ((-state.y / state.scale) - metrics.offsetY) / metrics.scale;
-          width = Math.min(viewBox.width, Math.min(metrics.width, container.clientWidth) / state.scale / metrics.scale);
-          height = Math.min(viewBox.height, metrics.height / state.scale / metrics.scale);
+          x = viewBox.x + (((container.scrollLeft - camera.x) / camera.scale) - metrics.offsetX) / metrics.scale;
+          y = viewBox.y + ((-camera.y / camera.scale) - metrics.offsetY) / metrics.scale;
+          width = Math.min(viewBox.width, Math.min(metrics.width, container.clientWidth) / camera.scale / metrics.scale);
+          height = Math.min(viewBox.height, metrics.height / camera.scale / metrics.scale);
         }
         width = Math.max(1, Math.min(viewBox.width, width));
         height = Math.max(1, Math.min(viewBox.height, height));
         x = Math.max(viewBox.x, Math.min(viewBox.x + viewBox.width - width, x));
         y = Math.max(viewBox.y, Math.min(viewBox.y + viewBox.height - height, y));
-        return { x: x, y: y, width: width, height: height, scale: state.scale };
+        // The camera's layout box can span several browser screens. Intersect
+        // its logical bounds with the actual window, including page scrolling.
+        var matrix = svg.getScreenCTM();
+        if (matrix && matrix.d > 0) {
+          var end = y + height;
+          y = Math.max(y, Math.min(end - 1, -matrix.f / matrix.d));
+          height = Math.max(1, Math.min(end, (window.innerHeight - matrix.f) / matrix.d) - y);
+        }
+        return { x: x, y: y, width: width, height: height, scale: camera.scale };
       }
       function detailLevel() {
         if (state.mode === 'semantic') return 'full';
@@ -139,13 +148,16 @@
       // CSS transforms keep the SVG's intrinsic layout size. Shrink only its
       // outer page-flow box for long ordinary diagrams, never the SVG itself:
       // changing its height would feed the smaller size back into camera math.
-      function syncPageFlow(camera) {
-        camera = camera || state;
+      function ordinaryPage() {
         var html = document.documentElement;
-        var height = svg.clientHeight;
-        var ordinary = html.getAttribute('data-embed') !== 'true' &&
+        return html.getAttribute('data-embed') !== 'true' &&
           html.getAttribute('data-present') !== 'true' &&
           (!window.matchMedia || !window.matchMedia('print').matches);
+      }
+      function syncPageFlow(camera) {
+        camera = camera || state;
+        var height = svg.clientHeight;
+        var ordinary = ordinaryPage();
         // Restore ordinary flow as soon as the target reaches 100%. Chrome
         // uses that target to resume baseline rail measurement; retaining a
         // partially shrunk box during the CSS transition would inflate reserve.
@@ -170,6 +182,7 @@
           var rendered = sampleRenderedState();
           syncPageFlow(rendered);
           clipToViewport(rendered);
+          if (Archify.radar && Archify.radar.isOpen()) Archify.radar.sync();
           if (Archify.readerLayout && typeof Archify.readerLayout.syncLegend === 'function') Archify.readerLayout.syncLegend();
           if (!cameraSettled(rendered)) clipFrame = requestAnimationFrame(sample);
         }
@@ -307,6 +320,17 @@
         state = { scale: 1, x: 0, y: 0, mode: 'overview' };
         apply();
       }
+      function scrollLongDiagramTo(contentY, metrics, options) {
+        if (!ordinaryPage() || metrics.height <= window.innerHeight) return;
+        // apply() may still be animating its CSS transform. Recover the layout
+        // origin from the painted transform, then use the final camera target.
+        var painted = sampleRenderedState();
+        var rect = svg.getBoundingClientRect();
+        var pixelScale = rect.height / metrics.height / painted.scale;
+        var documentTop = window.scrollY + rect.top - painted.y * pixelScale;
+        var target = documentTop + (state.y + contentY * state.scale) * pixelScale - window.innerHeight / 2;
+        window.scrollTo({ left: window.scrollX, top: Math.max(0, target), behavior: options.instant ? 'instant' : 'smooth' });
+      }
       function centerAt(logicalX, logicalY, options) {
         options = options || {};
         logicalX = Number(logicalX);
@@ -325,6 +349,7 @@
           autoScrollUntil = Date.now() + 80;
           try { container.scrollTo({ left: mobileTarget, behavior: options.instant ? 'auto' : 'smooth' }); }
           catch (_) { container.scrollLeft = mobileTarget; }
+          scrollLongDiagramTo(metrics.offsetY + (logicalY - viewBox.y) * metrics.scale, metrics, options);
           return true;
         }
         var minimumScale = Math.max(1, Math.min(3, Number(options.minimumScale) || 1));
@@ -336,6 +361,7 @@
         state.y = metrics.height / 2 - contentY * state.scale;
         state.mode = 'manual';
         apply();
+        scrollLongDiagramTo(contentY, metrics, options);
         if (Archify.focus && Archify.focus.reposition) Archify.focus.reposition();
         return true;
       }
