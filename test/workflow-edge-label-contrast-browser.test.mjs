@@ -112,6 +112,7 @@ test('workflow default labels and lane headings remain readable without recolori
               fill: ink.fill, fontSize: ink.fontSize, visibility: ink.visibility, display: ink.display, opacity,
               maskAlpha: background[3] * Number(plate.fillOpacity) * Number(plate.opacity),
               pathClass: route.getAttribute('class'), stroke: getComputedStyle(route).stroke,
+              pathRatio: contrast(rgba(getComputedStyle(route).stroke), background),
               markerFill: getComputedStyle(document.getElementById(marker).querySelector('polygon')).fill,
               foreground: rendered, background: background.slice(0, 3),
               ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) };
@@ -172,7 +173,7 @@ test('workflow default labels and lane headings remain readable without recolori
         assert.equal(edge.markerFill, edge.stroke, 'arrowheads retain the connector color');
         if (edge.index < 2) {
           assert.ok(Number.isFinite(edge.ratio), 'the measured contrast is finite');
-          assert.equal(edge.stroke, theme === 'light' ? 'rgb(148, 163, 184)' : 'rgb(100, 116, 139)', 'default connectors retain their existing ink');
+          assert.ok(edge.pathRatio >= 4.5, 'neutral connector ink also serves relationship text in other renderers');
           t.diagnostic(`${theme} ${edge.index === 0 ? 'fallback' : 'default'} label: ${edge.ratio.toFixed(3)}:1; foreground ${edge.foreground}; background ${edge.background}`);
         } else {
           assert.equal(edge.labelClass, `t-edge-${variant}`);
