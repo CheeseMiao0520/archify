@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { properSegmentIntersection } from '../archify/renderers/shared/geometry.mjs';
+import { collectAmbiguousCorridors, properSegmentIntersection } from '../archify/renderers/shared/geometry.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillRoot = path.resolve(__dirname, '..', 'archify');
@@ -20,7 +20,7 @@ function render(diagram) {
   const output = path.join(directory, 'candidate.html');
   fs.writeFileSync(input, JSON.stringify(diagram));
   const result = spawnSync(process.execPath, [renderer, input, output], { cwd: directory, encoding: 'utf8' });
-  return { ...result, input, html: result.status === 0 ? fs.readFileSync(output, 'utf8') : '' };
+  return { ...result, input, output, html: result.status === 0 ? fs.readFileSync(output, 'utf8') : '' };
 }
 
 const attrs = (tag) => Object.fromEntries([...tag.matchAll(/([a-zA-Z-]+)="([^"]*)"/g)].map((match) => [match[1], match[2]]));
@@ -48,12 +48,24 @@ function properCrossings(html) {
   return crossings;
 }
 
-test('an unpinned dataflow draft re-plans a stage-skipping flow around a vertical flow instead of crossing it', () => {
+test('an automatic dataflow keeps a stage-skipping flow short with a verifiable crossover', () => {
   const diagram = JSON.parse(fs.readFileSync(fixture, 'utf8'));
   const result = render(diagram);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.ok(routes(result.html).length >= diagram.flows.length);
-  assert.deepEqual(properCrossings(result.html), []);
+  const lookup = routes(result.html).find(route => route.from === 'store' && route.to === 'serve');
+  const length = lookup.points.slice(1).reduce((total, point, index) => total
+    + Math.abs(point[0] - lookup.points[index][0]) + Math.abs(point[1] - lookup.points[index][1]), 0);
+  const direct = Math.abs(lookup.points.at(-1)[0] - lookup.points[0][0])
+    + Math.abs(lookup.points.at(-1)[1] - lookup.points[0][1]);
+  assert.ok(length <= direct * 1.35, `lookup detour is ${length / direct} times its direct distance`);
+  assert.ok(lookup.points.length <= 4, 'lookup should not take a four-bend perimeter detour');
+  const checked = spawnSync(process.execPath, [cli, 'check', result.output, '--json'], { encoding: 'utf8' });
+  assert.equal(checked.status, 0, checked.stdout + checked.stderr);
+  const metrics = JSON.parse(checked.stdout).composition.metrics;
+  assert.equal(metrics.properCrossings, 0);
+  assert.ok(metrics.resolvedCrossovers > 0, 'the crossing needs actual matching halo geometry');
+  assert.equal(properCrossings(result.html).length, metrics.resolvedCrossovers);
   const validation = spawnSync(process.execPath, [cli, 'validate', 'dataflow', result.input, '--quality', 'showcase', '--json'], { encoding: 'utf8' });
   assert.equal(validation.status, 0, validation.stdout + validation.stderr);
 });
@@ -66,6 +78,30 @@ test('a pinned dataflow route keeps its geometry and its crossing diagnostic', (
   const result = render(diagram);
   assert.notEqual(result.status, 0);
   assert.match(result.stdout + result.stderr, /proper-crossing/);
+});
+
+test('retaining an automatic crossing does not merge two independent branches', () => {
+  const diagram = {
+    schema_version: 1, diagram_type: 'dataflow',
+    meta: { title: 'Independent branches', quality_profile: 'showcase', output: 'branches.html' },
+    stages: ['Inputs', 'Branches', 'Output'].map(label => ({ label })),
+    nodes: [
+      ['a', 0, 0], ['b', 1, 3], ['c', 0, 1],
+      ['d', 1, 4], ['e', 0, 2], ['f', 2, 2],
+    ].map(([id, stage, row]) => ({ id, type: 'backend', label: id.toUpperCase(), stage, row })),
+    flows: [
+      { from: 'a', to: 'b', label: '1' },
+      { from: 'c', to: 'd', label: '2' },
+      { from: 'e', to: 'f', label: '3' },
+    ],
+  };
+  const result = render(diagram);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const rendered = routes(result.html);
+  assert.deepEqual(rendered.map(({ from, to }) => [from, to]), diagram.flows.map(({ from, to }) => [from, to]));
+  assert.deepEqual(collectAmbiguousCorridors({
+    routedRelations: rendered.map(route => ({ relation: route, points: route.points })),
+  }), [], 'independent branches must retain separate corridors');
 });
 
 test('two automatic arrivals on one side of a tall node keep at least 16px between their ports', () => {

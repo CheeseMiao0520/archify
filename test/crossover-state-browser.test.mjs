@@ -10,14 +10,15 @@ import { ChromeVisualBrowser, findChrome } from '../archify/bin/visual-check.mjs
 const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'archify');
 const chrome = process.env.ARCHIFY_CHROME ? findChrome() : null;
 
-test('automatic crossover masks follow live relationship state without becoming semantic edges', {
+for (const diagramType of ['architecture', 'dataflow']) {
+test(`${diagramType} automatic crossover masks follow live relationship state without becoming semantic edges`, {
   skip: chrome ? false : 'Set ARCHIFY_CHROME to run real-browser crossover checks.',
 }, async (t) => {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-crossover-state-'));
   t.after(() => fs.rmSync(scratch, { recursive: true, force: true }));
-  const input = path.join(scratch, 'crossing.architecture.json');
-  const output = path.join(scratch, 'crossing.architecture.html');
-  fs.writeFileSync(input, JSON.stringify({
+  const input = path.join(scratch, `crossing.${diagramType}.json`);
+  const output = path.join(scratch, `crossing.${diagramType}.html`);
+  const architecture = {
     schema_version: 1,
     diagram_type: 'architecture',
     meta: {
@@ -33,14 +34,27 @@ test('automatic crossover masks follow live relationship state without becoming 
       { id: 'horizontal', from: 'left', to: 'right', fromSide: 'right', toSide: 'left' },
       { id: 'vertical', from: 'top', to: 'bottom', fromSide: 'bottom', toSide: 'top' },
     ],
-  }));
-  execFileSync(process.execPath, [path.join(skillRoot, 'renderers/architecture/render-architecture.mjs'), input, output]);
+  };
+  const dataflow = {
+    schema_version: 1, diagram_type: 'dataflow',
+    meta: { ...architecture.meta, output: 'crossing.dataflow.html' },
+    stages: ['Source', 'Shared', 'Output'].map(label => ({ label })),
+    nodes: [
+      { id: 'left', type: 'frontend', label: 'Left', stage: 0, row: 2 },
+      { id: 'right', type: 'backend', label: 'Right', stage: 2, row: 2 },
+      { id: 'top', type: 'database', label: 'Top', stage: 1, row: 0 },
+      { id: 'bottom', type: 'external', label: 'Bottom', stage: 1, row: 4 },
+    ],
+    flows: architecture.connections.map(edge => ({ ...edge, label: edge.id })),
+  };
+  fs.writeFileSync(input, JSON.stringify(diagramType === 'architecture' ? architecture : dataflow));
+  execFileSync(process.execPath, [path.join(skillRoot, `renderers/${diagramType}/render-${diagramType}.mjs`), input, output]);
 
   const rendered = fs.readFileSync(output, 'utf8');
   const svgMarkup = rendered.match(/<svg\b[\s\S]*?<\/svg>/i)?.[0] || '';
   assert.equal((svgMarkup.match(/data-graph-role="automatic-crossover"/g) || []).length, 2);
   assert.equal((svgMarkup.match(/data-graph-role="automatic-crossover-underlay"/g) || []).length, 2);
-  assert.equal((svgMarkup.match(/data-edge-from=/g) || []).length, 2);
+  assert.equal((svgMarkup.match(/<path\b[^>]*data-edge-from=/g) || []).length, 2);
   assert.doesNotMatch(svgMarkup, /automatic-crossover-underlay"[^>]*data-edge-/);
 
   const browser = new ChromeVisualBrowser(chrome);
@@ -168,7 +182,7 @@ test('automatic crossover masks follow live relationship state without becoming 
     });
     host.remove();
     return {
-      semanticEdges: root.querySelectorAll('[data-edge-from]').length,
+      semanticEdges: root.querySelectorAll('path[data-edge-from]').length,
       wrappers: root.querySelectorAll('[data-graph-role="automatic-crossover"]').length,
       underlays: root.querySelectorAll('[data-graph-role="automatic-crossover-underlay"]').length,
       style: root.querySelector('style')?.textContent || '',
@@ -194,3 +208,4 @@ test('automatic crossover masks follow live relationship state without becoming 
     { id: 'vertical', edge: 0.14, underlay: 0.14 },
   ]);
 });
+}

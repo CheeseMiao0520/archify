@@ -17,6 +17,7 @@ import {
   cleanEndpointSideProblems,
   cleanFlowProblems,
   cleanCrossingProblems,
+  collectAmbiguousCorridors,
   cleanAmbiguousCorridorProblems,
   cleanBorderRunProblems,
   cleanRouteRhythmProblems,
@@ -396,6 +397,7 @@ function validateDataflow() {
     diagramType: 'dataflow',
     relationCollection: 'flows',
     profile: dataflow.meta?.quality_profile,
+    crossingResolved: (left, right) => resolvedCrossoverFlows.has(left) && resolvedCrossoverFlows.has(right),
     routeHint: 'adjust route/via or channelX/channelY so the flows use separate stage corridors'
   }));
   problems.push(...cleanAmbiguousCorridorProblems({
@@ -471,6 +473,11 @@ function validateDataflow() {
       diagnostics,
     });
   }
+}
+
+function supportsAutomaticCrossover(flow) {
+  return automaticShowcase && !flow.via && (!flow.route || flow.route === 'auto')
+    && flow.channelX === undefined && flow.channelY === undefined;
 }
 
 function routeVia(flow, from, to, start, end) {
@@ -623,20 +630,18 @@ function pathFor(flow) {
   return routed;
 }
 
-// The preset auto routes are planned one flow at a time and know nothing of
-// each other, so a flow skipping a stage can cut straight through a vertical
-// flow inside that stage. The showcase gate rejects every proper crossing, so
-// for an unpinned showcase draft a crossing auto route is re-planned on the
-// shared obstacle grid with every unrelated flow treated as a wall. The
-// detour is used only when it crosses nothing; otherwise the preset route and
-// its crossing diagnostic stay.
+const resolvedCrossoverFlows = new Set();
+
+// Preset paths can cross unrelated flows. Prefer a short clear detour, but
+// give resolved crossings the same finite reading cost as Architecture rather
+// than forcing a perimeter excursion. Crossings with authored routes still
+// need a clear detour; only actual automatic/automatic crosses get halos.
 if (automaticShowcase) {
   const routable = asArray(dataflow.flows).filter(flow => nodes.has(flow.from) && nodes.has(flow.to));
   const segmentsOf = points => points.slice(1).map((end, index) => ({ start: points[index], end }));
   const related = (left, right) => [left.from, left.to].some(id => id === right.from || id === right.to);
   const crosses = (left, right) => segmentsOf(pathFor(left).points).some(a => segmentsOf(pathFor(right).points).some(b => (
     properSegmentIntersection(a.start, a.end, b.start, b.end))));
-  const pinned = flow => flow.via || (flow.route && flow.route !== 'auto') || flow.channelX !== undefined || flow.channelY !== undefined;
   const unrelated = flow => routable.filter(other => other !== flow && !related(flow, other));
   const length = points => segmentsOf(points).reduce((sum, { start, end }) => sum + Math.abs(end[0] - start[0]) + Math.abs(end[1] - start[1]), 0);
   const DETOUR_NODE_GAP = 12;
@@ -669,12 +674,23 @@ if (automaticShowcase) {
     });
     if (!detour) return null;
     const normalized = normalizeRoutePoints(detour.points);
-    return { flow, routed: { d: polylinePath(normalized), points: normalized }, cost: length(normalized) - length(points) };
+    const crossingFlows = others.filter(other => crosses(flow, other));
+    // Reuse Architecture's finite reading cost: 48px per bend, 160px per
+    // resolved crossing. A small clear detour still wins over a crossover.
+    const currentCost = length(points) + Math.max(0, points.length - 2) * 48 + crossingFlows.length * 160;
+    const detourCost = length(normalized) + Math.max(0, normalized.length - 2) * 48;
+    const hasAmbiguousCorridor = others.some(other => collectAmbiguousCorridors({
+      routedRelations: [flow, other].map(relation => ({ relation, points: pathFor(relation).points })),
+    }).length > 0);
+    const canResolve = supportsAutomaticCrossover(flow) && crossingFlows.every(supportsAutomaticCrossover)
+      && !hasAmbiguousCorridor;
+    if (canResolve && detourCost >= currentCost) return null;
+    return { flow, routed: { d: polylinePath(normalized), points: normalized }, cost: detourCost - currentCost };
   }
-  // Of the flows in a crossing, re-plan the one whose clear detour adds the
-  // least length, so a short straight flow is not bent around a long one.
+  // Resolve the most useful clear detour first. Remaining automatic crosses
+  // get explicit halos; supplied geometry retains its crossing diagnostic.
   for (let pass = 0; pass < routable.length; pass += 1) {
-    const crossing = routable.filter(flow => !pinned(flow) && unrelated(flow).some(other => crosses(flow, other)));
+    const crossing = routable.filter(flow => supportsAutomaticCrossover(flow) && unrelated(flow).some(other => crosses(flow, other)));
     const options = crossing.map(detourFor).filter(Boolean).sort((left, right) => left.cost - right.cost);
     const before = routable.filter(flow => unrelated(flow).some(other => crosses(flow, other))).length;
     const chosen = options.find(({ flow, routed }) => {
@@ -686,6 +702,14 @@ if (automaticShowcase) {
       return false;
     });
     if (!chosen) break;
+  }
+  for (const [index, left] of routable.entries()) {
+    for (const right of routable.slice(index + 1)) {
+      if (!related(left, right) && supportsAutomaticCrossover(left) && supportsAutomaticCrossover(right) && crosses(left, right)) {
+        resolvedCrossoverFlows.add(left);
+        resolvedCrossoverFlows.add(right);
+      }
+    }
   }
 }
 
@@ -908,7 +932,13 @@ function renderFlowPath(flow, index) {
   const [cls, marker] = arrowClassMap[flow.variant || 'default'] || arrowClassMap.default;
   const routed = pathFor(flow);
   const strokeWidth = flow.width || (flow.variant === 'emphasis' ? 1.8 : 1.4);
-  return `        <path ${focusEdgeAttrs(flow.from, flow.to, flow.label, index, flow.id)} data-composition-points="${routePointsValue(routed.points)}"${authoredStraightRouteAttrs(flow, routed.points)} d="${routed.d}" class="${cls}"${animateAttr(dataflow.meta, 'edge', index)} stroke-width="${strokeWidth}" marker-end="url(#${marker})"/>`;
+  const automatic = resolvedCrossoverFlows.has(flow);
+  const edge = `        <path ${focusEdgeAttrs(flow.from, flow.to, flow.label, index, flow.id)} data-composition-points="${routePointsValue(routed.points)}"${automatic ? ' data-composition-crossover="halo"' : ''}${authoredStraightRouteAttrs(flow, routed.points)} d="${routed.d}" class="${cls}"${animateAttr(dataflow.meta, 'edge', index)} stroke-width="${strokeWidth}" marker-end="url(#${marker})"/>`;
+  if (!automatic) return edge;
+  return `        <g data-graph-role="automatic-crossover" style="--step:${index}">
+          <path data-graph-role="automatic-crossover-underlay" d="${routed.d}" fill="none" stroke="var(--mask)" stroke-width="${strokeWidth + 4}" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
+${edge}
+        </g>`;
 }
 
 function renderFlowLabel(flow, index) {
