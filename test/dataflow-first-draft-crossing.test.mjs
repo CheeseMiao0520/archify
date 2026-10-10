@@ -183,3 +183,48 @@ test('two automatic arrivals on one side of a tall node keep at least 16px betwe
     assert.ok(ys[index] - ys[index - 1] >= 16, `ports ${ys[index - 1]} and ${ys[index]} are only ${ys[index] - ys[index - 1]}px apart`);
   }
 });
+
+test('overlapping obstructed presets can be repaired without blocking each other', () => {
+  const diagram = {
+    schema_version: 1, diagram_type: 'dataflow',
+    meta: { title: 'Interleaved skips', quality_profile: 'showcase', output: 'skips.html' },
+    stages: ['Prepare', 'Output'].map(label => ({ label })),
+    nodes: ['a', 'b', 'c', 'd'].map((id, row) => ({
+      id, type: 'backend', label: id.toUpperCase(), stage: 0, row,
+    })),
+    flows: [{ from: 'a', to: 'c', label: 'one' }, { from: 'b', to: 'd', label: 'two' }],
+  };
+  for (const flows of [diagram.flows, [...diagram.flows].reverse()]) {
+    const result = render({ ...diagram, flows });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.deepEqual(routes(result.html).map(({ from, to }) => [from, to]),
+      flows.map(({ from, to }) => [from, to]));
+    const checked = spawnSync(process.execPath, [cli, 'check', result.output, '--json'], { encoding: 'utf8' });
+    assert.equal(checked.status, 0, checked.stdout + checked.stderr);
+  }
+  diagram.flows[0].route = 'straight';
+  const pinned = render(diagram);
+  assert.notEqual(pinned.status, 0, 'an obstructed authored route must remain authoritative');
+  assert.match(pinned.stdout + pinned.stderr, /edge-through-node/);
+});
+
+test('automatic detours cross stage frames without following their borders', () => {
+  const diagram = {
+    schema_version: 1, diagram_type: 'dataflow',
+    meta: { title: 'Stage corridors', quality_profile: 'showcase', output: 'borders.html' },
+    stages: ['Input', 'Prepare', 'Compute', 'Store'].map(label => ({ label })),
+    nodes: [
+      ['a', 1, 0], ['b', 1, 3], ['c', 2, 0], ['d', 2, 1],
+      ['e', 2, 3], ['f', 3, 0], ['g', 3, 3],
+    ].map(([id, stage, row]) => ({ id, type: 'backend', label: id.toUpperCase(), stage, row,
+      ...(id === 'd' ? { sublabel: 'a'.repeat(27) } : {}),
+    })),
+    flows: [{ from: 'a', to: 'f', label: 'one' }, { from: 'b', to: 'g', label: 'two' }],
+  };
+  const result = render(diagram);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.deepEqual(routes(result.html).map(({ from, to }) => [from, to]),
+    diagram.flows.map(({ from, to }) => [from, to]));
+  const checked = spawnSync(process.execPath, [cli, 'check', result.output, '--json'], { encoding: 'utf8' });
+  assert.equal(checked.status, 0, checked.stdout + checked.stderr);
+});

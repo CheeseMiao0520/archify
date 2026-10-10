@@ -1,0 +1,44 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { shortestOrthogonalGridRoute } from '../archify/renderers/shared/route-quality.mjs';
+import { routeHonorsEndpointSides, segmentIntersectsRect } from '../archify/renderers/shared/geometry.mjs';
+
+test('dense candidate coordinates preserve an open routing corridor without short jogs', () => {
+  const obstacles = [
+    { x: 35, y: 20, width: 50, height: 50 },
+    { x: 35, y: 110, width: 50, height: 20 },
+  ];
+  const options = {
+    start: [0, 0], end: [100, 100], points: [[0, 0], [100, 100]],
+    fromSide: 'right', toSide: 'left', endpointStubPx: 24,
+    clearance: 2, maximumObstacleCount: 80, maximumGridNodes: 4096,
+    minimumSegmentPx: 16, bendPenaltyPx: 48, allowAvoidedCrossings: true,
+    obstacles,
+    avoidedSegments: [{ start: [25, 100], end: [76, 100] }],
+    // Remote frames contribute nearby coordinate candidates without blocking
+    // the open horizontal corridor between the two local obstacles.
+    borderSegments: Array.from({ length: 14 }, (_, index) => ({
+      start: [200, 8 + index * 8], end: [300, 8 + index * 8],
+    })),
+  };
+  const metrics = {};
+  const routed = shortestOrthogonalGridRoute({ ...options, metrics });
+  assert.ok(routed, 'coordinate thinning must retain the open corridor');
+  assert.equal(metrics.status, 'routed');
+  assert.ok(metrics.attemptCount <= 2, 'recovery must remain bounded');
+  assert.ok(metrics.usableNodeCount <= options.maximumGridNodes);
+  const limitedMetrics = {};
+  shortestOrthogonalGridRoute({ ...options, maximumGridNodes: 64, metrics: limitedMetrics });
+  assert.ok(limitedMetrics.usableNodeCount <= 64, 'both attempts share the original grid node budget');
+  assert.ok(limitedMetrics.visitedNodeCount <= 64 * 4, 'each grid node has at most four arrival directions');
+  assert.ok(routeHonorsEndpointSides(routed.points, 'right', 'left'));
+  assert.deepEqual(routed.points[0], [0, 0]);
+  assert.deepEqual(routed.points.at(-1), [100, 100]);
+  for (const [index, end] of routed.points.slice(1).entries()) {
+    const start = routed.points[index];
+    assert.ok(Math.abs(end[0] - start[0]) + Math.abs(end[1] - start[1]) >= 16);
+    assert.ok(obstacles.every(obstacle => !segmentIntersectsRect({ start, end }, obstacle, 2)));
+    assert.ok(!(start[1] === 100 && end[1] === 100
+      && Math.min(start[0], end[0]) < 76 && Math.max(start[0], end[0]) > 25));
+  }
+});

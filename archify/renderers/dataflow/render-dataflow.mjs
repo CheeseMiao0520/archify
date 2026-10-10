@@ -18,8 +18,10 @@ import {
   cleanFlowProblems,
   cleanCrossingProblems,
   collectAmbiguousCorridors,
+  collectBorderRuns,
   cleanAmbiguousCorridorProblems,
   cleanBorderRunProblems,
+  frameBorderSegments,
   cleanRouteRhythmProblems,
   cleanLabelRouteClearanceProblems,
   cleanLabelCanvasContainmentProblems,
@@ -645,16 +647,38 @@ if (automaticShowcase) {
   const unrelated = flow => routable.filter(other => other !== flow && !related(flow, other));
   const length = points => segmentsOf(points).reduce((sum, { start, end }) => sum + Math.abs(end[0] - start[0]) + Math.abs(end[1] - start[1]), 0);
   const DETOUR_NODE_GAP = 12;
+  const ENDPOINT_STUB = 24;
+  // The stage bottoms are fitted below the final routes and labels later.
+  // Reserve the fixed tops/sides now, extending sides past the search area.
+  const routingBottom = Math.max(viewBox[1], ...[...nodes.values()].map(node => node.y + node.height),
+    ...routable.flatMap(flow => pathFor(flow).points.map(point => point[1]))) + DETOUR_NODE_GAP + ENDPOINT_STUB;
+  const routingFrames = asArray(dataflow.stages).map((stage, index) => ({
+    ...stageFrame(stage, index), height: routingBottom - layout.stageY,
+  }));
+  const stageBorders = routingFrames.flatMap(frame => frameBorderSegments(frame).filter(border => border.side !== 'bottom'));
   function intrudesNode(flow, points) {
     return [...nodes.values()].some(node => segmentsOf(points).some((segment, index) => (
       segmentIntersectsRect(segment, node, 2)
       && !((node.id === flow.from && index === 0) || (node.id === flow.to && index === points.length - 2))
     )));
   }
-  function sharesCorridor(flow, points) {
-    return unrelated(flow).some(other => collectAmbiguousCorridors({
-      routedRelations: [{ relation: flow, points }, { relation: other, points: pathFor(other).points }],
-    }).length > 0);
+  function sharesCorridor(flow, points, deferred = new Set()) {
+    return unrelated(flow).some(other => {
+      const occupied = deferred.has(other)
+        ? endpointStubs(other).map(({ start, end }) => [start, end])
+        : [pathFor(other).points];
+      return occupied.some(otherPoints => collectAmbiguousCorridors({
+        routedRelations: [{ relation: flow, points }, { relation: other, points: otherPoints }],
+      }).length > 0);
+    });
+  }
+  function endpointStubs(flow) {
+    const points = pathFor(flow).points;
+    const { fromSide, toSide } = flowSides(flow);
+    const directions = { left: [-1, 0], right: [1, 0], top: [0, -1], bottom: [0, 1] };
+    return [[points[0], fromSide], [points.at(-1), toSide]].map(([start, side]) => ({
+      start, end: start.map((value, axis) => value + directions[side][axis] * ENDPOINT_STUB),
+    }));
   }
   function crossingFlows(flow, points) {
     return unrelated(flow).filter(other => segmentsOf(points).some(a => segmentsOf(pathFor(other).points).some(b => (
@@ -663,11 +687,11 @@ if (automaticShowcase) {
   function readingCost(flow, points) {
     return length(points) + Math.max(0, points.length - 2) * 48 + crossingFlows(flow, points).length * 160;
   }
-  function gridDetour(flow, allowAvoidedCrossings = false) {
+  function gridDetour(flow, allowAvoidedCrossings = false, deferred = new Set()) {
     const { points } = pathFor(flow);
     const { fromSide, toSide } = flowSides(flow);
     const others = unrelated(flow);
-    const detour = shortestOrthogonalGridRoute({
+    const options = {
       start: points[0],
       end: points.at(-1),
       points: [points[0], points.at(-1)],
@@ -681,15 +705,22 @@ if (automaticShowcase) {
       toSide,
       clearance: 2,
       maximumObstacleCount: 80,
-      endpointStubPx: 24,
+      endpointStubPx: ENDPOINT_STUB,
       maximumGridNodes: 4096,
-      avoidedSegments: others.flatMap(other => segmentsOf(pathFor(other).points)),
+      avoidedSegments: others.flatMap(other => deferred.has(other) ? endpointStubs(other) : segmentsOf(pathFor(other).points)),
       allowAvoidedCrossings,
       minimumAvoidedOverlapPx: 8,
       routeSeparationPx: 8,
       minimumSegmentPx: 16,
       bendPenaltyPx: 48,
-    });
+    };
+    let detour = shortestOrthogonalGridRoute(options);
+    // Frame constraints add coordinates to the grid. Keep an already-clear
+    // route stable; only retry if this route actually borrows a frame side.
+    if (detour && collectBorderRuns({ routedRelations: [{ points: detour.points }], frames: routingFrames })
+      .some(hit => hit.side !== 'bottom')) {
+      detour = shortestOrthogonalGridRoute({ ...options, borderSegments: stageBorders });
+    }
     return detour ? normalizeRoutePoints(detour.points) : null;
   }
   function detourFor(flow) {
@@ -712,9 +743,14 @@ if (automaticShowcase) {
   // misses them or treats every neighbouring edge as an impenetrable wall.
   // Both bounded searches keep node clearance and separate corridors. Only
   // automatic/automatic crosses can use the shorter, halo-resolved option.
-  // Repairing a later preset can free a corridor for an earlier one. Each
-  // accepted route removes an obstruction without creating a new one, so at
-  // most one pass per relation is needed; stop as soon as no route improves.
+  // Repairing a later preset can free a corridor for an earlier one. An
+  // already-obstructed automatic preset is not a settled corridor: two such
+  // presets can cover each other's endpoint stubs. Defer those presets while
+  // repairing one route, but reserve their endpoint stubs so they can still
+  // leave and enter their nodes. Plan the others around that repaired route.
+  // Supplied routes and routes already clear of nodes remain obstacles.
+  // Node intrusions only decrease; stop as soon as no route improves. Final
+  // validation still checks every route, including any unrepaired preset.
   for (let pass = 0; pass < routable.length; pass += 1) {
     let repaired = false;
     for (const flow of routable) {
@@ -722,11 +758,17 @@ if (automaticShowcase) {
       const current = pathFor(flow).points;
       if (!intrudesNode(flow, current) && !sharesCorridor(flow, current)) continue;
       const { fromSide, toSide } = flowSides(flow);
-      const candidates = [gridDetour(flow), gridDetour(flow, true)].filter(points => points
+      const candidatesFor = deferred => [gridDetour(flow, false, deferred), gridDetour(flow, true, deferred)].filter(points => points
         && routeHonorsEndpointSides(points, fromSide, toSide) && !intrudesNode(flow, points)
-        && !sharesCorridor(flow, points) && crossingFlows(flow, points).every(supportsAutomaticCrossover));
+        && !sharesCorridor(flow, points, deferred) && crossingFlows(flow, points).every(supportsAutomaticCrossover));
+      let candidates = candidatesFor(new Set());
+      if (!candidates.length) {
+        const deferred = new Set(unrelated(flow).filter(other => supportsAutomaticCrossover(other)
+          && intrudesNode(other, pathFor(other).points)));
+        if (deferred.size) candidates = candidatesFor(deferred);
+      }
       candidates.sort((left, right) => readingCost(flow, left) - readingCost(flow, right));
-      if (candidates.length) {
+      if (candidates.length && JSON.stringify(candidates[0]) !== JSON.stringify(current)) {
         pathCache.set(flow, { d: polylinePath(candidates[0]), points: candidates[0] });
         repaired = true;
       }
