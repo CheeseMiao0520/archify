@@ -87,8 +87,12 @@ follows actual node bounds, routed points and rendered label plates, leaving
 24px below content plus the 74px stage/legend reserve. Rows and authored routes
 remain authoritative; inactive channel controls do not enlarge the canvas.
 
-Automatic routes use perpendicular bridges for vertical ports and small
-port-spread differences. Unpinned labels receive one bounded placement pass,
+For facing automatic ports less than 16px apart across the route axis, an
+unshared endpoint can align with the spread endpoint when the straight path
+is clear. This preserves the shared slots, the 16px corner gutter, occupied
+ports and authored route/label controls. When both ends are spread or the
+direct path is blocked, the existing perpendicular bridge remains.
+Unpinned labels receive one bounded placement pass,
 with at most 36px mask clearance from their own route. Distant free space is
 rejected in favor of the original placement and its collision diagnostic.
 Explicit `labelAt`, `labelDx`, `labelDy` and `labelSegment` remain authoritative,
