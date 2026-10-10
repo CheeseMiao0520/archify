@@ -682,8 +682,14 @@ if (automaticShowcase) {
     const hasAmbiguousCorridor = others.some(other => collectAmbiguousCorridors({
       routedRelations: [flow, other].map(relation => ({ relation, points: pathFor(relation).points })),
     }).length > 0);
+    // A halo resolves an edge/edge crossing, never an edge through a node.
+    // Keep the clear detour even when the obstructed preset costs less.
+    const hasNodeIntrusion = [...nodes.values()].some(node => segmentsOf(points).some((segment, index) => (
+      segmentIntersectsRect(segment, node, 2)
+      && !((node.id === flow.from && index === 0) || (node.id === flow.to && index === points.length - 2))
+    )));
     const canResolve = supportsAutomaticCrossover(flow) && crossingFlows.every(supportsAutomaticCrossover)
-      && !hasAmbiguousCorridor;
+      && !hasAmbiguousCorridor && !hasNodeIntrusion;
     if (canResolve && detourCost >= currentCost) return null;
     return { flow, routed: { d: polylinePath(normalized), points: normalized }, cost: detourCost - currentCost };
   }

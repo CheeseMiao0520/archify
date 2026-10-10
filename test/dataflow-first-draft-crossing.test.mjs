@@ -104,6 +104,28 @@ test('retaining an automatic crossing does not merge two independent branches', 
   }), [], 'independent branches must retain separate corridors');
 });
 
+test('a cheaper crossover cannot retain a route through intervening nodes', () => {
+  const diagram = {
+    schema_version: 1, diagram_type: 'dataflow',
+    meta: { title: 'Independent routes and nodes', quality_profile: 'showcase', output: 'obstacles.html' },
+    stages: ['Source', 'Prepare', 'Compute', 'Store'].map(label => ({ label })),
+    nodes: [
+      ['a', 0, 4], ['b', 3, 2], ['c', 1, 4],
+      ['d', 2, 2], ['e', 0, 3], ['f', 3, 3],
+    ].map(([id, stage, row]) => ({ id, type: 'backend', label: id.toUpperCase(), stage, row })),
+    flows: [
+      { from: 'a', to: 'b', label: 'one' },
+      { from: 'e', to: 'f', label: 'two' },
+    ],
+  };
+  const result = render(diagram);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.deepEqual(routes(result.html).map(({ from, to }) => [from, to]),
+    diagram.flows.map(({ from, to }) => [from, to]));
+  const checked = spawnSync(process.execPath, [cli, 'check', result.output, '--json'], { encoding: 'utf8' });
+  assert.equal(checked.status, 0, checked.stdout + checked.stderr);
+});
+
 test('two automatic arrivals on one side of a tall node keep at least 16px between their ports', () => {
   const diagram = JSON.parse(fs.readFileSync(fixture, 'utf8'));
   const result = render(diagram);
