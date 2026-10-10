@@ -342,3 +342,58 @@ test('a widened automatic canvas wraps a late note using its final lane geometry
   assert.deepEqual(lifelines(authored), lanes, 'authored and computed canvas widths give the same lanes');
   assert.deepEqual(notes(authored), notes(html), 'note wrapping uses the final width before automatic height');
 });
+
+// A phase can contain the arrow while its wrapped explanation spills into the
+// next phase. Advise without rewriting the author's timeline or rejecting v1.
+test('a wrapped note crossing its phase reports a usable boundary repair', t => {
+  const spec = sequence({ messages: [{ id: 'reply', from: 'api', to: 'client', y: 200, label: 'reply', note: LONG_NOTE }] });
+  spec.segments = [{ from: 150, to: 232, label: 'Response' }];
+  const { result } = run(t, 'validate', spec);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const warning = (JSON.parse(result.stdout).composition?.sequenceNoteBorders || []).find(d => d.code === 'sequence/note-segment-border');
+  assert.equal(warning?.reviewSuggested, true);
+  assert.equal(JSON.parse(result.stdout).composition.summary.warnings, 0, 'review evidence must not become a showcase finalization failure');
+  assert.equal(warning.subject.path, '/messages/0/note');
+  assert.equal(warning.evidence.segment.path, '/segments/0/to');
+  assert.ok(warning.evidence.note.y + warning.evidence.note.height > spec.segments[0].to);
+  assert.equal(warning.supportedFixes.length, 1);
+  const fix = warning.supportedFixes[0].match(/^set \/segments\/0\/to to (\d+)$/);
+  assert.ok(fix, warning.supportedFixes[0]);
+  const original = render(t, spec);
+  assert.match(original, /data-composition-frame-kind="segment"[^>]* y="150"[^>]* height="82"/);
+  assert.equal(notes(original)[0].y, 218, 'the note keeps its authored message baseline');
+  spec.segments[0].to = Number(fix[1]);
+  const repaired = run(t, 'validate', spec).result;
+  assert.equal(repaired.status, 0, repaired.stdout + repaired.stderr);
+  assert.ok(!(JSON.parse(repaired.stdout).composition?.sequenceNoteBorders || []).some(d => d.code === 'sequence/note-segment-border'));
+  assert.equal(notes(render(t, spec))[0].lines.join(' '), LONG_NOTE, 'repair keeps the complete note');
+});
+
+test('phase repair advice does not absorb the next phase, outside arrow, or fixed canvas', t => {
+  for (const blocker of ['phase', 'message', 'canvas']) {
+    const spec = sequence({ quality: 'standard', messages: [{ id: 'reply', from: 'api', to: 'client', y: 200, label: 'reply', note: LONG_NOTE }] });
+    spec.segments = [{ from: 150, to: 232, label: 'Response' }];
+    if (blocker === 'phase') spec.segments.push({ from: 240, to: 320, label: 'Next' });
+    if (blocker === 'message') spec.messages.push({ id: 'next', from: 'api', to: 'db', y: 240, label: 'next' });
+    if (blocker === 'canvas') {
+      spec.meta.viewBox = [640, 480];
+      spec.messages[0].y = 395;
+      spec.segments[0] = { from: 350, to: 425, label: 'Response' };
+    }
+    const { result } = run(t, 'validate', spec);
+    assert.equal(result.status, 0, blocker + ': ' + result.stdout + result.stderr);
+    const warning = (JSON.parse(result.stdout).composition?.sequenceNoteBorders || []).find(d => d.code === 'sequence/note-segment-border');
+    assert.equal(warning?.reviewSuggested, true, blocker);
+    assert.deepEqual(warning.supportedFixes, [], blocker);
+  }
+});
+
+test('notes that fit their phase, or messages outside it, do not request a phase review', t => {
+  const spec = sequence({ messages: [{ id: 'reply', from: 'api', to: 'client', y: 200, label: 'reply', note: LONG_NOTE }] });
+  for (const segment of [{ from: 150, to: 360, label: 'Response' }, { from: 350, to: 410, label: 'Later' }]) {
+    spec.segments = [segment];
+    const { result } = run(t, 'validate', spec);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.ok(!(JSON.parse(result.stdout).composition?.sequenceNoteBorders || []).some(d => d.code === 'sequence/note-segment-border'));
+  }
+});

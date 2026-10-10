@@ -179,6 +179,7 @@ if (svgMatches.length === 1) {
     arrows, labels: relationshipLabels,
   });
   const sequenceColumnSpace = collectSequenceColumnSpace({ svgAttrs, fragment: beforeLegend, nodeRects, arrows });
+  const sequenceNoteBorders = collectSequenceNoteBorders({ svgAttrs, fragment: beforeLegend, frames: compositionFrames, arrows });
   const labelClearanceThreshold = qualityProfile === 'showcase' ? 4 : 2;
   const labelRouteMeasurements = subpathLabelClearance({
     labels: relationshipLabels,
@@ -271,6 +272,7 @@ if (svgMatches.length === 1) {
     },
     leadingSpace,
     ...(sequenceColumnSpace ? { sequenceColumnSpace } : {}),
+    ...(sequenceNoteBorders.length ? { sequenceNoteBorders } : {}),
     desktopReadability: desktopReadability.evidence,
     issues: [
       ...containerBorderRuns.map((hit) => ({
@@ -1021,6 +1023,74 @@ function collectSequenceColumnSpace({ svgAttrs, fragment, nodeRects, arrows }) {
     reviewSuggested: columnFit === 'fixed' && nodeCount >= 4
       && gap > 2 * typicalParticipantWidth && ratio > 0.25,
   };
+}
+
+// Sequence notes are direct text children of a semantic message group; message
+// labels use a nested group. Inspect the emitted lines without changing layout.
+// This is advisory: phase ownership still belongs to the author.
+function collectSequenceNoteBorders({ svgAttrs, fragment, frames, arrows }) {
+  if (!svgAttrs['data-sequence-column-fit'] || svgAttrs.transform) return [];
+  const segments = frames.filter(frame => frame.kind === 'segment' && !frame.shape);
+  if (!segments.length) return [];
+  const issues = [], stack = [];
+  for (const tag of fragment.matchAll(SVG_TAG_TOKEN)) {
+    const name = tag[2]?.toLowerCase();
+    if (name === 'g') {
+      if (tag[1]) stack.pop();
+      else if (!tag[0].endsWith('/>')) stack.push(parseAttrs(tag[0]));
+      continue;
+    }
+    if (name === 'rect' && !tag[1]) {
+      const attrs = parseAttrs(tag[0]);
+      if (attrs['data-composition-frame-kind'] === 'segment' && (attrs.transform || stack.some(group => group.transform))) return [];
+    }
+    if (name !== 'text' || tag[1] || stack.some(attrs => attrs.transform)) continue;
+    const owner = stack.at(-1), attrs = parseAttrs(tag[0]);
+    if (!owner?.['data-edge-key'] || !['context', 'fine'].includes(attrs['data-detail']) || attrs.transform || attrs.rotate || attrs.dx || attrs.dy) continue;
+    const index = Number(owner['data-edge-key']);
+    if (!Number.isSafeInteger(index) || index < 0) continue;
+    const arrow = arrows[index], arrowY = arrow?.routePoints?.[0]?.[1];
+    if (!Number.isFinite(arrowY)) continue;
+    const end = fragment.indexOf('</text>', tag.index + tag[0].length);
+    if (end < 0) continue;
+    const content = fragment.slice(tag.index + tag[0].length, end);
+    let baseline = numberAttr(attrs, 'y');
+    const boxes = [];
+    const spans = [...content.matchAll(/<tspan\b([^>]*)>([\s\S]*?)<\/tspan>/gi)];
+    let supported = true;
+    for (const span of spans.length ? spans : [[null, '', content]]) {
+      const line = parseAttrs(span[1]);
+      if (line.y !== undefined || line.dx !== undefined || line.rotate !== undefined || line.transform !== undefined) { supported = false; break; }
+      baseline += Number(line.dy || 0);
+      const box = textBox({ ...attrs, ...line, y: String(baseline) }, stripTags(span[2]));
+      if (!box || ![box.x1, box.x2, box.y1, box.y2].every(Number.isFinite)) { supported = false; break; }
+      boxes.push(box);
+    }
+    if (!supported || !boxes.length) continue;
+    const note = { x: Math.min(...boxes.map(b => b.x1)), y: Math.min(...boxes.map(b => b.y1)) };
+    note.width = Math.max(...boxes.map(b => b.x2)) - note.x;
+    note.height = Math.max(...boxes.map(b => b.y2)) - note.y;
+    const bottom = note.y + note.height;
+    for (const frame of segments) {
+      const border = frame.y + frame.height;
+      if (!(arrowY >= frame.y && arrowY < border && note.y < border && bottom > border + 0.5)) continue;
+      const requiredTo = Math.ceil(bottom + 4);
+      // A single-field fix may not swallow another message or stage, or push
+      // the frame beyond an authored canvas. Otherwise ask for a joint review.
+      const safe = /^\d+$/.test(String(frame.id)) && requiredTo <= viewBoxRect(svgAttrs)[1] + viewBoxRect(svgAttrs)[3] - 45
+        && !arrows.some(other => other.routePoints.some(point => point[1] > border - 4 && point[1] < requiredTo + 4))
+        && !segments.some(other => other !== frame && other.y < requiredTo && other.y + other.height > border);
+      const segmentPath = `/segments/${frame.id}/to`;
+      issues.push({
+        code: 'sequence/note-segment-border', reviewSuggested: true,
+        message: `Note on message "${owner['data-edge-label'] || owner['data-edge-id'] || index}" ends at y=${Math.ceil(bottom)}, crossing its segment bottom y=${border}. ${safe ? `Set ${segmentPath} to ${requiredTo} to keep the full note inside.` : 'Review the note and neighbouring phase boundaries together; keep the full note and message order.'}`,
+        subject: { diagramType: 'sequence', path: `/messages/${index}/note` },
+        evidence: { note, lines: boxes.length, messageY: arrowY, segment: { path: segmentPath, from: frame.y, to: border }, requiredTo },
+        supportedFixes: safe ? [`set ${segmentPath} to ${requiredTo}`] : [],
+      });
+    }
+  }
+  return issues;
 }
 
 function frameName(frame) {
