@@ -44,3 +44,36 @@ test('a pinned label keeps its position even when a nearby free slot exists', ()
     assert.equal(placeAutomaticLabels(scene)[0], scene.labels[0]);
   }
 });
+
+test('a blocked label can use a slot vacated by a later automatic label', () => {
+  const scene = {
+    labels: [
+      { relation: {}, relationIndex: 0, label: 'Range',
+        x: 300.85, y: 221, width: 46.3, height: 16, lx: 324, ly: 231 },
+      { relation: {}, relationIndex: 1, label: 'Result',
+        x: 337.5, y: 206, width: 61, height: 16, lx: 368, ly: 216 },
+    ],
+    routes: [
+      { relationIndex: 0, points: [[324, 242], [324, 186]] },
+      { relationIndex: 1, points: [[306, 186], [306, 227], [430, 227], [430, 560], [333, 560], [333, 584]] },
+    ],
+    components: [128, 242].map(y => ({ x: 259, y, width: 112, height: 58 })),
+    titles: [], viewBox: [853, 740], maxOwnRouteDistance: 36,
+  };
+  const before = structuredClone(scene);
+  const placed = placeAutomaticLabels(scene);
+  for (const label of placed) {
+    assert.equal(scene.components.some(rect => rectsOverlap(label, rect, 2)), false);
+    assert.equal(placed.some(other => other !== label && rectsOverlap(label, other, 2)), false);
+    for (const route of scene.routes.filter(route => route.relationIndex !== label.relationIndex)) {
+      for (let i = 1; i < route.points.length; i++) {
+        assert.ok(segmentRectClearanceWithin({ start: route.points[i - 1], end: route.points[i] }, label, 4) >= 4,
+          'the full plate must clear unrelated routes after the later label moves');
+      }
+    }
+  }
+  assert.deepEqual(placed.map(label => label.label), ['Range', 'Result']);
+  assert.deepEqual(scene, before);
+  assert.deepEqual(placeAutomaticLabels({ ...scene, labels: placed }), placed,
+    'resolved labels must not keep moving on another placement pass');
+});
