@@ -645,7 +645,25 @@ if (automaticShowcase) {
   const unrelated = flow => routable.filter(other => other !== flow && !related(flow, other));
   const length = points => segmentsOf(points).reduce((sum, { start, end }) => sum + Math.abs(end[0] - start[0]) + Math.abs(end[1] - start[1]), 0);
   const DETOUR_NODE_GAP = 12;
-  function detourFor(flow) {
+  function intrudesNode(flow, points) {
+    return [...nodes.values()].some(node => segmentsOf(points).some((segment, index) => (
+      segmentIntersectsRect(segment, node, 2)
+      && !((node.id === flow.from && index === 0) || (node.id === flow.to && index === points.length - 2))
+    )));
+  }
+  function sharesCorridor(flow, points) {
+    return unrelated(flow).some(other => collectAmbiguousCorridors({
+      routedRelations: [{ relation: flow, points }, { relation: other, points: pathFor(other).points }],
+    }).length > 0);
+  }
+  function crossingFlows(flow, points) {
+    return unrelated(flow).filter(other => segmentsOf(points).some(a => segmentsOf(pathFor(other).points).some(b => (
+      properSegmentIntersection(a.start, a.end, b.start, b.end)))));
+  }
+  function readingCost(flow, points) {
+    return length(points) + Math.max(0, points.length - 2) * 48 + crossingFlows(flow, points).length * 160;
+  }
+  function gridDetour(flow, allowAvoidedCrossings = false) {
     const { points } = pathFor(flow);
     const { fromSide, toSide } = flowSides(flow);
     const others = unrelated(flow);
@@ -666,32 +684,54 @@ if (automaticShowcase) {
       endpointStubPx: 24,
       maximumGridNodes: 4096,
       avoidedSegments: others.flatMap(other => segmentsOf(pathFor(other).points)),
-      allowAvoidedCrossings: false,
+      allowAvoidedCrossings,
       minimumAvoidedOverlapPx: 8,
       routeSeparationPx: 8,
       minimumSegmentPx: 16,
       bendPenaltyPx: 48,
     });
-    if (!detour) return null;
-    const normalized = normalizeRoutePoints(detour.points);
-    const crossingFlows = others.filter(other => crosses(flow, other));
+    return detour ? normalizeRoutePoints(detour.points) : null;
+  }
+  function detourFor(flow) {
+    const { points } = pathFor(flow);
+    const normalized = gridDetour(flow);
+    if (!normalized) return null;
     // Reuse Architecture's finite reading cost: 48px per bend, 160px per
     // resolved crossing. A small clear detour still wins over a crossover.
-    const currentCost = length(points) + Math.max(0, points.length - 2) * 48 + crossingFlows.length * 160;
+    const currentCost = readingCost(flow, points);
     const detourCost = length(normalized) + Math.max(0, normalized.length - 2) * 48;
-    const hasAmbiguousCorridor = others.some(other => collectAmbiguousCorridors({
-      routedRelations: [flow, other].map(relation => ({ relation, points: pathFor(relation).points })),
-    }).length > 0);
     // A halo resolves an edge/edge crossing, never an edge through a node.
     // Keep the clear detour even when the obstructed preset costs less.
-    const hasNodeIntrusion = [...nodes.values()].some(node => segmentsOf(points).some((segment, index) => (
-      segmentIntersectsRect(segment, node, 2)
-      && !((node.id === flow.from && index === 0) || (node.id === flow.to && index === points.length - 2))
-    )));
-    const canResolve = supportsAutomaticCrossover(flow) && crossingFlows.every(supportsAutomaticCrossover)
-      && !hasAmbiguousCorridor && !hasNodeIntrusion;
+    const canResolve = supportsAutomaticCrossover(flow) && crossingFlows(flow, points).every(supportsAutomaticCrossover)
+      && !sharesCorridor(flow, points) && !intrudesNode(flow, points);
     if (canResolve && detourCost >= currentCost) return null;
     return { flow, routed: { d: polylinePath(normalized), points: normalized }, cost: detourCost - currentCost };
+  }
+  // A skipped stage/row or shared corridor can obstruct a preset without a
+  // proper crossing. Repair those routes first; otherwise the crossing pass either
+  // misses them or treats every neighbouring edge as an impenetrable wall.
+  // Both bounded searches keep node clearance and separate corridors. Only
+  // automatic/automatic crosses can use the shorter, halo-resolved option.
+  // Repairing a later preset can free a corridor for an earlier one. Each
+  // accepted route removes an obstruction without creating a new one, so at
+  // most one pass per relation is needed; stop as soon as no route improves.
+  for (let pass = 0; pass < routable.length; pass += 1) {
+    let repaired = false;
+    for (const flow of routable) {
+      if (!supportsAutomaticCrossover(flow)) continue;
+      const current = pathFor(flow).points;
+      if (!intrudesNode(flow, current) && !sharesCorridor(flow, current)) continue;
+      const { fromSide, toSide } = flowSides(flow);
+      const candidates = [gridDetour(flow), gridDetour(flow, true)].filter(points => points
+        && routeHonorsEndpointSides(points, fromSide, toSide) && !intrudesNode(flow, points)
+        && !sharesCorridor(flow, points) && crossingFlows(flow, points).every(supportsAutomaticCrossover));
+      candidates.sort((left, right) => readingCost(flow, left) - readingCost(flow, right));
+      if (candidates.length) {
+        pathCache.set(flow, { d: polylinePath(candidates[0]), points: candidates[0] });
+        repaired = true;
+      }
+    }
+    if (!repaired) break;
   }
   // Resolve the most useful clear detour first. Remaining automatic crosses
   // get explicit halos; supplied geometry retains its crossing diagnostic.

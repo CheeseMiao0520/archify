@@ -126,6 +126,52 @@ test('a cheaper crossover cannot retain a route through intervening nodes', () =
   assert.equal(checked.status, 0, checked.stdout + checked.stderr);
 });
 
+test('automatic independent branches keep separate corridors even without a proper crossing', () => {
+  const diagram = {
+    schema_version: 1, diagram_type: 'dataflow',
+    meta: { title: 'Parallel branches', quality_profile: 'showcase', output: 'parallel.html' },
+    stages: ['Source', 'Destination'].map(label => ({ label })),
+    nodes: [['a', 0, 0], ['b', 1, 3], ['c', 0, 1], ['d', 1, 4]]
+      .map(([id, stage, row]) => ({ id, type: 'backend', label: id.toUpperCase(), stage, row })),
+    flows: [{ from: 'a', to: 'b', label: 'one' }, { from: 'c', to: 'd', label: 'two' }],
+  };
+  const result = render(diagram);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.deepEqual(collectAmbiguousCorridors({
+    routedRelations: routes(result.html).map(route => ({ relation: route, points: route.points })),
+  }), []);
+});
+
+for (const vertical of [false, true]) {
+  test(`automatic ${vertical ? 'vertical' : 'horizontal'} routes avoid an intervening node without a perimeter excursion`, () => {
+    const diagram = {
+      schema_version: 1, diagram_type: 'dataflow',
+      meta: { title: 'Skip a stage or row', quality_profile: 'showcase', output: 'skip.html' },
+      stages: ['Source', 'Middle', 'Destination'].map(label => ({ label })),
+      nodes: ['source', 'middle', 'destination'].map((id, index) => ({
+        id, type: 'backend', label: id, stage: vertical ? 0 : index, row: vertical ? index : 0,
+      })),
+      flows: [{ from: 'source', to: 'destination', label: 'skip' }],
+    };
+    const result = render(diagram);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const [route] = routes(result.html);
+    const distance = route.points.slice(1).reduce((sum, point, index) => sum
+      + Math.abs(point[0] - route.points[index][0]) + Math.abs(point[1] - route.points[index][1]), 0);
+    const direct = Math.abs(route.points.at(-1)[0] - route.points[0][0])
+      + Math.abs(route.points.at(-1)[1] - route.points[0][1]);
+    assert.ok(distance < direct * 2.1, 'a local obstacle should only need a local detour');
+    assert.ok(route.points.length <= 6, 'a single obstacle needs at most four bends');
+    const checked = spawnSync(process.execPath, [cli, 'check', result.output, '--json'], { encoding: 'utf8' });
+    assert.equal(checked.status, 0, checked.stdout + checked.stderr);
+
+    diagram.flows[0].route = 'straight';
+    const pinned = render(diagram);
+    assert.notEqual(pinned.status, 0, 'explicit straight route must not be silently changed');
+    assert.match(pinned.stdout + pinned.stderr, /edge-through-node/);
+  });
+}
+
 test('two automatic arrivals on one side of a tall node keep at least 16px between their ports', () => {
   const diagram = JSON.parse(fs.readFileSync(fixture, 'utf8'));
   const result = render(diagram);
