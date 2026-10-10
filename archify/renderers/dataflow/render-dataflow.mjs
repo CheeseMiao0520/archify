@@ -26,6 +26,7 @@ import {
   suggestLabelPairFix,
   anchor,
   automaticPortSpread,
+  alignAutomaticFacingPorts,
   automaticPortRhythmBridge,
   segmentIntersectsRect,
   segmentRectClearanceWithin,
@@ -574,8 +575,34 @@ function pathFor(flow) {
   const to = nodes.get(flow.to);
   const ports = automaticPorts.get(flow);
   const { fromSide, toSide } = flowSides(flow);
-  const start = ports?.from || anchor(from, fromSide);
-  const end = ports?.to || anchor(to, toSide);
+  let start = ports?.from || anchor(from, fromSide);
+  let end = ports?.to || anchor(to, toSide);
+  if (automaticShowcase && flow.labelDx === undefined && flow.labelDy === undefined && flow.labelSegment === undefined) {
+    const aligned = alignAutomaticFacingPorts(flow, from, to, start, end, fromSide, toSide, ports, {
+      accept: points => {
+        if ([...nodes.values()].some(node => node.id !== from.id && node.id !== to.id
+            && segmentIntersectsRect({ start: points[0], end: points[1] }, node, 2))) return false;
+        // A pinned route is not in automaticPortSpread, but it still occupies
+        // its endpoint. Do not move the free end onto a neighbouring arrow.
+        for (const [rect, side, original, point] of [
+          [from, fromSide, start, points[0]], [to, toSide, end, points[1]],
+        ]) {
+          if (point[0] === original[0] && point[1] === original[1]) continue;
+          for (const other of asArray(dataflow.flows)) {
+            if (other === flow || !nodes.has(other.from) || !nodes.has(other.to)) continue;
+            for (const field of ['from', 'to']) {
+              if (other[field] !== rect.id || flowSides(other)[field === 'from' ? 'fromSide' : 'toSide'] !== side) continue;
+              const occupied = automaticPorts.get(other)?.[field] || anchor(rect, side);
+              if (Math.hypot(point[0] - occupied[0], point[1] - occupied[1]) < 18) return false;
+            }
+          }
+        }
+        return true;
+      },
+    });
+    start = aligned.start;
+    end = aligned.end;
+  }
   // Drop consecutive duplicate points so a purely vertical (or horizontal)
   // auto-route never emits a zero-length final segment — SVG derives
   // marker-end orientation from the last segment, and a degenerate segment

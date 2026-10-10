@@ -1505,6 +1505,82 @@ export function anchor(rect, side) {
   }
 }
 
+export function portHasCornerClearance(rect, side, point) {
+  if (side === 'left' || side === 'right') {
+    const inset = Math.min(16, rect.height / 2);
+    return point[1] >= rect.y + inset && point[1] <= rect.y + rect.height - inset;
+  }
+  if (side === 'top' || side === 'bottom') {
+    const inset = Math.min(16, rect.width / 2);
+    return point[0] >= rect.x + inset && point[0] <= rect.x + rect.width - inset;
+  }
+  return false;
+}
+
+
+// Reuse the same bounded alignment for facing automatic ports; callers own
+// obstacle and occupied-port checks for their renderer. Spread slots stay fixed.
+export function alignAutomaticFacingPorts(conn, from, to, start, end, fromSide, toSide, ports, { accept } = {}) {
+  const hasExplicitGeometry = (
+    conn.via
+    || (conn.route && conn.route !== 'auto')
+    || conn.channelX !== undefined
+    || conn.channelY !== undefined
+    || conn.labelAt
+  );
+  const horizontallyFacing = (
+    (fromSide === 'right' && toSide === 'left')
+    || (fromSide === 'left' && toSide === 'right')
+  );
+  const verticallyFacing = (
+    (fromSide === 'bottom' && toSide === 'top')
+    || (fromSide === 'top' && toSide === 'bottom')
+  );
+  if (hasExplicitGeometry || (!horizontallyFacing && !verticallyFacing)) return { start, end };
+
+  const fromSpread = Boolean(ports?.from);
+  const toSpread = Boolean(ports?.to);
+  if (fromSpread && toSpread) return { start, end };
+  const hasExplicitSides = (
+    (conn.fromSide && conn.fromSide !== 'auto')
+    || (conn.toSide && conn.toSide !== 'auto')
+  );
+  if (!fromSpread && !toSpread && hasExplicitSides) return { start, end };
+
+  const alignmentDelta = horizontallyFacing
+    ? Math.abs(start[1] - end[1])
+    : Math.abs(start[0] - end[0]);
+  if (alignmentDelta >= 16) return { start, end };
+
+  // Keep the shared endpoint's distinct spread slot and move only the
+  // relationship's unshared endpoint onto that axis. With no spread endpoint,
+  // retain the existing least-movement choice between the two facing sides.
+  // If both endpoints are shared, preserve the outside bridge so no competing
+  // port is silently collapsed.
+  const alignEndToStart = horizontallyFacing
+    ? { start, end: [end[0], start[1]] }
+    : { start, end: [start[0], end[1]] };
+  const alignStartToEnd = horizontallyFacing
+    ? { start: [start[0], end[1]], end }
+    : { start: [end[0], start[1]], end };
+  const candidates = fromSpread
+    ? [alignEndToStart]
+    : toSpread
+      ? [alignStartToEnd]
+      : [alignEndToStart, alignStartToEnd];
+  for (const candidate of candidates) {
+    const points = [candidate.start, candidate.end];
+    if (portHasCornerClearance(from, fromSide, candidate.start)
+        && portHasCornerClearance(to, toSide, candidate.end)
+        && routeHonorsEndpointSides(points, fromSide, toSide)
+        && (typeof accept !== 'function' || accept(points))) {
+      return candidate;
+    }
+  }
+  return { start, end };
+}
+
+
 const PORT_OUTWARD_VECTOR = {
   left: [-1, 0],
   right: [1, 0],

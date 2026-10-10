@@ -406,6 +406,35 @@ test('dataflow: automatic fan-out spreads flows without changing their authored 
   assert.deepEqual(connectionPoints(html, 'to-lower')[0], [156, 398]);
 });
 
+test('dataflow: aligned automatic branches stay straight without collapsing their shared ports', () => {
+  const diagram = {
+    schema_version: 1, diagram_type: 'dataflow',
+    meta: { title: 'Aligned branch', quality_profile: 'showcase' },
+    stages: [{ label: 'Input' }, { label: 'Output' }],
+    nodes: [
+      { id: 'hub', type: 'backend', label: 'Hub', stage: 0, row: 0 },
+      { id: 'peer', type: 'backend', label: 'Peer', stage: 1, row: 0 },
+      { id: 'lower', type: 'database', label: 'Archive', stage: 1, row: 2 },
+    ],
+    flows: [
+      { id: 'direct', from: 'hub', to: 'peer', label: 'feed' },
+      { id: 'branch', from: 'hub', to: 'lower', label: 'archive' },
+    ],
+  };
+  for (const reverse of [false, true]) {
+    const input = structuredClone(diagram);
+    if (reverse) for (const flow of input.flows) [flow.from, flow.to] = [flow.to, flow.from];
+    const html = render('dataflow', input);
+    const direct = connectionPoints(html, 'direct');
+    const branch = connectionPoints(html, 'branch');
+    assert.equal(direct.length, 2, 'a free facing endpoint should align instead of adding four turns');
+    assert.equal(direct[0][1], direct[1][1], 'the aligned route must remain orthogonal');
+    const index = reverse ? -1 : 0;
+    assert.ok(Math.abs(direct.at(index)[1] - branch.at(index)[1]) >= 14,
+      'the branch still needs a distinct port');
+  }
+});
+
 test('authoring defaults point to the bounded automatic port rules and READMEs describe the default', () => {
   const defaults = fs.readFileSync(path.join(skillRoot, 'references/authoring-defaults.md'), 'utf8');
   assert.match(defaults, /Start with automatic routes and endpoint sides/);
