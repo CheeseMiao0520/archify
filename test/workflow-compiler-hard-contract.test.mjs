@@ -812,6 +812,38 @@ test('readable-v2 verifies preset repairs with the public straight-route reserva
   }
 });
 
+test('a preset that crosses a node reports the blocked segment before a label-only repair', () => {
+  const document = workflow({
+    lanes: [{ id: 'top', label: 'Top' }, { id: 'bottom', label: 'Bottom' }],
+    nodes: [
+      { id: 'target', lane: 'top', col: 4, type: 'backend', label: 'Target' },
+      { id: 'obstacle', lane: 'top', col: 5, type: 'backend', label: 'Obstacle' },
+      { id: 'source', lane: 'bottom', col: 4, width: 104, type: 'backend', label: 'Source' },
+    ],
+    edges: [{ id: 'retry', from: 'source', to: 'target', route: 'outside-right',
+      fromSide: 'right', toSide: 'right', role: 'return', label: 'Try payment again', variant: 'dashed' }],
+  });
+  const original = clone(document);
+  for (const qualityProfile of ['standard', 'showcase']) {
+    const result = compileWorkflow({ workflow: document, qualityProfile });
+    assert.equal(result.ok, false);
+    const diagnostic = result.diagnostics.find(({ code }) => code === 'workflow/route-preset-conflict');
+    assert.equal(diagnostic.evidence.invariant, 'node clearance');
+    assert.equal(diagnostic.evidence.obstacleNode, 'obstacle');
+    const { points, segmentIndex, from, to } = diagnostic.evidence;
+    assert.deepEqual([from, to], points.slice(segmentIndex, segmentIndex + 2));
+    assert.ok(diagnostic.supportedFixes.every(fix => !fix.startsWith('set labelSegment')));
+    const movedLabel = clone(document);
+    movedLabel.edges[0].labelSegment = 1;
+    const stillBlocked = compileWorkflow({ workflow: movedLabel, qualityProfile });
+    assert.equal(stillBlocked.ok, false);
+    const later = stillBlocked.diagnostics.find(({ code }) => code === 'workflow/route-preset-conflict');
+    assert.equal(later.evidence.obstacleNode, diagnostic.evidence.obstacleNode);
+    assert.deepEqual([later.evidence.from, later.evidence.to], [from, to]);
+  }
+  assert.deepEqual(document, original);
+});
+
 function outsideRightLabelWorkflow() {
   return workflow({
     lanes: [{ id: 'undo', label: 'Undo' }, { id: 'return', label: 'Follow-up' }],

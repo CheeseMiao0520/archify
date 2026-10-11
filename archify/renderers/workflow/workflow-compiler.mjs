@@ -3687,6 +3687,12 @@ function readableCandidateIsFeasible(edge, points, from, to, fromSide, toSide) {
 function readablePresetRejection(edge, points, from, to, fromSide, toSide) {
   const invariant = readableCandidateRejection(edge, points, from, to, fromSide, toSide)
     ?? (!routeMatchesPresetFamily(edge.route, points, from, to) ? 'route preset compatibility' : undefined);
+  if (invariant === 'edge-label node clearance') {
+    // A label move cannot repair a preset whose stroke also crosses a node.
+    // Keep the fast feasibility order, but report the obstructed route first.
+    const collision = firstRouteNodeCollision(edge, points);
+    if (collision) return { invariant: 'node clearance', ...collision };
+  }
   if (invariant === 'placed edge-label clearance') {
     const evidence = {};
     routeClearsPlacedLabels(edge, points, evidence);
