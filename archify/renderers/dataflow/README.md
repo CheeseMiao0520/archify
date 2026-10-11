@@ -99,6 +99,13 @@ unshared endpoint can align with the spread endpoint when the straight path
 is clear. This preserves the shared slots, the 16px corner gutter, occupied
 ports and authored route/label controls. When both ends are spread or the
 direct path is blocked, the existing perpendicular bridge remains.
+When obstacle routing reverses a branch's initial travel direction, a shared
+side can reorder its existing slots by the settled routes' first turns. This
+tries at most 16 fully automatic groups of two to eight ports before placing
+labels. A group is accepted only if a route becomes straight and no member
+gains length or bends, adds crossings, folds back, or loses node, border or
+corridor clearance. Explicit side, route and label controls keep their slots.
+
 After routes and labels settle, a bounded pass can retry this alignment while
 keeping every other route and label fixed. It checks at most 16 label placements;
 the straight path must retain port spacing and a clear, nearby label position.
