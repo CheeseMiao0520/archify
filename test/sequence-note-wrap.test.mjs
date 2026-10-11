@@ -340,6 +340,18 @@ test('standard keeps accepting a crowded note', (t) => {
     ],
   });
   assert.equal(run(t, 'validate', spec).result.status, 0);
+  spec.segments = [{ from: 150, to: 232, label: 'Request' }];
+  // Render the crowded reply first: a later opaque note would cover it.
+  spec.messages.reverse();
+  const html = render(t, spec);
+  assert.equal(decode(notes(html)[0].lines.join(' ')), LONG_NOTE);
+  const [left, right] = lifelines(html);
+  const masks = [...html.matchAll(/<rect[^>]*x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"[^>]*class="c-mask"/g)];
+  assert.ok(masks.length > 0);
+  for (const [, x, y, width, height] of masks) {
+    const crossesReply = +x < right && +x + +width > left && +y < 230 && +y + +height > 230;
+    assert.equal(crossesReply, false, 'opaque backgrounds must not hide the authored reply');
+  }
 });
 
 test('an automatic canvas grows to hold a wrapped note on the last message', (t) => {

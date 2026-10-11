@@ -998,6 +998,22 @@ function messageLabel(message, x1, x2) {
         </g>`;
 }
 
+function noteBackdrop(message) {
+  const note = noteRect(message);
+  if (!note) return '';
+  const box = { x: note.x - 2, y: note.y - 2, width: note.width + 4, height: note.height + 4 };
+  const crossed = asArray(sequence.segments).some((segment) => [segment.from, segment.to]
+    .some((border) => border >= box.y && border <= box.y + box.height));
+  if (!crossed) return '';
+  // The backdrop clears decorative frames, never another message. Standard
+  // quality can retain overlapping annotations that showcase rejects.
+  const coversMessage = asArray(sequence.messages).some((other) => other !== message
+    && [messageLabelBox(other), messageRouteBox(other), noteRect(other)]
+      .some((rect) => rect && rectsOverlap(box, rect, 0)));
+  if (coversMessage) return '';
+  return `\n        <rect data-detail="context" data-graph-role="message-note-background" x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="2" class="c-mask" pointer-events="none"/>`;
+}
+
 function renderMessage(message, index) {
   const { start, end } = messageGeometry(message);
   const [cls, marker] = arrowClass[message.variant || 'default'] || arrowClass.default;
@@ -1014,7 +1030,7 @@ function renderMessage(message, index) {
     : '';
   return `        <g ${focusEdgeAttrs(message.from, message.to, message.label, index, message.id)}>
           <path data-composition-edge-from="${esc(message.from)}" data-composition-edge-to="${esc(message.to)}"${message.id ? ` data-composition-edge-id="${esc(message.id)}"` : ''} data-composition-points="${routePointsValue([[start, message.y], [end, message.y]])}" d="M ${start} ${message.y} L ${end} ${message.y}" class="${cls}"${animateAttr(sequence.meta, 'edge', index)} stroke-width="${strokeWidth}"${dash} marker-end="url(#${marker})"/>
-${messageLabel(message, start, end)}${note}
+${messageLabel(message, start, end)}${noteBackdrop(message)}${note}
         </g>`;
 }
 
