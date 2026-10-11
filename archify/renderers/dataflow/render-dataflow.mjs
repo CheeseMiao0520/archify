@@ -1036,12 +1036,33 @@ if (automaticShowcase) {
     .some(segment => segmentRectClearanceWithin(segment, rect, 36) <= 36);
   const masksLabel = (points, rect) => segmentsOf(points)
     .some(segment => segmentRectClearanceWithin(segment, rect, labelGap) + 0.0001 < labelGap);
+  const overlapsNode = rect => [...nodes.values()].some(node => rectsOverlap(rect, node, -2));
+  // A label left inside a node does not mask the route occupying its usable
+  // slot. Probe a nearby node-clear slot with the other labels fixed. These
+  // are search targets only: accept a corridor move after placing every label
+  // against the real routes, including resolving the original node overlap.
+  let slotProbes = 0;
+  const blockedLabelSlots = resolvedLabelRects.flatMap((rect, index) => {
+    if (slotProbes >= 16 || ['labelAt', 'labelDx', 'labelDy', 'labelSegment'].some(key => rect.relation[key] !== undefined)
+      || !overlapsNode(rect)) return [];
+    slotProbes++;
+    const labels = resolvedLabelRects.map((other, otherIndex) => ({ ...other, ly: other.ly - 1,
+      relation: otherIndex === index ? other.relation : { ...other.relation, labelAt: [other.lx, other.ly] } }));
+    const probe = placeAutomaticLabels({ labels,
+      routes: [{ relationIndex: rect.relationIndex, points: pathFor(rect.relation).points }],
+      components: [...nodes.values()], titles, viewBox,
+      placementBottom: viewBox[1] - layout.stageBottomPad, maxOwnRouteDistance: 36 })[index];
+    return probe !== labels[index] ? [probe] : [];
+  });
   for (const flow of routable) {
     if (attempts >= 16) break;
     if (!supportsAutomaticCrossover(flow)
       || ['labelAt', 'labelDx', 'labelDy', 'labelSegment'].some(key => flow[key] !== undefined)) continue;
     const current = normalizeRoutePoints(pathFor(flow).points);
-    const blocked = resolvedLabelRects.filter(rect => rect.relation !== flow && masksLabel(current, rect));
+    const pendingSlots = blockedLabelSlots.filter(slot => overlapsNode(
+      resolvedLabelRects.find(rect => rect.relation === slot.relation)));
+    const blocked = [...resolvedLabelRects, ...pendingSlots]
+      .filter(rect => rect.relation !== flow && masksLabel(current, rect));
     if (!blocked.length) continue;
     const candidates = new Map();
     for (const rect of blocked) {
@@ -1091,6 +1112,8 @@ if (automaticShowcase) {
       const placed = placeAutomaticLabels({ labels, routes, components: [...nodes.values()], titles,
         viewBox, placementBottom: viewBox[1] - layout.stageBottomPad, maxOwnRouteDistance: 36 });
       if (placed.some(rect => rect.relation !== flow && masksLabel(points, rect))) continue;
+      if (blocked.some(slot => pendingSlots.includes(slot) && overlapsNode(
+        placed.find(rect => rect.relation === slot.relation)))) continue;
       if (placed.some((rect, index) => {
         const oldPoints = pathFor(rect.relation).points;
         const ownPoints = rect.relation === flow ? points : oldPoints;

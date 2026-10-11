@@ -249,6 +249,45 @@ test('automatic labels reject a distant free island rather than lose the relatio
   assert.ok(receipt.diagnostics.some(({ message }) => /Label "Long asset description" overlaps node/.test(message)));
 });
 
+test('automatic dataflow moves a blocking corridor to make room for a label beside its own route', t => {
+  const diagram = {
+    schema_version: 1, diagram_type: 'dataflow',
+    meta: { title: 'Artifact processing', output: 'diagram.html', quality_profile: 'showcase' },
+    stages: ['Input', 'Prepare', 'Build', 'Artifacts', 'Results'].map(label => ({ label })),
+    nodes: [
+      { id: 'producer', type: 'backend', label: 'Producer', stage: 2, row: 4 },
+      { id: 'artifact', type: 'database', label: 'Artifact', stage: 3, row: 4 },
+      { id: 'consumer', type: 'backend', label: 'Consumer', stage: 4, row: 2 },
+      { id: 'bundle', type: 'backend', label: 'Bundle', stage: 4, row: 3 },
+      { id: 'output', type: 'database', label: 'Output', stage: 4, row: 4 },
+      { id: 'result', type: 'backend', label: 'Result', stage: 4, row: 0 },
+      { id: 'archive', type: 'backend', label: 'Archive', stage: 3, row: 4, yOffset: 230 },
+    ],
+    flows: [
+      { id: 'f0', from: 'producer', to: 'artifact', label: 'raw data' },
+      { id: 'f1', from: 'artifact', to: 'consumer', label: 'render bytes' },
+      { id: 'f2', from: 'bundle', to: 'output', label: 'copy or export' },
+      { id: 'f3', from: 'output', to: 'result', label: 'artifact stats' },
+      { id: 'f4', from: 'result', to: 'archive', label: 'metadata' },
+    ],
+  };
+  const { result, receipt, input, output, env } = inspect(t, diagram);
+  assert.equal(result.status, 0, JSON.stringify(receipt));
+  const rendered = spawnSync(process.execPath, [cli, 'render', 'dataflow', input, output], { encoding: 'utf8', env });
+  assert.equal(rendered.status, 0, rendered.stdout + rendered.stderr);
+  const html = fs.readFileSync(output, 'utf8');
+  for (const node of diagram.nodes) assert.ok(html.includes(`id="node-${node.id}"`));
+  for (const flow of diagram.flows) {
+    assert.ok(html.includes(`data-edge-id="${flow.id}"`));
+    assert.ok(html.includes(flow.label));
+  }
+  // The same repair must not move a user's explicitly placed label.
+  diagram.flows[2].labelAt = [951, 518];
+  const pinned = inspect(t, diagram);
+  assert.equal(pinned.result.status, 1);
+  assert.ok(pinned.receipt.diagnostics.some(({ message }) => /Label "copy or export" overlaps node "bundle"/.test(message)));
+});
+
 test('natural height includes explicit outer route and two-line label plate', t => {
   const diagram = pipeline();
   diagram.stages = [{ label: 'In' }, { label: 'Out' }];
