@@ -4414,7 +4414,7 @@ function automaticPortCandidates(edge, node, side, preferred, counterpart) {
   return candidates.length ? candidates : [preferred];
 }
 
-function automaticEndpointRepairs(edge, selected, from, to, naturalFromSide, naturalToSide) {
+function automaticEndpointRepairs(edge, selected, from, to, naturalFromSide, naturalToSide, narrowSlots = false) {
   if (!independentAutomaticRoute(edge)
     || ['labelDx', 'labelDy', 'labelSegment', 'bias'].some(field => edge[field] !== undefined)
     || selected.cost.properCrossingCount !== 0 || selected.cost.sharedCorridorPx === 0
@@ -4448,7 +4448,26 @@ function automaticEndpointRepairs(edge, selected, from, to, naturalFromSide, nat
     // Keep the side, its perpendicular stub, and the existing corner gutter.
     // Small slides can separate source strokes or a source from an arrow even
     // when the normal 12px port-spread step cannot fit on a 52px node side.
-    for (const offset of [-8, 8, -10, 10]) {
+    const offsets = [-8, 8, -10, 10];
+    if (narrowSlots) {
+      const ownFootprint = (first ? 0.5 : 3.5) * strokeWidth(edge);
+      let slots = [[minimum, maximum]];
+      for (const [relation, routed] of nodeRoutes.get(node.id) ?? []) {
+        for (const otherEndpoint of ['from', 'to']) {
+          if (relation[otherEndpoint] !== node.id) continue;
+          const point = otherEndpoint === 'from' ? routed.points[0] : routed.points.at(-1);
+          if (Math.abs(point[1 - axis] - selected.points[endpointIndex][1 - axis]) > 0.0001) continue;
+          const radius = ownFootprint + (otherEndpoint === 'from' ? 0.5 : 3.5) * strokeWidth(relation);
+          const low = point[axis] - radius, high = point[axis] + radius;
+          slots = slots.flatMap(([start, end]) => high <= start || low >= end
+            ? [[start, end]]
+            : [[start, Math.min(end, low)], [Math.max(start, high), end]].filter(([a, b]) => b > a));
+        }
+      }
+      offsets.push(...slots.map(([start, end]) => (start + end) / 2 - selected.points[endpointIndex][axis])
+        .sort((a, b) => Math.abs(a) - Math.abs(b) || a - b).slice(0, 4));
+    }
+    for (const offset of offsets) {
       const points = selected.points.map(point => [...point]);
       points[endpointIndex][axis] += offset;
       points[first ? 1 : points.length - 2][axis] += offset;
@@ -4682,6 +4701,13 @@ function readableAutomaticRoute(edge, from, to, primarySides, primaryPorts) {
     }
     plans.push(...endpointRepairs);
     plans.sort((a, b) => compareCost(a.cost, b.cost));
+    // A corner repair can expose a usable port slot that the original route
+    // could not reach. Try at most four measured gaps per endpoint, retaining
+    // stroke/arrow footprints and every route/label feasibility check.
+    if (plans[0].cost.sharedCorridorPx > 0) {
+      plans.push(...automaticEndpointRepairs(edge, plans[0], from, to, naturalFromSide, naturalToSide, true));
+      plans.sort((a, b) => compareCost(a.cost, b.cost));
+    }
     const selected = plans[0];
     return {
       points: selected.points,

@@ -1,0 +1,139 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Automatic branch port clearance",
+    "locale": "zh-CN",
+    "output": "port-clearance.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "l7",
+      "label": "同步失败"
+    },
+    {
+      "id": "l0",
+      "label": "复用请求"
+    },
+    {
+      "id": "l1",
+      "label": "启动准备"
+    },
+    {
+      "id": "callbacks",
+      "label": "独立运行期事件"
+    },
+    {
+      "id": "restart_flow",
+      "label": "退出后的可选重启"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "cli_in",
+      "lane": "l1",
+      "col": 0,
+      "type": "messagebus",
+      "label": "输入待处理请求",
+      "width": 112
+    },
+    {
+      "id": "prepare",
+      "lane": "l1",
+      "col": 3,
+      "type": "backend",
+      "label": "准备执行参数",
+      "width": 172
+    },
+    {
+      "id": "spawn",
+      "lane": "l1",
+      "col": 4,
+      "type": "backend",
+      "label": "启动处理进程",
+      "width": 124
+    },
+    {
+      "id": "cliout",
+      "lane": "callbacks",
+      "col": 0,
+      "type": "messagebus",
+      "label": "处理输出事件",
+      "width": 96
+    },
+    {
+      "id": "hook",
+      "lane": "callbacks",
+      "col": 2,
+      "type": "backend",
+      "label": "处理状态事件",
+      "width": 124
+    },
+    {
+      "id": "exit",
+      "lane": "callbacks",
+      "col": 4,
+      "type": "backend",
+      "label": "结束通知",
+      "width": 96
+    },
+    {
+      "id": "exit_state",
+      "lane": "callbacks",
+      "col": 5,
+      "type": "messagebus",
+      "label": "状态反馈",
+      "width": 124
+    },
+    {
+      "id": "retry",
+      "lane": "restart_flow",
+      "col": 4,
+      "type": "backend",
+      "label": "条件重试",
+      "width": 140
+    },
+    {
+      "id": "sync_prepare",
+      "lane": "l7",
+      "col": 3,
+      "type": "messagebus",
+      "label": "准备失败",
+      "width": 124
+    }
+  ],
+  "edges": [
+    {
+      "id": "prepare-spawn",
+      "from": "prepare",
+      "to": "spawn",
+      "label": "准备完成"
+    },
+    {
+      "id": "prepare-sync_prepare",
+      "from": "prepare",
+      "to": "sync_prepare",
+      "label": "准备异常"
+    },
+    {
+      "id": "spawn-cliout",
+      "from": "spawn",
+      "to": "cliout",
+      "label": "成功后 onData"
+    },
+    {
+      "id": "spawn-hook",
+      "from": "spawn",
+      "to": "hook",
+      "label": "成功后 运行期外部事件"
+    },
+    {
+      "id": "exit_state-retry",
+      "from": "exit_state",
+      "to": "retry",
+      "label": "反馈后可选重启"
+    }
+  ],
+  "groups": []
+}
