@@ -1009,6 +1009,28 @@ function measureWorkflowNodes(workflow, layout, laneGeometry) {
   return { measureNode, nodeTextFit, nodes };
 }
 
+function workflowNodeTextProblems(node, nodeTextFit) {
+  const problems = [];
+  const estLabelW = textUnits(node.label) * 6.8;
+  if (estLabelW > node.width + 6) {
+    problems.push(`Label "${node.label}" (~${Math.round(estLabelW)}px) is wider than component "${node.id}" (${node.width}px) — shorten the label or increase node.width.`);
+  }
+  const brandRailProblem = brandTopRailProblem(node, node.width, nodeTextFit.labelMinimum);
+  if (brandRailProblem) problems.push(brandRailProblem);
+  const availableTextW = availableNodeTextWidth(node.width);
+  for (const [field, value, minimum] of [
+    ['Sublabel', node.sublabel, nodeTextFit.sublabelMinimum],
+    ['Tag', node.tag, nodeTextFit.tagMinimum],
+  ]) {
+    if (!value) continue;
+    const minimumW = minimumNodeTextWidth(value, minimum);
+    if (minimumW > availableTextW) {
+      problems.push(`${field} "${value}" needs ~${Math.ceil(minimumW)}px at the ${minimum}px legible minimum, but node "${node.id}" provides ${availableTextW}px — shorten the ${field.toLowerCase()} or increase node.width.`);
+    }
+  }
+  return problems;
+}
+
 // Step indexes: where each edge and node sits on the main path. Lifted out so
 // the compiler body keeps only the phases that read them.
 function createWorkflowStepIndexes(workflow) {
@@ -2723,23 +2745,7 @@ function validateWorkflow() {
       problems.push(`Node "${node.id}" produced non-finite coordinates — check col, width, height, and yOffset are numbers.`);
       continue;
     }
-    const estLabelW = textUnits(node.label) * 6.8;
-    if (estLabelW > node.width + 6) {
-      problems.push(`Label "${node.label}" (~${Math.round(estLabelW)}px) is wider than component "${node.id}" (${node.width}px) — shorten the label or increase node.width.`);
-    }
-    const brandRailProblem = brandTopRailProblem(node, node.width, nodeTextFit.labelMinimum);
-    if (brandRailProblem) problems.push(brandRailProblem);
-    const availableTextW = availableNodeTextWidth(node.width);
-    for (const [field, value, minimum] of [
-      ['Sublabel', node.sublabel, nodeTextFit.sublabelMinimum],
-      ['Tag', node.tag, nodeTextFit.tagMinimum],
-    ]) {
-      if (!value) continue;
-      const minimumW = minimumNodeTextWidth(value, minimum);
-      if (minimumW > availableTextW) {
-        problems.push(`${field} "${value}" needs ~${Math.ceil(minimumW)}px at the ${minimum}px legible minimum, but node "${node.id}" provides ${availableTextW}px — shorten the ${field.toLowerCase()} or increase node.width.`);
-      }
-    }
+    problems.push(...workflowNodeTextProblems(node, nodeTextFit));
 
     const top = laneTop(node.lane);
     const contentTop = top + layout.laneTitleH + laneGroupHeaderH(node.lane);
@@ -5380,6 +5386,42 @@ function measuredPlanReceipt(diagnostics, requiredFrame) {
   };
 }
 
+function absoluteGeometrySizingDiagnostic() {
+  if (workflow.schema_version !== 2 || !preservesWorkflowAbsoluteGeometry(workflow)) return null;
+  const affectedNodes = workflow.nodes.flatMap((authored) => {
+    if (Number.isFinite(authored.width)) return [];
+    const node = nodes.get(authored.id);
+    const automaticWidth = automaticNodeWidth(authored);
+    if (!node || !automaticWidth || automaticWidth <= node.width) return [];
+    const problems = workflowNodeTextProblems(node, nodeTextFit);
+    // Report only intrinsic text failures that automatic sizing would resolve.
+    // Final-canvas readability still belongs to its later measured check.
+    if (!problems.length || workflowNodeTextProblems({ ...node, width: automaticWidth }, nodeTextFit).length) return [];
+    return [{
+      node: node.id,
+      path: `/nodes/${sourceIndexes.nodes.get(authored)}/width`,
+      currentWidthPx: node.width,
+      automaticWidthPx: automaticWidth,
+      problems,
+    }];
+  });
+  if (!affectedNodes.length) return null;
+  const absoluteConstraints = [
+    ...(workflow.meta?.viewBox ? [{ path: '/meta/viewBox', value: [...workflow.meta.viewBox] }] : []),
+    ...workflow.edges.flatMap((edge) => ['via', 'labelAt', 'channelX', 'channelY']
+      .filter((field) => edge[field] !== undefined)
+      .map((field) => ({ path: `/edges/${sourceIndexes.edges.get(edge)}/${field}`, value: edge[field] }))),
+  ];
+  const message = `Preserving absolute workflow geometry disables automatic node widening: ${affectedNodes.length} node(s) with omitted widths also have text-fit problems. Explicit widths can preserve their full text, but changing widths moves endpoints, so route coordinates must be remeasured. The reported automatic widths resolve these intrinsic text checks only; they are not a verified whole-diagram repair.`;
+  return {
+    code: 'workflow/absolute-geometry-sizing',
+    severity: 'warning',
+    message,
+    subject: { diagramType: 'workflow' },
+    evidence: { absoluteConstraints, affectedNodes },
+    supportedFixes: [],
+  };
+}
 
   try {
     validateReadableInputsBeforeRouting();
@@ -5395,7 +5437,13 @@ function measuredPlanReceipt(diagnostics, requiredFrame) {
   } catch (error) {
     if (!Array.isArray(error?.archifyDiagnostics)) throw error;
     const diagnostics = error.archifyDiagnostics.map((diagnostic) => ({ ...diagnostic }));
-    const failure = compilerFailure(layout.contract, diagnostics, error.message);
+    // A route failure can hide the sizing side effect of a newly added pin.
+    // Supplement that failure without altering acceptance, geometry or fixes.
+    const sizing = !measuredPlanReady && diagnostics.some(({ code }) => [
+      'workflow/explicit-pin-conflict', 'workflow/route-preset-conflict', 'workflow/solver-budget-exhausted',
+    ].includes(code)) ? absoluteGeometrySizingDiagnostic() : null;
+    if (sizing) diagnostics.push(sizing);
+    const failure = compilerFailure(layout.contract, diagnostics, sizing ? `${error.message}\n${sizing.message}` : error.message);
     if (measuredPlanReady) {
       try {
         const footprint = measuredPlanFootprint();
