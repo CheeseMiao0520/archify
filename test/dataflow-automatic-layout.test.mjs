@@ -700,3 +700,19 @@ test('crowded dataflow inputs keep clearance from a taller authored neighbour', 
   assert.equal(actual.y + actual.height / 2, 356 + 58 / 2);
   assert.equal(actual.paths.size, diagram.flows.length);
 });
+
+test('a crowded vertical flow renders its complete first-draft label without a repair pin', t => {
+  const diagram = JSON.parse(fs.readFileSync(new URL('./fixtures/dataflow-first-draft/vertical-label-corridor.dataflow.json', import.meta.url), 'utf8'));
+  const { html } = renderedFootprint(t, diagram);
+  for (const flow of diagram.flows) assert.ok(html.includes(flow.label), flow.label);
+  const points = html.match(/<path[^>]*data-edge-id="flow3"[^>]*data-composition-points="([^"]+)"/)[1]
+    .split(';').map(point => point.split(',').map(Number));
+  assert.equal(points.length, 2, 'the existing straight connector must not be rerouted to make room');
+  assert.equal(points[0][0], points[1][0]);
+  const mask = html.match(/<g data-detail="context"[^>]*data-edge-id="flow3"[^>]*>\s*<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"/);
+  const [x, y, width, height] = mask.slice(1).map(Number);
+  assert.ok(y >= Math.min(points[0][1], points[1][1]) + 4);
+  assert.ok(y + height <= Math.max(points[0][1], points[1][1]) - 8);
+  assert.ok(segmentRectClearanceWithin({ start: points[0], end: points[1] }, { x, y, width, height }, 4) <= 4,
+    'label remains attached to its own connector');
+});

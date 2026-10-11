@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Automatic vertical labels",
+    "quality_profile": "showcase",
+    "output": "diagram.html"
+  },
+  "stages": [
+    {
+      "label": "Stage 1"
+    },
+    {
+      "label": "Stage 2"
+    },
+    {
+      "label": "Stage 3"
+    },
+    {
+      "label": "Stage 4"
+    },
+    {
+      "label": "Stage 5"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "input",
+      "type": "frontend",
+      "label": "批量处理参数",
+      "sublabel": "选项、输入、输出设置",
+      "stage": 0,
+      "row": 3
+    },
+    {
+      "id": "template",
+      "type": "database",
+      "label": "JSON 模板",
+      "sublabel": "static_ / input_ / batch_",
+      "stage": 0,
+      "row": 2
+    },
+    {
+      "id": "configuration",
+      "type": "backend",
+      "label": "配置值",
+      "sublabel": "自定义优先；否则取默认",
+      "stage": 1,
+      "row": 1
+    },
+    {
+      "id": "context",
+      "type": "backend",
+      "label": "配置与处理对象",
+      "sublabel": "内存：配置、输入、处理中",
+      "stage": 1,
+      "row": 3
+    },
+    {
+      "id": "transform",
+      "type": "backend",
+      "label": "批次模板转换",
+      "sublabel": "配置＋输入＋记录＋模板参数",
+      "stage": 2,
+      "row": 2
+    },
+    {
+      "id": "writer",
+      "type": "backend",
+      "label": "按序处理结果",
+      "sublabel": "多记录合并 ABC；单记录复制",
+      "stage": 4,
+      "row": 3
+    },
+    {
+      "id": "artifact",
+      "type": "database",
+      "label": "最终结果文件",
+      "sublabel": "output/{task_id}/final.dat",
+      "stage": 4,
+      "row": 4
+    },
+    {
+      "id": "result",
+      "type": "backend",
+      "label": "结果构造与任务保存",
+      "sublabel": "内存结果返回；JSON 写入磁盘",
+      "stage": 4,
+      "row": 2
+    }
+  ],
+  "flows": [
+    {
+      "id": "flow1",
+      "to": "context",
+      "label": "配置",
+      "from": "configuration"
+    },
+    {
+      "id": "flow2",
+      "to": "transform",
+      "label": "模板内容",
+      "from": "template"
+    },
+    {
+      "id": "flow3",
+      "to": "artifact",
+      "label": "写入最终结果",
+      "from": "writer"
+    },
+    {
+      "id": "flow4",
+      "to": "writer",
+      "label": "可选复制路径",
+      "from": "input"
+    },
+    {
+      "id": "flow5",
+      "to": "result",
+      "label": "路径与文件大小",
+      "from": "artifact"
+    },
+    {
+      "id": "flow6",
+      "to": "result",
+      "label": "原始参数",
+      "from": "input"
+    }
+  ]
+}

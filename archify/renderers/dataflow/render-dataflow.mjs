@@ -43,7 +43,7 @@ import {
   polylinePath,
   routePointsValue,
   authoredStraightRouteAttrs,
-  labelPoint,
+  labelPoint as legacyLabelPoint,
   componentFill,
   componentText,
   arrowClassMap,
@@ -960,6 +960,17 @@ if (automaticShowcase) {
       automaticPorts.get(flow)[field] = field === 'from' ? points[0] : points.at(-1);
     }
   }
+}
+
+// The legacy two-point anchor is relative to the source's y coordinate.
+// On an automatic vertical flow that places the label inside the source.
+// Start in the inter-node corridor; explicit offsets retain their old anchor.
+function labelPoint(flow, points) {
+  if (automaticShowcase && !flow.classification && points.length === 2 && points[0][0] === points[1][0]
+    && !['labelAt', 'labelDx', 'labelDy', 'labelSegment'].some(key => flow[key] !== undefined)) {
+    return [points[0][0], (points[0][1] + points[1][1]) / 2 - 10];
+  }
+  return legacyLabelPoint(flow, points);
 }
 
 function extraLabelLineMasksRoute(rect, points) {
