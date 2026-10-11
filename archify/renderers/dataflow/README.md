@@ -99,9 +99,11 @@ unshared endpoint can align with the spread endpoint when the straight path
 is clear. This preserves the shared slots, the 16px corner gutter, occupied
 ports and authored route/label controls. When both ends are spread or the
 direct path is blocked, the existing perpendicular bridge remains.
-Unpinned labels receive one bounded placement pass,
-with at most 36px mask clearance from their own route. Distant free space is
-rejected in favor of the original placement and its collision diagnostic.
+Unpinned labels stay within 36px mask clearance of their own route. If a
+label remains inside a node because a foreign route occupies its nearby slot,
+a bounded joint repair can shift that route and place the label again. It
+checks at most 16 label slots and 16 route candidates without adding bends
+or crossings. Unresolved placements keep their collision diagnostic.
 Explicit `labelAt`, `labelDx`, `labelDy` and `labelSegment` remain authoritative,
 including zero offsets. Existing valid labels are retained.
 
