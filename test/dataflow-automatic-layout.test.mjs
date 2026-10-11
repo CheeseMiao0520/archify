@@ -773,3 +773,50 @@ test('a rejected corridor search recovers a complete classified label without au
     <= Math.min(...distances.filter(flow => flow.id !== 'f11').map(flow => flow.distance)) + 0.0001,
   'a recovered label must remain closest to its own connector');
 });
+
+
+function mixedPortDiagram({ omitReturn = false, omitRelease = false } = {}) {
+  const diagram = JSON.parse(fs.readFileSync(new URL('./fixtures/dataflow-first-draft/mixed-port-recovery.dataflow.json', import.meta.url), 'utf8'));
+  if (omitReturn) {
+    diagram.nodes = diagram.nodes.filter(node => node.id !== 'n0');
+    diagram.flows = diagram.flows.filter(flow => flow.id !== 'e3');
+  }
+  if (omitRelease) diagram.flows = diagram.flows.filter(flow => flow.id !== 'e8');
+  const stages = [...new Set(diagram.nodes.map(node => node.stage))].sort((a, b) => a - b);
+  diagram.stages = stages.map(index => diagram.stages[index]);
+  for (const node of diagram.nodes) node.stage = stages.indexOf(node.stage);
+  return diagram;
+}
+
+test('a crowded mixed input and output side recovers without authored port or label repairs', t => {
+  const diagram = mixedPortDiagram();
+  const { html } = renderedFootprint(t, diagram);
+  for (const node of diagram.nodes) assert.ok(html.includes(`data-node-id="${node.id}"`));
+  for (const flow of diagram.flows) {
+    assert.ok(html.includes(`data-edge-id="${flow.id}"`));
+    assert.ok(html.includes(flow.label), `preserve the complete label ${flow.id}`);
+  }
+});
+
+test('a valid mixed-port layout survives an alternative outlet that would mask its input label', t => {
+  // Removing the outer return and release edges exposes the counterexample:
+  // unconditionally balancing the source side makes this valid input fail.
+  const diagram = mixedPortDiagram({ omitReturn: true, omitRelease: true });
+  const { html } = renderedFootprint(t, diagram);
+  assert.ok(html.includes('value · key · TTL'));
+  assert.ok(html.includes('未持有：完成或失败'));
+});
+
+
+test('an unsuccessful mixed-port recovery preserves the original diagnosis and existing artifact', t => {
+  const diagram = mixedPortDiagram({ omitReturn: true });
+  const { result, receipt, input, output, env } = inspect(t, diagram);
+  assert.equal(result.status, 1);
+  const collision = receipt.diagnostics.find(diagnostic => diagnostic.code === 'composition/label-route-clearance');
+  assert.equal(collision.subject.id, 'e4', 'keep the initial conflicting relationship');
+  assert.equal(collision.evidence.otherRelationship.id, 'e1', 'keep the initial blocking relationship');
+  fs.writeFileSync(output, 'previous complete diagram');
+  const rendered = spawnSync(process.execPath, [cli, 'render', 'dataflow', input, output], { encoding: 'utf8', env });
+  assert.equal(rendered.status, 1);
+  assert.equal(fs.readFileSync(output, 'utf8'), 'previous complete diagram');
+});
