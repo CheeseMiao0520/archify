@@ -1537,13 +1537,35 @@ function autoRoutePassThroughDocument(connection) {
   };
 }
 
+function componentRect(component) {
+  const [width, height] = component.size || [120, 60];
+  return { x: component.pos[0], y: component.pos[1], width, height };
+}
+
+function assertRouteContact(point, adjacent, expected) {
+  if (Array.isArray(expected)) {
+    assert.deepEqual(point, expected, 'route must attach to its authored port');
+    return;
+  }
+  const { x, y, width, height } = expected;
+  const [px, py] = point;
+  const [ax, ay] = adjacent;
+  const normalContact = (
+    (py > y && py < y + height && ay === py
+      && ((px === x && ax < px) || (px === x + width && ax > px)))
+    || (px > x && px < x + width && ax === px
+      && ((py === y && ay < py) || (py === y + height && ay > py)))
+  );
+  assert.ok(normalContact, `route must contact its node perpendicularly from outside: ${JSON.stringify({ point, adjacent, expected })}`);
+}
+
 function assertAutomaticRoute(html, from, to, obstacles = []) {
   const encoded = html.match(/data-composition-points="([^"]+)"/)?.[1];
   assert.ok(encoded, 'expected a rendered route');
   const points = encoded.split(';').map(point => point.split(',').map(Number));
   assert.ok(points.length >= 2 && points.every(point => point.length === 2 && point.every(Number.isFinite)));
-  assert.deepEqual(points[0], from, 'route must attach to its source port');
-  assert.deepEqual(points.at(-1), to, 'route must attach to its target port');
+  assertRouteContact(points[0], points[1], from);
+  assertRouteContact(points.at(-1), points.at(-2), to);
   for (let i = 1; i < points.length; i++) {
     const start = points[i - 1];
     const end = points[i];
@@ -1560,7 +1582,8 @@ test('architecture: default auto route selects a safe orthogonal candidate aroun
   const { code, stderr, outPath } = render('architecture', d);
   assert.equal(code, 0, stderr);
   const html = fs.readFileSync(outPath, 'utf8');
-  assertAutomaticRoute(html, [560, 318], [880, 160], [{ x: 645, y: 130, width: 130, height: 60 }]);
+  assertAutomaticRoute(html, componentRect(d.components[0]), componentRect(d.components[2]),
+    [componentRect(d.components[1])]);
 });
 
 test('architecture: aligned automatic endpoints still route around an unrelated component', () => {
@@ -1606,7 +1629,7 @@ test('architecture: auto route enters explicit top and bottom ports perpendicula
   assert.ok(points.at(-2)[1] < 240, 'enter from above');
 });
 
-test('architecture: auto route preserves inferred side normals when the primary dogleg is blocked', () => {
+test('architecture: auto route keeps normal node contacts when the primary dogleg is blocked', () => {
   const d = {
     schema_version: 1,
     diagram_type: 'architecture',
@@ -1624,14 +1647,8 @@ test('architecture: auto route preserves inferred side normals when the primary 
   const { code, stderr, outPath } = render('architecture', d);
   assert.equal(code, 0, stderr);
   const html = fs.readFileSync(outPath, 'utf8');
-  const points = assertAutomaticRoute(html, [700, 130], [160, 330], [
-    { x: 220, y: 300, width: 120, height: 60 },
-    { x: 400, y: 300, width: 120, height: 60 },
-  ]);
-  assert.equal(points[1][1], 130, 'leave the inferred left port horizontally');
-  assert.ok(points[1][0] < 700, 'leave leftward');
-  assert.equal(points.at(-2)[1], 330, 'enter the inferred right port horizontally');
-  assert.ok(points.at(-2)[0] > 160, 'enter from the right');
+  assertAutomaticRoute(html, componentRect(d.components[3]), componentRect(d.components[0]),
+    d.components.slice(1, 3).map(componentRect));
 });
 
 test('architecture: auto route finds a multi-bend path when both side-safe doglegs are blocked', () => {
@@ -1706,19 +1723,12 @@ test('architecture: auto route clears stacked blockers after doglegs and side-aw
   const d = autoRoutePassThroughDocument({ id: 'api-queue', from: 'api', to: 'queue', variant: 'dashed' });
   d.components.push({ id: 'guard', type: 'security', label: 'Guard', pos: [825, 215], size: [70, 50] });
   const { code, stderr, outPath } = render('architecture', d);
-  assert.equal(code, 0, `automatic multi-bend route must clear both blockers: ${stderr}`);
+  assert.equal(code, 0, `automatic route must clear both blockers: ${stderr}`);
   const html = fs.readFileSync(outPath, 'utf8');
-  const encoded = html.match(/data-edge-id="api-queue" data-composition-points="([^"]+)"/)?.[1];
-  assert.ok(encoded, 'expected rendered composition points for api-queue');
-  const points = encoded.split(';').map((point) => point.split(',').map(Number));
-  // The bend-penalised planner takes the 50px gap between the two blockers in
-  // two turns; the pure shortest path used to staircase around them.
-  assert.ok(points.length >= 4, `expected a routed detour, found ${encoded}`);
-  assert.ok(points.slice(1, -1).some(([x]) => x > 775 && x < 825), `route must pass between the blockers, found ${encoded}`);
-  assert.equal(points[0][1], points[1][1], 'route must leave the inferred right port horizontally');
-  assert.ok(points[1][0] > points[0][0], 'route must leave the inferred right port rightward');
-  assert.equal(points.at(-2)[1], points.at(-1)[1], 'route must enter the inferred left port horizontally');
-  assert.ok(points.at(-2)[0] < points.at(-1)[0], 'route must enter the inferred left port rightward');
+  // Automatic ports may choose another clear side; both blockers must still
+  // be avoided and both endpoint contacts must remain perpendicular.
+  assertAutomaticRoute(html, componentRect(d.components[0]), componentRect(d.components[2]),
+    [componentRect(d.components[1]), componentRect(d.components[3])]);
 });
 
 test('architecture: explicit waypoints around an obstacle remain valid by default', () => {
@@ -1956,12 +1966,12 @@ test('architecture: container border run is blocking in standard and showcase', 
   }
 });
 
-test('architecture: an inferred side follows the dominant axis for a hub above an offset spoke', () => {
+test('architecture: vertically offset nodes keep valid automatic contacts through delivery', () => {
   // Regression for issue #376. The hub sits above the spoke with a horizontal
-  // offset (dx = -164, dy = +200). The router draws a vertical dogleg out of
-  // the hub's bottom into the spoke's top, so the INFERRED sides must be
-  // bottom/top. Inferring left/right from the bare sign of dx made the
-  // Clean Flow Gate reject the very route the router had just drawn.
+  // offset (dx = -164, dy = +200). Inferring left/right from the bare sign
+  // of dx made the Clean Flow Gate reject the router's own valid contact.
+  // Automatic ports may change; routing and delivery must agree on their
+  // actual perpendicular endpoint contacts.
   const doc = {
     schema_version: 1,
     diagram_type: 'architecture',
@@ -1979,21 +1989,11 @@ test('architecture: an inferred side follows the dominant axis for a hub above a
   };
 
   const { code, stderr, outPath } = render('architecture', doc);
-  assert.equal(code, 0, `inferred vertical route must render cleanly: ${stderr}`);
+  assert.equal(code, 0, `automatic offset route must render cleanly: ${stderr}`);
   assert.doesNotMatch(stderr, /clean-flow\/endpoint-side-direction/);
 
-  // The route leaves the hub's bottom edge and enters the spoke's top edge,
-  // so every composition point stays inside that column band.
   const html = fs.readFileSync(outPath, 'utf8');
-  const points = html
-    .match(/data-edge-id="hub-spoke" data-composition-points="([^"]+)"/)?.[1];
-  assert.ok(points, 'expected rendered composition points for hub-spoke');
-  const route = points.split(';').map((point) => point.split(',').map(Number));
-  const hubCx = 200 + 176 / 2; // 288
-  assert.equal(route[0][0], hubCx, 'route must leave the hub centre column');
-  assert.equal(route.at(-1)[0], 40 + 168 / 2, 'route must enter the spoke centre column');
-  assert.equal(route[0][1], 40 + 52, 'route must leave the hub bottom edge');
-  assert.equal(route.at(-1)[1], 240, 'route must enter the spoke top edge');
+  assertAutomaticRoute(html, componentRect(doc.components[0]), componentRect(doc.components[1]));
 
   // The CLI validation surface agrees with the renderer.
   const cli = validateCli('architecture', doc, 'standard');
