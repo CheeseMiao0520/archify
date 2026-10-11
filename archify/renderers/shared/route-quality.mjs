@@ -343,16 +343,19 @@ export function shortestOrthogonalGridRoute({
       ys.add(segmentStart[1] + routeSeparationPx);
     }
   }
-  for (const segment of relevantBorderSegments) {
-    if (Math.abs(segment.start[0] - segment.end[0]) <= 0.0001) {
-      xs.add(segment.start[0] - routeSeparationPx);
-      xs.add(segment.start[0] + routeSeparationPx);
-    }
-    if (Math.abs(segment.start[1] - segment.end[1]) <= 0.0001) {
-      ys.add(segment.start[1] - routeSeparationPx);
-      ys.add(segment.start[1] + routeSeparationPx);
+  function addBorderCoordinates(distance) {
+    for (const segment of relevantBorderSegments) {
+      if (Math.abs(segment.start[0] - segment.end[0]) <= 0.0001) {
+        xs.add(segment.start[0] - distance);
+        xs.add(segment.start[0] + distance);
+      }
+      if (Math.abs(segment.start[1] - segment.end[1]) <= 0.0001) {
+        ys.add(segment.start[1] - distance);
+        ys.add(segment.start[1] + distance);
+      }
     }
   }
+  addBorderCoordinates(routeSeparationPx);
   // Grid lines closer than a readable segment would let the search emit a
   // micro jog between two obstacle edges; keep the endpoint stubs and coalesce
   // the rest so every turn the route can take is at least one segment long.
@@ -374,6 +377,10 @@ export function shortestOrthogonalGridRoute({
   // the denser coordinate set, within the same original node budget.
   let remainingGridNodes = maximumGridNodes;
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    // A pinned endpoint stub may land on a frame border. Nearby candidates
+    // closer than the minimum segment disappear during coalescing. Recovery
+    // adds a full-segment corridor without changing the attempt or node budget.
+    if (attempt > 0 && routeSeparationPx < minimumSegmentPx) addBorderCoordinates(minimumSegmentPx);
     const orderedX = coalesce([...xs], new Set([startStub[0], endStub[0]]), attempt > 0);
     const orderedY = coalesce([...ys], new Set([startStub[1], endStub[1]]), attempt > 0);
     const candidateNodeCount = orderedX.length * orderedY.length;

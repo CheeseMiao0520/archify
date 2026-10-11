@@ -20,6 +20,43 @@ function layout(input) {
   return JSON.parse(result.stdout);
 }
 
+test('architecture: pinned sides clear a boundary without changing authored geometry', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-border-corridor-'));
+  try {
+    const input = path.join(tmp, 'border.json');
+    const spec = { schema_version: 1, diagram_type: 'architecture',
+      meta: { title: 'Storage boundary', output: 'border.html', quality_profile: 'showcase' },
+      components: [
+        { id: 'producer', type: 'backend', label: 'Producer', pos: [100, 80], size: [180, 72] },
+        { id: 'store', type: 'database', label: 'Storage', pos: [100, 280], size: [180, 72] },
+      ],
+      connections: [{ from: 'producer', to: 'store', label: 'Persist', fromSide: 'right', toSide: 'right' }],
+      boundaries: [{ kind: 'region', label: 'Stored data', wraps: ['store'], pad: 24 }],
+    };
+    fs.writeFileSync(input, JSON.stringify(spec));
+    const result = layout(input);
+    assert.equal(result.ok, true, JSON.stringify(result.diagnostics));
+    assert.deepEqual(result.components.map(c => c.pos), spec.components.map(c => c.pos));
+    assert.deepEqual(result.boundaries[0].wraps, ['store']);
+    const points = result.connections[0].points;
+    assert.equal(points[0][0], 280);
+    assert.ok(points[0][1] > 80 && points[0][1] < 152);
+    assert.equal(points.at(-1)[0], 280);
+    assert.ok(points.at(-1)[1] > 280 && points.at(-1)[1] < 352);
+    assert.ok(points[1][0] > points[0][0] && points[1][1] === points[0][1]);
+    assert.ok(points.at(-2)[0] > points.at(-1)[0] && points.at(-2)[1] === points.at(-1)[1]);
+    // An explicit path remains authoritative even when it follows the border.
+    spec.connections[0].via = [[304, 116], [304, 316]];
+    fs.writeFileSync(input, JSON.stringify(spec));
+    const pinned = layout(input);
+    assert.equal(pinned.ok, false);
+    assert.match(JSON.stringify(pinned.diagnostics), /container-border-run/);
+    assert.deepEqual(pinned.connections[0].points.slice(1, -1), spec.connections[0].via);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('architecture: automatic side changes keep incoming arrowheads distinct', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-final-ports-'));
   try {
