@@ -5660,6 +5660,45 @@ function compileWorkflowWithFeedback({ workflow, qualityProfile, sourceEvidence,
   return result;
 }
 
+function addVerifiedCrossingRepair(result, options) {
+  const { workflow } = options;
+  if (result.ok || workflow?.schema_version !== 2
+    || preservesWorkflowAbsoluteGeometry(workflow)) return result;
+  const errors = result.diagnostics.filter(({ severity }) => severity !== 'warning');
+  if (!errors.length || errors.some(({ code }) => code !== 'composition/proper-crossing')) return result;
+  const diagnostic = errors[0];
+  const indexes = [diagnostic.subject?.index, diagnostic.evidence?.otherRelationship?.index];
+  if (!indexes.every(index => Number.isInteger(index) && workflow.edges[index])) return result;
+  const groups = indexes.map(index => ['fromSide', 'toSide', 'route']
+    .filter(field => workflow.edges[index][field] && workflow.edges[index][field] !== 'auto')
+    .map(field => ({ index, field })));
+  // Try each complete set of optional side/preset constraints, then the pair.
+  // At most three full compiler probes; do not search every field combination.
+  const seen = new Set();
+  for (const removals of [...groups, groups.flat()]) {
+    const key = JSON.stringify(removals);
+    if (!removals.length || seen.has(key)) continue;
+    seen.add(key);
+    const candidate = cloneWorkflow(workflow);
+    for (const symbol of Object.getOwnPropertySymbols(workflow)) candidate[symbol] = workflow[symbol];
+    for (const { index, field } of removals) delete candidate.edges[index][field];
+    const verified = withDiagnosticRecordingSuppressed(() => compileWorkflowWithFeedback({
+      ...options, workflow: candidate, discoverFixes: false,
+    }));
+    if (!verified.ok) continue;
+    const changes = removals.map(({ index, field }) => ({ op: 'remove', path: `/edges/${index}/${field}` }));
+    const fix = `if these endpoint sides and route presets are optional, remove ${changes.map(({ path }) => path).join(', ')} together; this complete workflow passes compilation with those edits (browser verification still required)`;
+    diagnostic.evidence = {
+      ...diagnostic.evidence,
+      verifiedRepair: { scope: 'complete-workflow-compile', changes },
+    };
+    diagnostic.supportedFixes = [fix, ...diagnostic.supportedFixes];
+    return result;
+  }
+  return result;
+}
+
 export function compileWorkflow({ workflow, qualityProfile, sourceEvidence } = {}) {
-  return compileWorkflowWithFeedback({ workflow, qualityProfile, sourceEvidence });
+  const options = { workflow, qualityProfile, sourceEvidence };
+  return addVerifiedCrossingRepair(compileWorkflowWithFeedback(options), options);
 }

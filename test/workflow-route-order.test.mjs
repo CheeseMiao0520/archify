@@ -35,9 +35,12 @@ test('pinned geometry keeps its own diagnostic: only automatic edges are re-orde
   const workflow = load();
   workflow.edges.find((edge) => edge.id === 'e_auto').via = [[480.8, 243], [480.8, 449], [539.2, 449]];
   workflow.edges.find((edge) => edge.id === 'e_denied').via = [[480.8, 367], [480.8, 325], [539.2, 325]];
+  const authored = structuredClone(workflow);
   const pinned = compileWorkflow({ workflow });
   assert.equal(pinned.ok, false);
-  assert.deepEqual(pinned.diagnostics.map((diagnostic) => diagnostic.code), ['workflow/explicit-pin-conflict']);
+  assert.deepEqual(pinned.diagnostics.filter(({ severity }) => severity !== 'warning')
+    .map(({ code }) => code), ['workflow/explicit-pin-conflict']);
+  assert.deepEqual(workflow, authored);
 });
 
 // The "customer impact" edge runs from the on-call lane down to the comms lane,
