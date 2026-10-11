@@ -10,6 +10,7 @@ import { translateMessage as i18nText } from '../shared/i18n.mjs';
 import { DECLARED_WIDE_READER_RATIO, minimumReadableSourceTextPx, predictedFixedWidthOverflow } from '../shared/desktop-readability.mjs';
 import { placeAutomaticLabels } from '../shared/automatic-labels.mjs';
 import { shortestOrthogonalGridRoute } from '../shared/route-quality.mjs';
+import { FLOW_LABEL_HEIGHT, flowLabelSize, wrapBlockedFlowLabels } from './label-capacity.mjs';
 import {
   asArray,
   isFinitePoint,
@@ -74,7 +75,7 @@ const layout = {
   nodeW: 112,
   nodeH: 58,
   rowYs: [128, 242, 356, 470, 584],
-  labelH: 16
+  labelH: FLOW_LABEL_HEIGHT
 };
 // Mirrors the authored minimum in schemas/dataflow.schema.json: a repair that
 // would need a node shorter than the schema allows cannot be offered.
@@ -104,14 +105,6 @@ const viewBox = dataflow.meta?.viewBox || [
 const contextFontMinimum = automaticShowcase
   ? Math.max(6, Math.ceil(minimumReadableSourceTextPx(viewBox[0]) * 10) / 10)
   : 6;
-
-function flowLabelSize(flow) {
-  const longestLine = Math.max(textUnits(flow.label), textUnits(flow.classification || ''));
-  return {
-    width: Math.round(Math.max(34, longestLine * 4.9 + 12) * 10) / 10,
-    height: flow.classification ? 27 : layout.labelH,
-  };
-}
 
 function stageX(index) {
   return layout.leftX + index * layout.colGap;
@@ -1204,6 +1197,21 @@ if (automaticShowcase) {
   }
 }
 
+// Only after routes settle, try two complete rows for an unresolved wide
+// label. Keep the plate immediately beside its own arrow, with every other
+// route and label fixed; an empty island above a node is not a useful slot.
+if (automaticShowcase) {
+  const wrapped = wrapBlockedFlowLabels({ labels: resolvedLabelRects,
+    routes: routable.map(flow => ({ relationIndex: asArray(dataflow.flows).indexOf(flow), points: pathFor(flow).points })),
+    components: [...nodes.values()], titles: compositionFrames.map(frame => ({ ...frame, height: layout.stageH })),
+    viewBox, placementBottom: viewBox[1] - layout.stageBottomPad });
+  for (const [index, rect] of wrapped.entries()) {
+    if (rect === resolvedLabelRects[index]) continue;
+    resolvedLabelRects[index] = rect;
+    resolvedLabelPoints.set(rect.relation, [rect.lx, rect.ly]);
+  }
+}
+
 // A shared placement search may retain an unpinned original plate when none
 // of its candidates fit the compact width. Include every final rendered plate
 // without moving nodes, routes or labels; an authored canvas remains fixed.
@@ -1315,13 +1323,16 @@ ${edge}
 function renderFlowLabel(flow, index) {
   const routed = pathFor(flow);
   const [lx, ly] = resolvedLabelPoints.get(flow) || labelPoint(flow, routed.points);
-  const { width: labelW, height: labelH } = flowLabelSize(flow);
+  const rect = resolvedLabelRects.find(rect => rect.relation === flow);
+  const { width: labelW, height: labelH } = rect || flowLabelSize(flow);
+  const lines = rect?.lines;
+  const text = lines ? lines.map((line, i) => `<tspan x="${lx}" dy="${i ? 11 : 0}">${esc(line)}</tspan>`).join('') : esc(flow.label);
   const classification = flow.classification
-    ? `\n        <text data-detail="fine" x="${lx}" y="${ly + 11}" class="t-dim" font-size="7" text-anchor="middle">${esc(flow.classification)}</text>`
+    ? `\n        <text data-detail="fine" x="${lx}" y="${ly + 11 * (lines?.length || 1)}" class="t-dim" font-size="7" text-anchor="middle">${esc(flow.classification)}</text>`
     : '';
   return `        <g data-detail="context" ${focusEdgeAttrs(flow.from, flow.to, flow.label, index, flow.id)}>
           <rect x="${lx - labelW / 2}" y="${ly - 11}" width="${labelW}" height="${labelH}" rx="4" class="c-mask"/>
-          <text x="${lx}" y="${ly}" class="${edgeLabelAccent(flow.variant)}" font-size="8" text-anchor="middle">${esc(flow.label)}</text>${classification}
+          <text x="${lx}" y="${ly}" class="${edgeLabelAccent(flow.variant)}" font-size="8" text-anchor="middle">${text}</text>${classification}
         </g>`;
 }
 

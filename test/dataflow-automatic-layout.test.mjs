@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { segmentRectClearanceWithin } from '../archify/renderers/shared/geometry.mjs';
+import { labelPoint, segmentRectClearanceWithin } from '../archify/renderers/shared/geometry.mjs';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -611,11 +611,20 @@ test('an occupied midpoint keeps a nearby simple corridor instead of a perimeter
 for (const pin of [{ labelDx: 0 }, { labelDy: 0 }, { labelSegment: 0 }, { labelAt: [368, 217] }]) {
   test(`label-aware routing preserves authored ${Object.keys(pin)[0]} on its obstructing route`, t => {
     const diagram = labelCorridorDiagram();
-    Object.assign(diagram.flows.find(flow => flow.id === 'f5'), pin);
-    const { result, receipt } = inspect(t, diagram);
-    assert.equal(result.status, 1);
-    assert.ok(receipt.diagnostics.some(({ code, message }) => code === 'composition/label-route-clearance'
-      && message.includes('Range data')), 'the original collision stays actionable when the route is pinned');
+    const pinned = Object.assign(diagram.flows.find(flow => flow.id === 'f5'), pin);
+    const { result, receipt, input, output, env } = inspect(t, diagram);
+    assert.equal(result.status, 0, JSON.stringify(receipt.diagnostics));
+    const rendered = spawnSync(process.execPath, [cli, 'render', 'dataflow', input, output], { encoding: 'utf8', env });
+    assert.equal(rendered.status, 0, rendered.stderr);
+    const html = fs.readFileSync(output, 'utf8');
+    const points = html.match(/data-edge-id="f5"[^>]*data-composition-points="([^"]+)"/)[1]
+      .split(';').map(point => point.split(',').map(Number));
+    const text = html.match(/<g data-detail="context"[^>]*data-edge-id="f5"[^>]*>[\s\S]*?<text x="([^"]+)" y="([^"]+)"/);
+    assert.deepEqual(text.slice(1).map(Number), labelPoint(pinned, points),
+      'moving the other automatic label must not displace the authored label control');
+    const rangeText = html.match(/<g data-detail="context"[^>]*data-edge-id="f8"[^>]*>[\s\S]*?<text[^>]*>([\s\S]*?)<\/text>/)[1];
+    assert.equal(rangeText.replace(/<[^>]*>/g, ''), 'Range data', 'wrapping must retain visible text, not just edge metadata');
+    for (const flow of diagram.flows) assert.ok(html.includes(flow.label));
   });
 }
 
