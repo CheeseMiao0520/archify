@@ -80,6 +80,7 @@ const READABLE_CANDIDATE_COST_PRIORITY = Object.freeze([
   'labelRouteClearanceDeficit',
   'oppositeParallelDeficit',
   'interiorPreferred28Deficit',
+  'excessiveVerticalTravelPx',
   'bendCount',
   'stretchMilli',
   'canvasGrowthPx',
@@ -3883,6 +3884,10 @@ function readableCandidateCost(
     labelRouteClearanceDeficit: labelRouteClearanceDeficit(edge, points),
     oppositeParallelDeficit: interaction.oppositeParallelDeficit,
     interiorPreferred28Deficit,
+    // Keep bend count first for ordinary routes; avoid a many-fold outer trip
+    // solely to save a corner when the endpoints share a column.
+    excessiveVerticalTravelPx: independentAutomaticRoute(edge) && from.col === to.col && from.cy !== to.cy
+      ? Math.max(0, routeLength - 2 * Math.abs(to.cy - from.cy)) : 0,
     bendCount: Math.max(0, points.length - 2),
     stretchMilli: Math.round((directLength > 0 ? routeLength / directLength : 1) * 1000),
     canvasGrowthPx,
@@ -4473,6 +4478,40 @@ function automaticEndpointRepairs(edge, selected, from, to, naturalFromSide, nat
   return repairs;
 }
 
+// The fixed center/offset tracks can miss the open space beside a column.
+// Only expand a severe vertical detour: try at most 24 nearby node-side tracks,
+// preserving the existing feasibility, port and interaction checks.
+function readableInternalDetourPlans(edge, selected, from, to, naturalFromSide, naturalToSide) {
+  if (!independentAutomaticRoute(edge) || from.col !== to.col) return [];
+  const length = selected.points.slice(1).reduce((sum, point, index) => sum
+    + Math.abs(point[0] - selected.points[index][0]) + Math.abs(point[1] - selected.points[index][1]), 0);
+  const direct = Math.abs(to.cx - from.cx) + Math.abs(to.cy - from.cy);
+  if (length <= direct * 2 || length - direct <= 64) return [];
+  const down = to.cy > from.cy;
+  const fromSide = down ? 'bottom' : 'top';
+  const toSide = down ? 'top' : 'bottom';
+  const starts = automaticPortCandidates(edge, from, fromSide, anchor(from, fromSide), to);
+  const ends = automaticPortCandidates(edge, to, toSide, anchor(to, toSide), from);
+  const midX = (from.cx + to.cx) / 2;
+  const lowY = Math.min(from.cy, to.cy);
+  const highY = Math.max(from.cy, to.cy);
+  const tracks = [...new Set([...nodes.values()]
+    .filter(node => node.y <= highY && node.y + node.height >= lowY)
+    .flatMap(node => [node.x - 8, node.x + node.width + 8]))]
+    .filter(x => x >= layout.laneX + 4 && x <= layout.laneX + layout.laneW - 4)
+    .sort((a, b) => Math.abs(a - midX) - Math.abs(b - midX) || a - b).slice(0, 24);
+  const plans = [];
+  for (const start of starts) for (const end of ends) for (const x of tracks) {
+    const points = joinRoutePoints(start, corridorViaX(start, end, fromSide, toSide, x), end);
+    if (!readableCandidateIsFeasible(edge, points, from, to, fromSide, toSide)) continue;
+    plans.push({
+      points, fromSide, toSide, family: 'internal-detour',
+      cost: readableCandidateCost(edge, points, 10000 + plans.length, naturalFromSide, naturalToSide),
+    });
+  }
+  return plans;
+}
+
 function readableAutomaticRoute(edge, from, to, primarySides, primaryPorts) {
   const authoredFrom = edge.fromSide && edge.fromSide !== 'auto' ? edge.fromSide : null;
   const authoredTo = edge.toSide && edge.toSide !== 'auto' ? edge.toSide : null;
@@ -4611,6 +4650,8 @@ function readableAutomaticRoute(edge, from, to, primarySides, primaryPorts) {
 
   plans.sort((left, right) => compareCost(left.cost, right.cost));
   if (plans.length) {
+    plans.push(...readableInternalDetourPlans(edge, plans[0], from, to, naturalFromSide, naturalToSide));
+    plans.sort((a, b) => compareCost(a.cost, b.cost));
     const endpointRepairs = automaticEndpointRepairs(edge, plans[0], from, to, naturalFromSide, naturalToSide);
     const repairSeeds = plans[0].cost.sharedCorridorPx > 0
       ? plans.filter((plan, index) => plans.findIndex(other => (

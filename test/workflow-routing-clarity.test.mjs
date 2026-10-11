@@ -54,6 +54,47 @@ test('readable-v2 keeps a clear vertical main step straight when its source also
   assert.deepEqual(workflow, original);
 });
 
+test('readable-v2 uses a clear internal corridor for a long same-column branch', () => {
+  const workflow = {
+    schema_version: 2, diagram_type: 'workflow',
+    meta: { title: 'Payment and expiry', locale: 'zh-CN', output: 'expiry.html' },
+    lanes: [
+      { id: 'checkout', label: '下单与支付' },
+      { id: 'fulfillment', label: '支付成功后履约' },
+      { id: 'exceptions', label: '库存不足 / 支付失败', variant: 'exception' },
+      { id: 'expiry', label: '超时关闭与回收', variant: 'exception' },
+    ],
+    nodes: [
+      { id: 'pending', lane: 'checkout', col: 2, type: 'backend', label: '创建待支付订单', sublabel: '订单服务' },
+      { id: 'pay', lane: 'checkout', col: 2, yOffset: 80, type: 'cloud', label: '发起支付', sublabel: '支付服务', icon: 'decision' },
+      { id: 'failed', lane: 'exceptions', col: 2, type: 'external', label: '支付失败，可重试', sublabel: '买家重试支付', icon: 'failure' },
+      { id: 'event', lane: 'fulfillment', col: 3, type: 'messagebus', label: '投递 OrderPaid', sublabel: '订单服务' },
+      { id: 'timeout', lane: 'expiry', col: 2, type: 'security', label: '超过 15 分钟？', sublabel: '订单服务检查未支付订单', icon: 'decision' },
+      { id: 'close', lane: 'expiry', col: 1, type: 'backend', label: '超时关闭订单', sublabel: '订单服务', icon: 'stop' },
+    ],
+    edges: [
+      { id: 'pending-pay', from: 'pending', to: 'pay', role: 'main' },
+      { id: 'pay-failed', from: 'pay', to: 'failed', role: 'error', label: '支付失败', variant: 'security' },
+      { id: 'retry-pay', from: 'failed', to: 'pay', role: 'return', label: '未超时，重试', variant: 'dashed' },
+      { id: 'pending-timeout', from: 'pending', to: 'timeout', role: 'branch', label: '持续未支付', variant: 'dashed' },
+      { id: 'timeout-close', from: 'timeout', to: 'close', role: 'error', label: '是，仍未支付', variant: 'security' },
+    ],
+  };
+  const original = structuredClone(workflow);
+  const result = compileWorkflow({ workflow, qualityProfile: 'showcase' });
+  assert.equal(result.ok, true, JSON.stringify(result.diagnostics));
+  const route = result.receipt.edges.find(edge => edge.id === 'pending-timeout');
+  const from = result.receipt.nodes.find(node => node.id === 'pending');
+  const to = result.receipt.nodes.find(node => node.id === 'timeout');
+  const length = route.points.slice(1).reduce((sum, point, index) => sum
+    + Math.abs(point[0] - route.points[index][0]) + Math.abs(point[1] - route.points[index][1]), 0);
+  assert.ok(length < 2 * Math.abs(to.y - from.y),
+    'this unobstructed internal corridor should avoid a trip around the whole diagram');
+  assert.deepEqual(result.receipt.edges.map(edge => edge.id).sort(), workflow.edges.map(edge => edge.id).sort());
+  assert.deepEqual(result.receipt.labels.map(label => label.label).sort(), workflow.edges.filter(edge => edge.label).map(edge => edge.label).sort());
+  assert.deepEqual(workflow, original);
+});
+
 test('readable-v2 keeps clear backward branches straight after provisional port spreading', () => {
   for (const role of ['error', 'return', undefined]) {
     const workflow = {
