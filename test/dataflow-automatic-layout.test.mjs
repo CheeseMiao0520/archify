@@ -749,3 +749,27 @@ test('a crowded exit label and its blocking corridors settle together without dr
   const foreignDistance = Math.min(...routes.filter(route => route.id !== 'f13').map(distance));
   assert.ok(ownDistance <= foreignDistance + 0.0001, 'a clear label must still read as belonging to its own connector');
 });
+
+
+test('a rejected corridor search recovers a complete classified label without author repair', t => {
+  const diagram = JSON.parse(fs.readFileSync(new URL('./fixtures/dataflow-first-draft/rejected-grid-recovery.dataflow.json', import.meta.url), 'utf8'));
+  const { html } = renderedFootprint(t, diagram);
+  for (const flow of diagram.flows) {
+    assert.ok(html.includes(flow.label), `preserve label ${flow.id}`);
+    assert.ok(html.includes(flow.classification), `preserve classification ${flow.id}`);
+    assert.ok(html.includes(`data-edge-id="${flow.id}"`), `preserve relationship ${flow.id}`);
+  }
+  const plate = html.match(/<g data-detail="context"[^>]*data-edge-id="f11"[^>]*>\s*<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"/);
+  assert.ok(plate, 'the complete classified label remains rendered');
+  const [x, y, width, height] = plate.slice(1).map(Number);
+  const distances = diagram.flows.map(flow => {
+    const path = html.match(new RegExp(`<path[^>]*data-edge-id="${flow.id}"[^>]*data-composition-points="([^"]+)"`));
+    assert.ok(path, `preserve connector ${flow.id}`);
+    const points = path[1].split(';').map(point => point.split(',').map(Number));
+    return { id: flow.id, distance: Math.min(...points.slice(1).map((end, index) =>
+      segmentRectClearanceWithin({ start: points[index], end }, { x, y, width, height }, 36))) };
+  });
+  assert.ok(distances.find(flow => flow.id === 'f11').distance
+    <= Math.min(...distances.filter(flow => flow.id !== 'f11').map(flow => flow.distance)) + 0.0001,
+  'a recovered label must remain closest to its own connector');
+});

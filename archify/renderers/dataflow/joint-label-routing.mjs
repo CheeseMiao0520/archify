@@ -150,9 +150,10 @@ export function repairLabelRoutes({ labels, routes, nodes, titles, frames, viewB
             && !related(old.relation, other.relation)).flatMap(other => segments(other.points)),
           allowAvoidedCrossings: true, minimumAvoidedOverlapPx: 8, routeSeparationPx: 8,
           minimumSegmentPx: 16, bendPenaltyPx: 48, borderSegments,
+          accept: points => routeClear(old, points, nextLabels, nextRoutes, placementBottom + label.height),
         });
         const points = found && normalizeRoutePoints(found.points);
-        if (!points || !routeClear(old, points, nextLabels, nextRoutes, placementBottom + label.height)) { failed = true; break; }
+        if (!points) { failed = true; break; }
         nextRoutes[nextRoutes.findIndex(route => route.relationIndex === old.relationIndex)] = { ...old, points };
       }
       if (failed) continue;

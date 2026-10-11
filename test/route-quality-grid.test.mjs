@@ -56,3 +56,25 @@ test('grid bounds pruning preserves the configured avoided-overlap threshold', (
   assert.equal(shortestOrthogonalGridRoute({ ...options, minimumAvoidedOverlapPx: 0 }), null,
     'zero overlap still meets a zero threshold, even for a remote segment');
 });
+
+
+test('caller rejection never returns an unusable route or expands the search budget', () => {
+  const options = {
+    start: [0, 0], end: [100, 100], points: [[0, 0], [100, 100]],
+    fromSide: 'right', toSide: 'left', endpointStubPx: 24,
+    clearance: 2, maximumObstacleCount: 80, maximumGridNodes: 64,
+    obstacles: [], minimumSegmentPx: 16, bendPenaltyPx: 48,
+  };
+  const original = shortestOrthogonalGridRoute(options);
+  assert.ok(original);
+  assert.deepEqual(shortestOrthogonalGridRoute({ ...options, accept: () => true }), original,
+    'an accepted route retains the established result');
+  const metrics = {};
+  let proposals = 0;
+  assert.equal(shortestOrthogonalGridRoute({ ...options, metrics,
+    accept: () => { proposals++; return false; } }), null,
+  'a route rejected by the caller cannot be used as a successful repair');
+  assert.ok(proposals > 0 && proposals <= 2);
+  assert.ok(metrics.candidateNodeCount <= options.maximumGridNodes);
+  assert.ok(metrics.visitedNodeCount <= options.maximumGridNodes * 4);
+});

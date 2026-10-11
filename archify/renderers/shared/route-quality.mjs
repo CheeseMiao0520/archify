@@ -276,6 +276,7 @@ export function shortestOrthogonalGridRoute({
   minimumSegmentPx = 8,
   borderSegments = [],
   bendPenaltyPx = 0,
+  accept = () => true,
   metrics,
 }) {
   writeGridMetrics(metrics, {
@@ -369,8 +370,8 @@ export function shortestOrthogonalGridRoute({
       return retained;
     }, []);
   };
-  // Keep successful routes stable. Only a failed search needs the denser
-  // coordinate set. Both attempts share the original node budget.
+  // Keep accepted routes stable. A failed or caller-rejected search can use
+  // the denser coordinate set, within the same original node budget.
   let remainingGridNodes = maximumGridNodes;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const orderedX = coalesce([...xs], new Set([startStub[0], endStub[0]]), attempt > 0);
@@ -498,6 +499,10 @@ export function shortestOrthogonalGridRoute({
       return null;
     }
     const shortestPoints = normalizeRoutePoints([start, ...reversed.reverse(), end]);
+    if (!accept(shortestPoints)) {
+      writeGridMetrics(metrics, { status: 'rejected' });
+      continue;
+    }
     writeGridMetrics(metrics, { status: 'routed' });
     return {
       points: shortestPoints,
