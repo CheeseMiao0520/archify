@@ -70,3 +70,16 @@ test('two automatic arrivals on one side of a node keep at least 16px between th
     assert.ok(values[index] - values[index - 1] >= 16, `ports ${values[index - 1]} and ${values[index]} are only ${values[index] - values[index - 1]}px apart`);
   }
 });
+
+test('a crossing-free route retry can finish automatic sublabel sizing before error counts are compared', () => {
+  // Synthetic mixed-script text holds the width pressure of the reproduction.
+  // Retrying a return edge removes one crossing but exposes several readable
+  // font-width errors. Counting errors alone discarded that recoverable plan.
+  const workflow = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'workflow-route-text-recovery.json'), 'utf8'));
+  const original = structuredClone(workflow);
+  const result = compileWorkflow({ workflow, qualityProfile: 'showcase' });
+  assert.equal(result.ok, true, JSON.stringify(result.diagnostics));
+  assert.deepEqual(workflow, original);
+  assert.deepEqual(result.receipt.nodes.map(node => node.id).sort(), workflow.nodes.map(node => node.id).sort());
+  assert.deepEqual(result.receipt.edges.map(edge => [edge.from, edge.to]).sort(), workflow.edges.map(edge => [edge.from, edge.to]).sort());
+});

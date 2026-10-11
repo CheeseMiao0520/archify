@@ -5387,6 +5387,27 @@ function routeOrderRetryIndex(result, layoutFeedback) {
   }
   return null;
 }
+
+function canRepairAutomaticSublabels(result, { workflow, qualityProfile }) {
+  if (workflow.schema_version !== 2
+    || (qualityProfile || workflow.meta?.quality_profile) !== 'showcase'
+    || preservesWorkflowAbsoluteGeometry(workflow)
+    || result.receipt?.contract !== 'readable-v2'
+    || !Array.isArray(result.receipt.nodes)) return false;
+  const errors = result.diagnostics.filter(({ severity }) => severity !== 'warning');
+  return errors.length > 0 && errors.every(({ code, subject, evidence }) => {
+    if (code !== 'workflow/sublabel-readability') return false;
+    const node = workflow.nodes.find(({ id }) => id === subject.node);
+    const measured = result.receipt.nodes.find(({ id }) => id === subject.node);
+    if (!node?.sublabel || Number.isFinite(node.width) || !measured) return false;
+    const minimum = evidence.requiredFontPx;
+    if (!Number.isFinite(minimum) || minimum > Math.min(8, evidence.maximumSlotFontPx)) return false;
+    const padding = measured.width - availableNodeTextWidth(measured.width);
+    const width = Math.ceil((minimumNodeTextWidth(node.sublabel, minimum) + padding) / 4) * 4;
+    return width > measured.width && width <= 200;
+  });
+}
+
 function compileWithRouteOrderFeedback(options) {
   const first = compileWorkflowInternal(options);
   if (options.workflow?.schema_version !== 2) return first;
@@ -5403,7 +5424,11 @@ function compileWithRouteOrderFeedback(options) {
       if (error instanceof WorkflowLayoutFeedback) break;
       throw error;
     }
-    if (errorCount(current) < errorCount(best)) best = current;
+    // Removing a crossing may expose several text-width errors on a wider
+    // canvas. Let the existing bounded sizing loop finish that automatic plan;
+    // counting errors alone would discard it before sizing could run.
+    if (errorCount(current) < errorCount(best)
+      || canRepairAutomaticSublabels(current, options)) best = current;
   }
   return best;
 }
