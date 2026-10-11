@@ -80,3 +80,41 @@ test('a row neighbour with a clear sideways corridor keeps its side exit', () =>
   assert.deepEqual(router.connectionSides(connections[1]), { fromSide: 'left', toSide: 'right' });
   assert.equal(router.pathFor(connections[0]).points.length, 2, 'the main edge stays straight');
 });
+
+test('an alternate-side feedback port uses the near free slot without detouring around the blocker', () => {
+  // The hub's two reciprocal ports leave equally close free slots above and
+  // below them. Returning from below should use the lower slot; choosing the
+  // upper one needlessly crosses the reciprocal pair or detours around view.
+  for (const transpose of [false, true]) {
+    for (const reflect of [false, true]) {
+      const boxes = new Map([
+        ['view', 440, 300, 215, 90], ['terminal', 40, 40, 215, 90],
+        ['hub', 440, 40, 240, 90], ['worker', 440, 560, 240, 90],
+      ].map(([id, x, y, width, height]) => {
+        if (reflect) y = 700 - y - height;
+        if (transpose) [x, y, width, height] = [y, x, height, width];
+        return [id, { id, x, y, width, height, cx: x + width / 2, cy: y + height / 2 }];
+      }));
+      const connections = [
+        { id: 'events', from: 'worker', to: 'hub' },
+        { id: 'output', from: 'hub', to: 'terminal' },
+        { id: 'input', from: 'terminal', to: 'hub' },
+        { id: 'state', from: 'hub', to: 'view' },
+      ];
+      const input = JSON.stringify({ boxes: [...boxes], connections });
+      const router = createRouter(boxes, connections, { distinctAutomaticPorts: true, preferReadableRoutes: true });
+      const routes = connections.map((conn) => router.pathFor(conn).points);
+      assert.ok(routes[0].length <= 4, `feedback needs at most two bends: ${JSON.stringify({ transpose, reflect, route: routes[0] })}`);
+      assert.equal(crossings(routes), 0, 'feedback must not cross the reciprocal pair or state link');
+      for (const route of routes.slice(1)) assert.equal(route.length, 2, 'neighbouring links remain straight');
+      const onBorder = ([x, y], box) => x >= box.x && x <= box.x + box.width
+        && y >= box.y && y <= box.y + box.height
+        && (x === box.x || x === box.x + box.width || y === box.y || y === box.y + box.height);
+      connections.forEach((conn, index) => {
+        assert.ok(onBorder(routes[index][0], boxes.get(conn.from)), `${conn.id} starts at its source`);
+        assert.ok(onBorder(routes[index].at(-1), boxes.get(conn.to)), `${conn.id} ends at its target`);
+      });
+      assert.equal(JSON.stringify({ boxes: [...boxes], connections }), input);
+    }
+  }
+});

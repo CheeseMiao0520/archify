@@ -817,8 +817,14 @@ export function createRouter(components, connections = [], {
       occupied.push({ value: point[axis], spacing: portSpacing(conn, other) });
     }
     if (!occupied.length) return { point: preferred, spread: Boolean(initial) };
+    // On an alternate side, equally close slots should approach the other
+    // node rather than pass its neighbours just because a coordinate is lower.
+    // Keep the established spread order on the inferred side unchanged.
+    const counterpart = components.get(endpoint === 'from' ? conn.to : conn.from);
+    const toward = side === inferredSide ? preferred[axis] : (axis === 1 ? counterpart.cy : counterpart.cx);
     const candidates = [preferred[axis], ...occupied.flatMap(({ value, spacing }) => [value - spacing, value + spacing])]
-      .sort((a, b) => Math.abs(a - preferred[axis]) - Math.abs(b - preferred[axis]) || a - b);
+      .sort((a, b) => Math.abs(a - preferred[axis]) - Math.abs(b - preferred[axis])
+        || Math.abs(a - toward) - Math.abs(b - toward) || a - b);
     for (const value of candidates) {
       const point = [...preferred];
       point[axis] = value;
