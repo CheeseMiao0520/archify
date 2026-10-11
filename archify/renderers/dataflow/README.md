@@ -87,6 +87,13 @@ follows actual node bounds, routed points and rendered label plates, leaving
 24px below content plus the 74px stage/legend reserve. Rows and authored routes
 remain authoritative; inactive channel controls do not enlarge the canvas.
 
+Crowded incoming arrows can expand a default node vertically within its row's
+spare space, up to 104px high. Its row centre and text group stay in place, so
+clear same-row outputs remain straight. The 16px corner gutters and 10px node
+gaps remain reserved. An explicit node height or `yOffset`, or an incident
+route, side or label pin, preserves the original box. Space limits may
+still leave very dense inputs crowded; no relationship or label is removed.
+
 For facing automatic ports less than 16px apart across the route axis, an
 unshared endpoint can align with the spread endpoint when the straight path
 is clear. This preserves the shared slots, the 16px corner gutter, occupied
