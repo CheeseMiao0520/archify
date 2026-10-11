@@ -82,3 +82,14 @@ test('writing: English URL paths and balanced URL parentheses stay masked', () =
     entry('[资料](https://example.com/资料)。检查缓存。'),
   ], {mode: 'strict'}), []);
 });
+
+test('writing: long paragraphs, an all-bold conclusion and a disclaimer-style scope get structural hints', () => {
+  const rules = entries => lintExplainerWriting(entries).map(item => item.evidence.rule);
+  assert.deepEqual(rules([entry('一。二。三。四。五。')]), ['paragraph-length']);
+  assert.deepEqual(rules([entry('一。二。三。', {component: 'list'})]), []);
+  const summary = '先做模块化单体，等模块边界稳定后再拆分服务。';
+  assert.deepEqual(rules([entry(summary, {component: 'answer', pointer: '/answer/summary', raw: `**${summary}**`})]), ['verdict-emphasis']);
+  assert.deepEqual(rules([entry(summary, {component: 'answer', pointer: '/answer/summary', raw: '先做**模块化单体**，等模块边界稳定后再拆分服务。'})]), []);
+  assert.deepEqual(rules([entry('本页讨论功能方向，尚未实现。依据用户陈述，本次没有核对历史记录。页面只是阅读体验样例，不构成任何法律审查意见，也没有经过实际运行验证。', {component: 'scope'})]), ['scope-length']);
+  assert.deepEqual(rules([entry('示例 · 8 人团队', {component: 'scope'})]), []);
+});

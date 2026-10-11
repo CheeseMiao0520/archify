@@ -93,7 +93,7 @@ export function validateExplainer(document, {sourceMap = {}, inputPath, writingM
     const where=location(pointer,component,panelId);
     const parsed=parseInline(value,{...where,input:inputPath});diagnostics.push(...parsed.diagnostics.map(entry=>({...entry,subject:{...entry.subject,path:pointer}})));
     const prose=tokens=>tokens.map(token=>token.type==='code'?'':token.children?prose(token.children):token.type==='link'?token.label:token.value||'').join('');
-    if(!['source','scope'].includes(component))entries.push({text:prose(parsed.tokens),line:where.line,component,...(panelId?{panelId}:{})});
+    if(component!=='source')entries.push({text:prose(parsed.tokens),raw:value,pointer,line:where.line,component,...(panelId?{panelId}:{})});
     for(const ref of parsed.references) {
       if(ref.kind==='source')reference(ref.id,pointer,component,panelId,sourceIds,'[Evidence](source:known-source)');
       if(ref.kind==='block')reference(ref.id,pointer,component,panelId,targets,'[Read explanation](block:known-block)');
@@ -114,11 +114,11 @@ export function validateExplainer(document, {sourceMap = {}, inputPath, writingM
     for(const [bi,block]of panel.blocks.entries()) {
       const bp=`${pp}/blocks/${bi}`, component=block.type;
       if(component==='diff')diagnostics.push(...parseExplainerDiff(block.text,{...location(`${bp}/text`,component,panel.id),input:inputPath}).diagnostics);
-      for(const key of ['text','title','label','note','caption','alt'])if(component!=='diff'||key!=='text')text(block[key],`${bp}/${key}`,component,panel.id);
+      for(const key of ['text','title','label','note','caption','alt'])if(!['diff','snippet'].includes(component)||key!=='text')text(block[key],`${bp}/${key}`,component,panel.id);
       if(component==='list')block.items.forEach((item,i)=>text(item,`${bp}/items/${i}`,component,panel.id));
       if(component==='facts')block.entries.forEach((item,i)=>{text(item.key,`${bp}/entries/${i}/key`,component,panel.id);text(item.value,`${bp}/entries/${i}/value`,component,panel.id);});
       if(component==='comparison') {
-        block.columns.forEach((column,i)=>text(column,`${bp}/columns/${i}`,component,panel.id));
+        block.columns.forEach((column,i)=>text(column,`${bp}/columns/${i}`,component,panel.id));text(block.labelColumn,`${bp}/labelColumn`,component,panel.id);
         block.rows.forEach((row,i)=>{const rp=`${bp}/rows/${i}`;text(row.label,`${rp}/label`,component,panel.id);if(row.cells.length!==block.columns.length)fail('table-width',`${rp}/cells`,component,'Each row must have one cell for every comparison column.','| Criterion | Option A | Option B |',panel.id);row.cells.forEach((cell,j)=>{text(cell.text,`${rp}/cells/${j}/text`,component,panel.id);text(cell.verdict,`${rp}/cells/${j}/verdict`,component,panel.id);});});
       }
       if(component==='steps')block.items.forEach((item,i)=>{text(item.text,`${bp}/items/${i}/text`,component,panel.id);text(item.detail,`${bp}/items/${i}/detail`,component,panel.id);if(item.target)diagramTarget(item.target,`${bp}/items/${i}/target`,component,panel.id);});

@@ -163,7 +163,7 @@ export function parseExplainer(sourceText, { inputPath, output } = {}) {
       }
       const allowed = {
         source:['title','url','path','lines','revision'],meta:['locale','quality_profile','repo_url','repo_revision','repo_provider','repo_link_mode'],answer:['scope'],
-        prose:['id','text'],list:['id','ordered'],callout:['id','level','title','text'],facts:['id'],metric:['id','label','value','limit','unit','note','typical'],steps:['id'],diagram:['id','source','spec','title','changes'],code:['id','source','language'],diff:['id','caption'],image:['id','path','alt','caption'],comparison:['id','columns']
+        prose:['id','text'],list:['id','ordered'],callout:['id','level','title','text'],facts:['id'],metric:['id','label','value','limit','unit','note','typical'],steps:['id'],diagram:['id','source','spec','title','changes'],code:['id','source','language'],diff:['id','caption'],image:['id','path','alt','caption'],comparison:['id','columns','label']
       }[type];
       if (!allowed) { fail(at+1,'directive',`Unsupported component @${type}.`,'@facts\n| key | value |'); return; }
       for (const key of Object.keys(a)) if (!allowed.includes(key)) fail(at+1,type,`Unsupported argument ${key}.`,`@${type} ${allowed.map(key=>`${key}=...`).join(' ')}`);
@@ -198,7 +198,7 @@ export function parseExplainer(sourceText, { inputPath, output } = {}) {
         case 'code':Object.assign(block,select(a,['source','language']));break;
         case 'diff':block.text=literal??rows.map(r=>r.cells.join(' | ')).join('\n');Object.assign(block,select(a,['caption']));break;
         case 'image':Object.assign(block,select(a,['path','alt','caption']));break;
-        case 'comparison':rowWidth(rows,2,500,type);block.columns=csv(a.columns);block.rows=rows.map(r=>({...rowLabel(r.cells[0]),cells:r.cells.slice(1).map(assessment)}));break;
+        case 'comparison':rowWidth(rows,2,500,type);if(a.label)block.labelColumn=a.label;block.columns=csv(a.columns);block.rows=rows.map(r=>({...rowLabel(r.cells[0]),cells:r.cells.slice(1).map(assessment)}));break;
       }
       if (['metric','code','image'].includes(type)&&rows.length)fail(at+1,type,'This component accepts header arguments only.',`@${type} ${allowed.filter(k=>k!=='id').map(k=>`${k}=...`).join(' ')}`);
       if(type!=='diff')for(const row of rows)for(const text of row.cells)unsupported(text,row.line+1,type);
@@ -223,18 +223,33 @@ export function parseExplainer(sourceText, { inputPath, output } = {}) {
         closePanel(starts[at]);const h=heading(trimmed,'## ');panel={id:h.id||stable('panel',h.title),title:h.title,...(h.span!==undefined?{span:h.span}:{}),blocks:[]};panelIndex=document.panels.length;document.panels.push(panel);map(`/panels/${panelIndex}`,panel,descriptor(at,lines.length));cursor++;continue;
       }
       if(trimmed.startsWith('@')){reasonsAllowed=false;directive(at);continue;}
+      const fence=trimmed.match(/^(```+|~~~+)\s*([A-Za-z0-9_+.#-]*)\s*(.*)$/u);
+      if(fence) {
+        reasonsAllowed=false;
+        const {attrs:fa,positional:fp}=attributes(fence[3]||'',at);
+        if(fp.length||Object.keys(fa).some(key=>key!=='title'))fail(at+1,'snippet','A code fence accepts a language and an optional title only.','```bash title="Run the tests"');
+        cursor=at+1;const begin=cursor;while(cursor<lines.length&&lines[cursor].trim()!==fence[1])cursor++;
+        if(cursor===lines.length)fail(at+1,'snippet','The code fence is not closed.','```bash\nnpm test\n```');
+        const from=starts[begin]??sourceText.length,literal=sourceText.slice(from,starts[cursor]??sourceText.length).replace(/\r?\n$/u,'');
+        if(cursor<lines.length)cursor++;
+        if(!literal.trim()){fail(at+1,'snippet','A code fence needs content.','```bash\nnpm test\n```');continue;}
+        const language=fence[2];
+        addBlock(language==='diff'?{type:'diff',text:literal,...(fa.title?{caption:fa.title}:{})}:{type:'snippet',...(language?{language}:{}),...(fa.title?{title:fa.title}:{}),text:literal},at,cursor);
+        if(panel)sourceMap[`/panels/${panelIndex}/blocks/${panel.blocks.length-1}/text`]=locate(from,from+literal.length);
+        continue;
+      }
       if(trimmed.startsWith('|')) {
         const rows=[];while(cursor<lines.length&&lines[cursor].trim().startsWith('|')){rows.push({cells:cells(lines[cursor],cursor),line:cursor});cursor++;}
         if(rows.length<3||!rows[1].cells.every(cell=>/^:?-{3,}:?$/u.test(cell)))fail(at+1,'comparison','A Markdown table needs a header, separator and data rows.','| Criterion | A | B |\n| --- | --- | --- |\n| Cost | Low {good} | High {bad} |');
         const columns=rows[0]?.cells.slice(1)||[];const data=rows.slice(2);for(const r of data)if(r.cells.length!==columns.length+1)fail(r.line+1,'comparison','All table rows must match the header width.','| Cost | Low {good} | High {bad} |');
-        addBlock({type:'comparison',columns,rows:data.map(r=>({...rowLabel(r.cells[0]),cells:r.cells.slice(1).map(assessment)}))},at,cursor,data);continue;
+        addBlock({type:'comparison',...(rows[0]?.cells[0]?{labelColumn:rows[0].cells[0]}:{}),columns,rows:data.map(r=>({...rowLabel(r.cells[0]),cells:r.cells.slice(1).map(assessment)}))},at,cursor,data);continue;
       }
       const list=trimmed.match(/^(?:([-*+])|(\d+)\.)\s+(.+)$/u);
       if(list) {
         const rows=[];const ordered=Boolean(list[2]);while(cursor<lines.length){const found=lines[cursor].trim().match(/^(?:([-*+])|(\d+)\.)\s+(.+)$/u);if(!found||Boolean(found[2])!==ordered)break;if(/^\s{2,}/u.test(lines[cursor]))fail(cursor+1,'list','Nested lists are unsupported.','- One flat item');unsupported(found[3],cursor+1,'list');rows.push({cells:[found[3]],line:cursor});cursor++;}
         if(!panel){if(!reasonsAllowed||ordered||document.answer.reasons)fail(at+1,'answer','Use one flat unordered reason list after the conclusion.','A conclusion.\n\n- First reason\n- Second reason');document.answer.reasons=rows.map(r=>r.cells[0]);map('/answer/reasons',document.answer.reasons,descriptor(at,cursor));rows.forEach((r,i)=>map(`/answer/reasons/${i}`,r.cells[0],descriptor(r.line)));}else addBlock({type:'list',ordered,items:rows.map(r=>r.cells[0])},at,cursor,rows);continue;
       }
-      const chunks=[];while(cursor<lines.length&&lines[cursor].trim()&&!/^(?:#{1,2}\s|@|\||[-*+]\s|\d+\.\s)/u.test(lines[cursor].trim())){unsupported(lines[cursor],cursor+1,'prose');chunks.push(lines[cursor].trim());cursor++;}
+      const chunks=[];while(cursor<lines.length&&lines[cursor].trim()&&!/^(?:#{1,2}\s|@|\||[-*+]\s|\d+\.\s|```|~~~)/u.test(lines[cursor].trim())){unsupported(lines[cursor],cursor+1,'prose');chunks.push(lines[cursor].trim());cursor++;}
       if(cursor===at){unsupported(trimmed,at+1,'prose');cursor++;continue;}
       const text=chunks.join('\n');
       if(!panel) {

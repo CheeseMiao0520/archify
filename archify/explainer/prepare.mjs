@@ -113,7 +113,7 @@ export function validatePreparedTargets(document, diagrams, options = {}) {
       }
     } else if (Array.isArray(value)) value.forEach((entry,index)=>visit(entry,`${pointer}/${index}`,panelId,component));
     else if (value && typeof value === 'object') for(const [key,entry] of Object.entries(value)) {
-      if (['spec','source','path','language','target','changes'].includes(key) || (component==='diff' && key==='text')) continue;
+      if (['spec','source','path','language','target','changes'].includes(key) || (['diff','snippet'].includes(component) && key==='text')) continue;
       visit(entry,`${pointer}/${key}`,panelId,component);
     }
   };

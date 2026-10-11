@@ -181,3 +181,13 @@ test('renderer: source markers number first appearances including blank labels a
  assert.ok(text(find(tree,'answer')).includes('Read second1.'));assert.deepEqual(all(tree,n=>n.tagName==='li'&&attr(n,'id')?.startsWith('source-')).map(n=>attr(n,'id')),['source-external','source-code-source','source-example','source-inference','source-measurement']);
  assert.equal(all(tree,n=>attr(n,'data-source-status')).length,0);assert.doesNotMatch(text(find(tree,'source-code-source')),/checked|verified/);
 });
+
+test('literal snippets render as copyable code and table corners keep their header',()=>{
+  const input=fixture();input.panels[0].blocks.push({id:'snippet',type:'snippet',language:'bash',title:'Run tests',text:'echo "<b>"'});input.panels[0].blocks[3].labelColumn='Criterion';
+  const tree=parse(renderExplainer(input,resources()));
+  const block=find(tree,'snippet');
+  assert.equal(text(all(block,node=>node.nodeName==='code'&&attr(node,'class')==='language-bash')[0]),'echo "<b>"');
+  assert.ok(all(block,node=>attr(node,'data-copy')!==undefined).length);
+  assert.match(text(all(block,node=>attr(node,'class')==='snippet-label')[0]),/Run tests/);
+  assert.equal(text(all(find(tree,'comparison'),node=>node.nodeName==='th')[0]),'Criterion');
+});

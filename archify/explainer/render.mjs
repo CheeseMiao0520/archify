@@ -11,8 +11,8 @@ const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({'
 const json = value => JSON.stringify(value).replace(/[<>&\u2028\u2029]/g, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
 const hash = text => createHash('sha256').update(text).digest('hex');
 const dictionaries = {
-  en:{answer:'Answer',scope:'Applies to',sources:'Sources',print:'Print',auto:'System',light:'Light',dark:'Dark',typical:'Typical value',explore:'Explore diagram',close:'Close',loading:'Opening diagram…',graph:'Diagram structure',changes:'Structure changes',added:'Added',removed:'Removed',modified:'Modified'},
-  zh:{answer:'结论',scope:'适用于',sources:'来源',print:'打印',auto:'系统',light:'浅色',dark:'深色',typical:'典型值',explore:'展开探索',close:'关闭',loading:'正在打开交互图…',graph:'图的结构',changes:'结构改动',added:'新增',removed:'删除',modified:'修改'}
+  en:{answer:'Answer',answerMark:'A',scope:'Applies to',sources:'Sources',print:'Print',auto:'System',light:'Light',dark:'Dark',typical:'Typical value',explore:'Explore diagram',close:'Close',loading:'Opening diagram…',graph:'Diagram structure',changes:'Structure changes',added:'Added',removed:'Removed',modified:'Modified',copy:'Copy',copied:'Copied'},
+  zh:{answer:'结论',answerMark:'答',scope:'适用于',sources:'来源',print:'打印',auto:'系统',light:'浅色',dark:'深色',typical:'典型值',explore:'展开探索',close:'关闭',loading:'正在打开交互图…',graph:'图的结构',changes:'结构改动',added:'新增',removed:'删除',modified:'修改',copy:'复制',copied:'已复制'}
 };
 
 /** Render a validated canonical explainer with separately prepared, immutable resources. */
@@ -45,7 +45,7 @@ export function renderExplainer(document, options = {}) {
       case 'prose': body = block.text.split(/\n\s*\n/).map(text => `<p>${i(text)}</p>`).join(''); break;
       case 'list': { const tag = block.ordered ? 'ol' : 'ul'; body = `<${tag} class="text-list">${block.items.map(text => `<li>${i(text)}</li>`).join('')}</${tag}>`; break; }
       case 'callout': body = `<aside class="callout ${escape(block.level)}">${block.title ? `<h3>${i(block.title)}</h3>` : ''}<p>${i(block.text)}</p></aside>`; break;
-      case 'comparison': body = `<div class="table-scroll"><table><thead><tr><th scope="col"></th>${block.columns.map(text => `<th scope="col">${i(text)}</th>`).join('')}</tr></thead><tbody>${block.rows.map(row => `<tr id="${escape(row.id)}"><th scope="row">${i(row.label)}</th>${row.cells.map(cell => `<td>${cell.assessment ? `<span class="assessment ${escape(cell.assessment)}"><span class="assessment-meter" aria-hidden="true"><i></i><i></i><i></i></span><b>${i(cell.verdict || ({good:locale.startsWith('en')?'Favorable':'有利',caution:locale.startsWith('en')?'Tradeoff':'有代价',bad:locale.startsWith('en')?'Unfavorable':'不利'}[cell.assessment]))}</b></span>` : ''}<span class="cell-text">${i(cell.text)}</span></td>`).join('')}</tr>`).join('')}</tbody></table></div>`; break;
+      case 'comparison': body = `<div class="table-scroll"><table><thead><tr><th scope="col">${block.labelColumn ? i(block.labelColumn) : ''}</th>${block.columns.map(text => `<th scope="col">${i(text)}</th>`).join('')}</tr></thead><tbody>${block.rows.map(row => `<tr id="${escape(row.id)}"><th scope="row">${i(row.label)}</th>${row.cells.map(cell => `<td>${cell.assessment ? `<span class="assessment ${escape(cell.assessment)}"><span class="assessment-meter" aria-hidden="true"><i></i><i></i><i></i></span><b>${i(cell.verdict || ({good:locale.startsWith('en')?'Favorable':'有利',caution:locale.startsWith('en')?'Tradeoff':'有代价',bad:locale.startsWith('en')?'Unfavorable':'不利'}[cell.assessment]))}</b></span>` : ''}<span class="cell-text">${i(cell.text)}</span></td>`).join('')}</tr>`).join('')}</tbody></table></div>`; break;
       case 'facts': body = `<dl class="facts">${block.entries.map(entry => `<div><dt>${i(entry.key)}</dt><dd>${i(entry.value)}</dd></div>`).join('')}</dl>`; break;
       case 'metric': {
         const over = block.value !== undefined && block.limit !== undefined && block.value > block.limit;
@@ -55,6 +55,7 @@ export function renderExplainer(document, options = {}) {
       }
       case 'steps': body = `<ol class="steps">${block.items.map(item => `<li id="${escape(item.id)}"><b>${item.target ? nativeLink(item.target,i(item.text)) : i(item.text)}</b>${item.detail ? `<p>${i(item.detail)}</p>` : ''}</li>`).join('')}</ol>`; break;
       case 'diagram': { const diagram = diagrams[block.id]; if (!diagram?.svg || !diagram?.html) unavailable(block,`Missing prepared native diagram: ${block.id}`); const title = diagram.spec?.meta?.title || block.id; const svg = staticSvg(diagram.svg, block.id); const previewClass = previewPrefix(block.id); const nativeStyle = scopeNativeCss(diagram.styles || '', '.' + previewClass, previewClass + '-'); body = `<figure class="diagram"><div class="diagram-preview ${previewClass}" role="img" aria-label="${escape(title)}"><style>${nativeStyle}</style>${svg}</div><figcaption><span>${escape(title)}</span><button class="text-button interactive" type="button" data-open-diagram="${escape(block.id)}">${words.explore} ↗</button></figcaption></figure><p class="diagram-fit-status fine" role="status" hidden></p><details class="diagram-semantics" open><summary>${words.graph}</summary><ul>${(diagram.semantic?.nodes || []).map(node => `<li>${escape(node.label || node.id)} <code>${escape(node.id)}</code></li>`).join('')}${(diagram.semantic?.edges || []).map(edge => `<li><code>${escape(edge.from)}</code> → <code>${escape(edge.to)}</code>${edge.label ? ` · ${escape(edge.label)}` : ''}</li>`).join('')}</ul></details>${block.changes?.length ? `<dl class="changes"><dt>${words.changes}</dt>${block.changes.map(change => `<dd><span class="chip ${escape(change.change)}">${words[change.change]}</span> <code>${escape(change.target)}</code></dd>`).join('')}</dl>` : ''}`; break; }
+      case 'snippet': body = `<figure class="snippet"><figcaption><span class="snippet-label">${block.title ? i(block.title) : ''}${block.language ? `<code class="snippet-language">${escape(block.language)}</code>` : ''}</span><button class="text-button interactive" type="button" data-copy>${words.copy}</button></figcaption><pre><code${block.language ? ` class="language-${escape(block.language)}"` : ''}>${escape(block.text)}</code></pre></figure>`; break;
       case 'code': { const source = sources[block.source]; if (!source?.path || typeof source.text !== 'string') unavailable(block,`Code requires a Git excerpt: ${block.source}`); body = `<figure class="code"><figcaption>${i(`[](source:${block.source})`)}<span>${escape(source.path)}:${escape(source.lines?.join('–'))}</span></figcaption><pre><code${block.language ? ` class="language-${escape(block.language)}"` : ''}>${escape(source.text)}</code></pre></figure>`; break; }
       case 'diff': {
         const parsed = parseExplainerDiff(block.text,{component:'diff',input:sourcePath,panelId});
@@ -67,14 +68,16 @@ export function renderExplainer(document, options = {}) {
     }
     return `<div class="block block-${escape(block.type)}" id="${escape(block.id)}" data-block-type="${escape(block.type)}">${body}</div>`;
   }
+  const scopeHtml = scope => { const parts = scopeParts(scope); return parts.length > 1 ? parts.map(part=>`<span class="scope-chip">${inline(part)}</span>`).join('') : `<span>${inline(scope)}</span>`; };
   // Render in reading order so the first citation receives number one.
-  const answerHtml = `<span class="eyebrow">${words.answer}</span><p class="verdict">${inline(document.answer.summary)}</p>${document.answer.reasons?.length ? `<ol class="reasons">${document.answer.reasons.map(reason=>`<li>${inline(reason)}</li>`).join('')}</ol>` : ''}${document.answer.scope ? `<p class="answer-scope"><span class="scope-label">${words.scope}</span><span>${inline(document.answer.scope)}</span></p>` : ''}`;
+  const answerHtml = `<header class="panel-head"><span class="panel-id answer-id" aria-hidden="true">${words.answerMark}</span><h2>${words.answer}</h2></header><div class="panel-body"><p class="verdict">${inline(document.answer.summary)}</p>${document.answer.reasons?.length ? `<ol class="reasons">${document.answer.reasons.map(reason=>`<li>${inline(reason)}</li>`).join('')}</ol>` : ''}</div>${document.answer.scope ? `<p class="answer-scope"><span class="scope-label">${words.scope}</span>${scopeHtml(document.answer.scope)}</p>` : ''}`;
   const rows=layoutExplainerPanels(document,diagrams);
   const panels=rows.flatMap((row,rowIndex)=>row.map(item=>{
     if(item.spacer)return `<div class="board-spacer span${item.span}" data-row="${rowIndex}" aria-hidden="true"></div>`;
-    if(item.answer)return `<section id="answer" class="panel answer-panel span${item.span}" data-row="${rowIndex}">${answerHtml}</section>`;
+    if(item.answer)return `<section id="answer" class="panel answer-panel span${item.span}" data-row="${rowIndex}" data-span-min="${item.min}">${answerHtml}</section>`;
     const panel=item.panel,index=document.panels.indexOf(panel);
-    return `<section class="panel span${item.span}${panel.blocks.some(block=>block.type === 'diagram') ? ' diagram-panel' : ''}" id="${escape(panel.id)}" data-row="${rowIndex}" data-title="${escape(panel.title)}"><header class="panel-head"><a class="panel-id" href="#${escape(panel.id)}" aria-label="${escape(panel.title)}">${String(index+1).padStart(2,'0')}</a><h2>${inline(panel.title,panel.id)}</h2></header><div class="panel-body">${panel.blocks.map(block=>blockHtml(block,panel.id)).join('')}</div></section>`;
+    const measure=panel.blocks.every(block=>['prose','list','steps','callout','facts','metric'].includes(block.type)) ? ' data-measure="text"' : '';
+    return `<section class="panel span${item.span}${panel.blocks.some(block=>block.type === 'diagram') ? ' diagram-panel' : ''}" id="${escape(panel.id)}" data-row="${rowIndex}" data-span-min="${item.min}"${item.explicit ? ` data-span-fixed="${item.span}"` : ''}${measure} data-title="${escape(panel.title)}"><header class="panel-head"><a class="panel-id" href="#${escape(panel.id)}" aria-label="${escape(panel.title)}">${index+1}</a><h2>${inline(panel.title,panel.id)}</h2></header><div class="panel-body">${panel.blocks.map(block=>blockHtml(block,panel.id)).join('')}</div></section>`;
   })).join('');
   for(const source of document.sources)if(!citations.has(source.id))citations.set(source.id,citations.size+1);
   const sourceList=[...citations].map(([id,number])=>{
@@ -105,6 +108,9 @@ function staticSvg(svg, id) {
     .replace(/\b(aria-labelledby|aria-describedby)="([^"]+)"/g,(_,attr,value)=>`${attr}="${escape(value.split(/\s+/).map(id=>ids.get(id) || id).join(' '))}"`)
     .replace(/\s(?:tabindex="[^"]*"|role="button"|aria-pressed="[^"]*")/g,'');
 }
+
+// A scope written as "a · b · c" reads as separate conditions; anything else stays a sentence.
+function scopeParts(scope) { return scope.split(/\s+·\s+/).map(part=>part.trim()).filter(Boolean); }
 
 function previewPrefix(id) { return `preview-${id.replace(/[^A-Za-z0-9_-]/g,'-')}`; }
 

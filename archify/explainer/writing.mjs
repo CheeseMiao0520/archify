@@ -68,17 +68,37 @@ export function lintExplainerWriting(entries, {mode = 'warn', locale = 'auto', s
   const diagnostics = [];
   for (const entry of entries) {
     if (typeof entry.text !== 'string') throw new TypeError('Writing entries require text strings');
-    if (['scope','source'].includes(entry.component)) continue;
+    if (entry.component === 'source') continue;
     const original = entry.text;
     const text = proseMask(original);
     const found = [];
-    for (const rule of RULES) {
-      // New regex per entry prevents mutable lastIndex from leaking between calls.
-      for (const match of text.matchAll(new RegExp(rule.pattern.source, rule.pattern.flags))) {
-        found.push({offset: match.index, rule: rule.id, reason: rule.reason, example: rule.example, fix: rule.fix, matched: match[0]});
+    const units = value => (value.match(/\p{Script=Han}/gu)?.length || 0) + (value.match(/[\p{Script=Latin}\d]+(?:[’'_-][\p{Script=Latin}\d]+)*(?:\.\d+)?/gu)?.length || 0);
+    if (entry.component === 'scope') {
+      if (units(text) > 50) found.push({offset: 0, rule: 'scope-length', units: units(text), limit: 50,
+        reason: 'The scope reads as a disclaimer rather than a short label.',
+        example: '8 人团队 · 上线半年 · 峰值约 300 QPS / Eight people · six months live · ~300 QPS peak',
+        fix: 'Keep the conditions a reader must check, as short labels separated by “·”. Drop process notes about how the page was made.'});
+    } else {
+      for (const rule of RULES) {
+        // New regex per entry prevents mutable lastIndex from leaking between calls.
+        for (const match of text.matchAll(new RegExp(rule.pattern.source, rule.pattern.flags))) {
+          found.push({offset: match.index, rule: rule.id, reason: rule.reason, example: rule.example, fix: rule.fix, matched: match[0]});
+        }
       }
     }
-    for (const sentence of sentences(text)) {
+    if (entry.pointer === '/answer/summary' && typeof entry.raw === 'string') {
+      const bold = [...entry.raw.matchAll(/\*\*(.+?)\*\*/gu)].reduce((sum, match) => sum + units(match[1]), 0);
+      if (units(text) >= 12 && bold / units(text) > .6) found.push({offset: 0, rule: 'verdict-emphasis',
+        reason: 'Most of the conclusion is bold, so nothing stands out.',
+        example: '先做**模块化单体**，等边界稳定后再拆。 / Keep a **modular monolith** until boundaries settle.',
+        fix: 'Bold only the few words that carry the decision.'});
+    }
+    const sentenceCount = sentences(text).filter(sentence => sentence.text.trim()).length;
+    if (entry.component === 'prose' && (units(text) > 120 || sentenceCount > 4)) found.push({offset: 0, rule: 'paragraph-length', units: units(text), limit: 120,
+      reason: `This paragraph has ${sentenceCount} sentences and ${units(text)} reading units; long paragraphs are what the page should replace.`,
+      example: '把并列要点写成列表，把先后动作写成 @steps，把方案差异写成对比表。 / Turn parallel points into a list, ordered actions into @steps and option differences into a comparison.',
+      fix: 'Split the paragraph into a list, steps or a comparison; keep at most two or three short sentences of prose.'});
+    if (entry.component !== 'scope') for (const sentence of sentences(text)) {
       const han = sentence.text.match(/\p{Script=Han}/gu)?.length || 0;
       const words = sentence.text.match(/[\p{Script=Latin}\d]+(?:[’'_-][\p{Script=Latin}\d]+)*(?:\.\d+)?/gu)?.length || 0;
       const units = han + words;

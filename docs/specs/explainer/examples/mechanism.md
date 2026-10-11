@@ -31,3 +31,7 @@
 - 记录`cache=hit`或`cache=miss`，区分请求路径。
 - 分别观察GET、SQL和SET耗时，先处理最慢的一段。
 - 检查SQL索引与执行计划；改为异步写回前，设计写入失败的恢复流程。
+
+```bash title="先看命中率"
+redis-cli INFO stats | grep -E 'keyspace_(hits|misses)'
+```

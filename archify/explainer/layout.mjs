@@ -7,6 +7,7 @@ export function layoutExplainerPanels(document, diagrams = {}) {
   const widths = block => {
     if (block.type === 'comparison') return block.columns.length + 1 > 3 ? [8,7] : [7,6];
     if (['code','diff'].includes(block.type)) return [8,7];
+    if (block.type === 'snippet') { const longest = Math.max(...block.text.split('\n').map(line => line.length)); return longest > 72 ? [8,7] : longest > 48 ? [6,6] : [5,4]; }
     if (block.type === 'diagram') {
       const diagram=diagrams[block.id], viewBox=diagram?.svg?.match(/viewBox=["']([^"']+)["']/)?.[1].split(/[ ,]+/).map(Number);
       return (viewBox?.[2] || diagram?.spec?.meta?.canvas?.width || 0) > 1000 ? [12,12] : [8,8];

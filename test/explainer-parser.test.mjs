@@ -137,3 +137,14 @@ test('reason lists immediately follow the conclusion and zero span reaches schem
  const separated=parseExplainer('# Title\n\nAnswer.\n\n@answer scope="Scope"\n\n- Late reason\n\n## Why?\n\nText.');assert.equal(separated.document,null);assert.equal(separated.diagnostics[0].subject.component,'answer');
  const zero=parse('# Title\n\nAnswer.\n\n## Why? {#why span=0}\n\nText.');assert.equal(zero.document.panels[0].span,0);assert.equal(validateExplainer(zero.document).ok,false);
 });
+
+test('plain code fences become literal snippets, diff fences become diffs, and table corners keep their header',()=>{
+ const result=parse(draft('| Need | Output |\n| --- | --- |\n| Read | Diagram |\n\n```bash title="Run tests"\nnpm test -- --grep "a | b"\n```\n\n```diff\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old\n+new\n```'));
+ const [table,snippet,diff]=result.document.panels[0].blocks;
+ assert.equal(table.labelColumn,'Need');
+ assert.deepEqual({type:snippet.type,language:snippet.language,title:snippet.title,text:snippet.text},{type:'snippet',language:'bash',title:'Run tests',text:'npm test -- --grep "a | b"'});
+ assert.equal(diff.type,'diff');assert.match(diff.text,/^--- a\/x/);
+ assert.equal(validateExplainer(result.document).ok,true);
+ assert.equal(parseExplainer(draft('```js\nopen()')).document,null);
+ assert.equal(parseExplainer(draft('```js lines=1:2\nx\n```')).document,null);
+});

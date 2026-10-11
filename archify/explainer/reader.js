@@ -11,6 +11,97 @@
   const all = (selector, within = document) => [...within.querySelectorAll(selector)];
   let toastTimer;
   function notify(text) { const toast=byId('toast');toast.textContent=text;toast.classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove('visible'),3000); }
+  // Measured board layout. Each panel is measured at every column width, then each column template is
+  // simulated and the one with the least page height and blank area wins. Panels keep source order on
+  // a 1px row grid, so the DOM and reading order never change.
+  // Without JavaScript, or on narrow windows, the static spans from the renderer stay in force.
+  const board = document.querySelector('.board');
+  function layoutBoard() {
+    const panels = all(':scope>.panel',board);
+    const reset = () => { board.classList.remove('measured'); panels.forEach(panel=>{panel.style.gridColumn = '';panel.style.gridRow = '';}); };
+    if (window.innerWidth <= 760 || panels.length < 2) { reset(); return; }
+    const gap = parseFloat(getComputedStyle(board).columnGap) || 0;
+    const column = (board.clientWidth - gap * 11) / 12;
+    const px = span => span * column + (span - 1) * gap;
+    const floor = textFloor();
+    // A diagram needs enough width for its smallest label to reach the reading floor.
+    const readableSpan = panel => {
+      const svgs = all('.diagram-preview>svg',panel);
+      if (!svgs.length) return 0;
+      const inset = panel.offsetWidth - panel.querySelector('.diagram-preview').clientWidth;
+      const need = Math.max(...svgs.map(svg=>{
+        const viewWidth = svg.viewBox.baseVal?.width || svg.getBoundingClientRect().width;
+        const smallest = Math.min(...all('text',svg).filter(text=>text.textContent.trim() && !text.closest('[data-legend]')).map(text=>parseFloat(text.getAttribute('font-size')) || parseFloat(getComputedStyle(text).fontSize)));
+        return Number.isFinite(smallest) && smallest > 0 ? viewWidth * floor / smallest + inset : 0;
+      }));
+      return [3,4,5,6,7,8,9,12].find(span=>px(span) >= need) || 12;
+    };
+    const SPANS = [4,5,6,7,8,12];
+    board.classList.add('measuring');
+    const items = panels.map(panel=>{
+      const fixed = Number(panel.dataset.spanFixed) || 0;
+      const wide = fixed >= 9 || Number((panel.className.match(/\bspan(\d+)\b/) || [])[1]) >= 9;
+      const min = Math.max(4,Number(panel.dataset.spanMin) || 4,fixed && fixed < 9 ? fixed : 0,readableSpan(panel));
+      const height = {}, fits = {};
+      for (const span of SPANS) {
+        panel.style.width = px(span) + 'px';
+        height[span] = Math.ceil(panel.getBoundingClientRect().height);
+        fits[span] = span >= min && !all('.table-scroll,.diff-scroll,pre',panel).some(element=>element.scrollWidth > element.clientWidth + 1);
+      }
+      panel.style.width = '';
+      return {panel,wide,height,fits,text:panel.dataset.measure === 'text'};
+    });
+    board.classList.remove('measuring');
+    const width = board.clientWidth;
+    const excess = (item,span) => item.text ? Math.max(0,px(span) - 720) / 720 * px(span) * item.height[span] * .6 : 0;
+    // One set of column lines for the whole page. Panels fill the shortest fitting column in source
+    // order; a panel that fits no column takes the full width and closes the section above it. The
+    // last panel of every column stretches to the section bottom, so column edges and bottoms align.
+    function simulate(template) {
+      const lines = template.reduce((acc,span)=>[...acc,acc[acc.length - 1] + span],[1]);
+      const placed = [];
+      let cursor = 0, waste = 0, wide = 0, heights, last;
+      const open = () => { heights = template.map(()=>0); last = template.map(()=>null); };
+      // heights[c] is the offset of the next panel in column c, so it includes one trailing gap.
+      const close = () => {
+        const bottom = Math.max(...heights) - gap;
+        if (bottom <= 0) return;
+        template.forEach((span,c)=>{
+          waste += px(span) * (heights[c] ? bottom - (heights[c] - gap) : bottom * 1.6);
+          if (last[c]) last[c].height = cursor + bottom - last[c].top;
+        });
+        cursor += bottom + gap;
+        open();
+      };
+      open();
+      for (const item of items) {
+        const answer = item.panel.id === 'answer' && item === items[0];
+        const choices = template.map((span,c)=>({c,span})).filter(({c,span})=>template.length > 1 && !item.wide && item.fits[span] && (!answer || c === 0));
+        if (!choices.length) {
+          close();
+          placed.push({item,line:1,span:12,top:cursor,height:item.height[12]});
+          wide += excess(item,12);
+          cursor += item.height[12] + gap;
+          continue;
+        }
+        const {c,span} = choices.reduce((a,b)=>heights[b.c] + item.height[b.span] < heights[a.c] + item.height[a.span] - 1 ? b : a);
+        const entry = {item,line:lines[c],span,top:cursor + heights[c],height:item.height[span]};
+        placed.push(entry);
+        heights[c] += item.height[span] + gap;
+        last[c] = entry;
+        wide += excess(item,span);
+      }
+      close();
+      return {placed,cost:cursor * width + waste + wide};
+    }
+    const templates = [[6,6],[5,7],[7,5],[4,8],[8,4],[4,4,4],[12]];
+    const plan = templates.map(simulate).reduce((a,b)=>b.cost < a.cost ? b : a);
+    plan.placed.forEach(({item,line,span,top,height})=>{
+      item.panel.style.gridColumn = `${line} / span ${span}`;
+      item.panel.style.gridRow = `${Math.round(top) + 1} / span ${Math.max(1,Math.round(height))}`;
+    });
+    board.classList.add('measured');
+  }
   // The legend and grid are hidden in the preview, so fit the viewBox to the drawing itself.
   function cropDiagramPreviews() {
     all('.diagram-preview>svg').forEach(svg=>{
@@ -22,9 +113,12 @@
       svg.dataset.cropped = 'true';
     });
   }
-  function ensureDiagramReadability() {
+  function textFloor() {
     const bodySize = parseFloat(getComputedStyle(document.querySelector('.block-prose>p') || document.body).fontSize);
-    const minimumText = window.innerWidth >= 1440 ? Math.max(10,bodySize * .75) : 10;
+    return window.innerWidth >= 1440 ? Math.max(10,bodySize * .75) : 10;
+  }
+  function ensureDiagramReadability() {
+    const minimumText = textFloor();
     all('.diagram-preview>svg').forEach(svg=>{
       // Measure the current available width, rather than retaining a wider viewport's floor.
       svg.style.minWidth = '0px';
@@ -141,6 +235,10 @@
     };
     link.addEventListener('mouseenter',()=>highlight(true)); link.addEventListener('mouseleave',()=>highlight(false)); link.addEventListener('focus',()=>highlight(true)); link.addEventListener('blur',()=>highlight(false));
   });
+  all('[data-copy]').forEach(button=>button.addEventListener('click',()=>{
+    const text = button.closest('figure').querySelector('pre code').textContent;
+    Promise.resolve(navigator.clipboard?.writeText(text)).then(()=>{button.textContent = words.copied;setTimeout(()=>{button.textContent = words.copy;},1600);},()=>notify(say('Copy failed.','复制失败。')));
+  }));
   // Native dialogs supply Escape, focus trapping and the accessible modal semantics.
   const printDetails = new Map();
   all('.diagram-semantics').forEach(details=>details.open = false);
@@ -149,6 +247,9 @@
   root.classList.add('js');
   applyTheme();
   cropDiagramPreviews();
-  Promise.resolve(document.fonts?.ready).then(()=>requestAnimationFrame(()=>requestAnimationFrame(ensureDiagramReadability)));
-  window.addEventListener('resize',ensureDiagramReadability);
+  layoutBoard();
+  const relayout = () => { layoutBoard(); ensureDiagramReadability(); };
+  Promise.resolve(document.fonts?.ready).then(()=>requestAnimationFrame(()=>requestAnimationFrame(relayout)));
+  let resizeFrame;
+  window.addEventListener('resize',()=>{cancelAnimationFrame(resizeFrame);resizeFrame = requestAnimationFrame(relayout);});
 })();

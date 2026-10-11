@@ -38,7 +38,9 @@ The canonical `answer` has `summary`, optional `reasons` and optional `scope`. A
 
 Each `##` starts a panel. Prefer a specific question as its title. Stable IDs (`{#tradeoffs}`) allow links and panel replacement. Add an optional span as `{#tradeoffs span=7}` (1–12). Omit span for automatic layout.
 
-The conclusion is the first panel (`#answer`). Preferred widths on the 12-column board are: conclusion 5; comparison 7 (8 with more than three total columns); diagram 8 (12 for a wide viewBox); short prose, lists and steps 4; code and diff 7. Panels fill rows in source order. Spare columns go to the row's largest flexible panel. Authored spans never grow; if a row contains only fixed spans, a non-content spacer fills its remainder. Rows stretch to equal height. Mobile stacks panels.
+The conclusion is the first panel (`#answer`). The static board uses these preferred and minimum widths on 12 columns: conclusion 5 (min 4); comparison 7 (min 6), or 8 (min 7) with more than three total columns; diagram 8, or 12 for a viewBox wider than 1000; code and diff 8 (min 7); snippets 5, 6 or 8 by their longest line; short prose, lists and steps 4. Panels fill rows in source order, shrinking toward their minimum to finish a row. Authored spans never change.
+
+In the browser on desktop widths, the page measures each panel's real height at every allowed width and re-plans the board: it keeps source order and the conclusion top-left, may stack two consecutive panels in one column beside a taller one, keeps tables and code from clipping, and gives each diagram enough width for its smallest label to stay readable. Without JavaScript, the static board applies. Omit spans unless a panel must stand out.
 
 ## Content blocks
 
@@ -50,7 +52,9 @@ The conclusion is the first panel (`#answer`). Preferred widths on the 12-column
 - `@facts`: two columns, label and value.
 - `@metric label="..." value=12 limit=20 unit=ms`: numeric content; value or limit is required. Optional `typical=true` and `note="..."` describe the value.
 - `@code source=router language=js`: obtains a real excerpt from the source's Git commit and line range. It does not accept authored code text.
-- `@diff caption="..."` followed by a fenced `diff` block: literal before/after lines, displayed with line numbers.
+- `@diff caption="..."` followed by a fenced `diff` block, or a bare ```` ```diff ```` fence: literal before/after lines, displayed with line numbers.
+- A plain fence (```` ```bash title="Run the tests" ````) is a literal snippet with a copy button: commands, configuration, or code that does not exist yet. Use `@code` when the code exists in a repository.
+- In a Markdown table, the first header cell labels the row column.
 - `@image path=images/example.png alt="..."`: embeds a contained local PNG, JPEG, GIF or WebP. Symlinks, escaping paths, unsupported formats and oversize assets fail.
 - `@diagram sequence source=request.sequence.json` references a same-directory native spec; `@sequence id=request` supports compact actor/message rows. Native types are architecture, workflow, sequence, dataflow, lifecycle, erd, class, tree, timeline and waterfall. A document may contain zero to four native diagrams. Native validation and geometry checks still apply.
 
@@ -80,7 +84,7 @@ node archify/bin/archify.mjs finalize explainer answer.md answer.html --json
 
 Explainer delivery validates, atomically delivers and checks the HTML. It does not launch a browser. Its receipt includes `browserCheck.requested: false`, `browserCheck.ran: false` and a `browser-check: not-run` gate. These three static gates complete the explainer delivery workflow. Other diagram types keep their existing finalize gates.
 
-Writing warnings flag qualifiers such as “示例”, “本例”, “不代表”, “未实测”, “仅供参考”, “illustrative” and “not measured” in conclusions, reasons and body text. Move these conditions into scope or sources. `--writing warn|strict|off` controls warnings; scope and source titles are excluded.
+Writing warnings flag qualifiers such as “示例”, “本例”, “不代表”, “未实测”, “仅供参考”, “illustrative” and “not measured” in conclusions, reasons and body text. Move these conditions into scope or sources. They also flag a paragraph longer than four sentences or 120 reading units (turn it into a list, steps or a comparison), a conclusion that is mostly bold (bold only the words that carry the decision), and a scope longer than 50 reading units (write short labels separated by “·”, such as `8 人团队 · 上线半年 · 峰值约 300 QPS`). `--writing warn|strict|off` controls warnings; source titles are excluded.
 
 ## Panel replacement
 

@@ -230,6 +230,9 @@
         "type": {
           "const": "comparison"
         },
+        "labelColumn": {
+          "$ref": "#/$defs/short"
+        },
         "columns": {
           "type": "array",
           "items": {
@@ -539,6 +542,32 @@
         }
       }
     },
+    "snippet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "text"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "snippet"
+        },
+        "language": {
+          "$ref": "#/$defs/short"
+        },
+        "title": {
+          "$ref": "#/$defs/short"
+        },
+        "text": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
     "diff": {
       "type": "object",
       "additionalProperties": false,
@@ -606,6 +635,7 @@
             "steps",
             "diagram",
             "code",
+            "snippet",
             "diff",
             "image"
           ]
@@ -718,6 +748,18 @@
           },
           "then": {
             "$ref": "#/$defs/code"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "snippet"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/snippet"
           }
         },
         {

@@ -21,17 +21,18 @@ A restricted Markdown draft compiles to the same JSON model. The first paragraph
 
 The conclusion is the first item inside `.board`, with `id="answer"` and classes `panel answer-panel spanN`. There is no separate conclusion banner.
 
-| Content | Preferred columns |
-| --- | ---: |
-| Conclusion | 5 |
-| Comparison | 7; 8 if more than three total columns |
-| Diagram | 8; 12 if its viewBox exceeds 760 units |
-| Steps, list, short prose | 4 |
-| Code or diff | 7 |
+| Content | Preferred columns | Minimum |
+| --- | ---: | ---: |
+| Conclusion | 5 | 4 |
+| Comparison | 7; 8 if more than three total columns | 6; 7 |
+| Diagram | 8; 12 if its viewBox exceeds 1000 units | same |
+| Code or diff | 8 | 7 |
+| Snippet | 5, 6 or 8 by longest line | 4, 6 or 7 |
+| Steps, list, short prose | 4 | 4 |
 
-A mixed panel uses the largest applicable width. Pack in document order; if the next panel does not fit, start a new row. Assign remaining columns to the flexible panel with the most content, including on the final row. Preserve authored spans exactly. When every panel in a partial row has a fixed span, an inert spacer completes the 12-column row. Panel heights stretch to the same height within a row. Responsive and print rules remain in place.
+The static board packs in document order and lets panels shrink toward their minimum to finish a row. Spare columns go to the flexible panel with the most content. Authored spans are preserved exactly; when every panel in a partial row has a fixed span, an inert spacer completes it.
 
-This change only removes obsolete CSS and adds structural span/citation rules. Color, typography, spacing and the next visual iteration are outside its scope.
+On desktop widths the reader script re-plans the board from measured heights. Each panel is measured at every allowed span. A row is a set of columns totalling 12; a column holds one panel or two consecutive panels stacked. The plan minimises page height plus unused cell area, penalises text set wider than a comfortable measure, rejects spans that clip tables or code, and derives each diagram's minimum span from its smallest label and the reading floor. Source order and the top-left conclusion are kept. Without JavaScript, below 1100 px, and in print, the static spans apply.
 
 ## References
 
