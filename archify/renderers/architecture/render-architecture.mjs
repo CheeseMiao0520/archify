@@ -123,6 +123,10 @@ function boundaryRect(boundary) {
   const topPad = Math.max(
     pad,
     layout.boundaryLabelBaseline + layout.boundaryLabelClearance,
+    // Routes must avoid the title rail that the final frame will contain.
+    enforcesBoundaryTitleComposition
+      ? layout.boundaryLabelMaskHeight + layout.boundaryLabelClearance + layout.boundaryLabelFrameInset
+      : 0,
   );
   return {
     ...boundary,

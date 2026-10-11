@@ -20,6 +20,40 @@ function layout(input) {
   return JSON.parse(result.stdout);
 }
 
+test('architecture: automatic routes avoid the final minimum title rail while keeping authored sides', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-title-rail-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const input = path.join(directory, 'diagram.json');
+  const spec = {
+    schema_version: 1, diagram_type: 'architecture',
+    meta: { title: 'Storage reader', output: 'diagram.html', quality_profile: 'showcase' },
+    components: [
+      { id: 'writer', type: 'backend', label: 'Writer', pos: [330, 40], size: [210, 70] },
+      { id: 'reader', type: 'frontend', label: 'Reader', pos: [50, 240], size: [210, 70] },
+      { id: 'backend', type: 'database', label: 'Storage', pos: [330, 240], size: [210, 70] },
+      { id: 'other', type: 'backend', label: 'Other', pos: [270, 130], size: [100, 60] },
+    ],
+    connections: [{ from: 'writer', to: 'reader', label: 'read', fromSide: 'bottom', toSide: 'top' }],
+    boundaries: [{ kind: 'region', label: 'Storage backend', wraps: ['backend'], pad: 16 }],
+  };
+  fs.writeFileSync(input, JSON.stringify(spec));
+  const result = layout(input);
+  // The old route followed the final top border even though it cleared the
+  // pre-title frame. Validation must see a clear route without changing intent.
+  assert.equal(result.ok, true, JSON.stringify(result.diagnostics));
+  assert.deepEqual(result.components.map(c => c.pos), spec.components.map(c => c.pos));
+  assert.deepEqual(result.components.map(c => [c.width, c.height]), spec.components.map(c => c.size));
+  assert.deepEqual(result.boundaries[0].wraps, ['backend']);
+  const route = result.connections[0];
+  assert.deepEqual([route.from, route.to, route.label], ['writer', 'reader', 'read']);
+  const points = route.points;
+  assert.equal(points[0][1], 110);
+  assert.equal(points.at(-1)[1], 240);
+  assert.ok(points[1][1] > points[0][1] && points[1][0] === points[0][0]);
+  assert.ok(points.at(-2)[1] < points.at(-1)[1] && points.at(-2)[0] === points.at(-1)[0]);
+  assert.ok(points.length <= 4, 'the clear corridor needs at most two bends');
+});
+
 test('architecture: adjacent request and callback stay straight when their complete labels fit outside the pair', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-reciprocal-label-'));
   try {
