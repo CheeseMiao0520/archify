@@ -65,7 +65,10 @@ has supporting source entailment and the remaining unknowns cannot change that
 coverage. There is no node, edge, citation, view, card, or boundary count to
 hit. Do not add a summary step merely to signal completion.
 
-Batch independent relevant files when known. Each additional read should answer
+Batch independent relevant files when known. Read source excerpts with their original
+line numbers (for example, `nl -ba <file> | sed -n '40,90p'`). Copy citation
+start and end lines from the displayed source, including the actual final line
+when an excerpt reaches EOF. Each additional read should answer
 an unresolved question that can change the diagram. Reuse concise facts and
 their source ranges already verified in this task; across revisions, recheck
 the affected entry points, configuration, dependencies, and evidence.
