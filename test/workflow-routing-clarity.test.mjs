@@ -23,6 +23,37 @@ function edgeTag(svg, from, to) {
   return tag;
 }
 
+test('readable-v2 keeps a clear vertical main step straight when its source also branches', () => {
+  const workflow = {
+    schema_version: 2, diagram_type: 'workflow',
+    meta: { title: 'Payment and timeout', output: 'payment.html' },
+    lanes: [{ id: 'checkout', label: 'Checkout' }, { id: 'expiry', label: 'Expiry' }],
+    mainPath: ['pending', 'pay'],
+    nodes: [
+      { id: 'pending', lane: 'checkout', col: 2, yOffset: 0, type: 'backend', label: 'Pending order' },
+      { id: 'pay', lane: 'checkout', col: 2, yOffset: 80, type: 'cloud', label: 'Payment' },
+      { id: 'timeout', lane: 'expiry', col: 2, type: 'security', label: 'Timeout' },
+    ],
+    edges: [
+      { id: 'pending-pay', from: 'pending', to: 'pay', role: 'main' },
+      { id: 'pending-timeout', from: 'pending', to: 'timeout', role: 'branch', label: 'Still unpaid', variant: 'dashed' },
+    ],
+  };
+  const original = structuredClone(workflow);
+  const result = compileWorkflow({ workflow, qualityProfile: 'showcase' });
+  assert.equal(result.ok, true, JSON.stringify(result.diagnostics));
+  const route = result.receipt.edges.find(edge => edge.id === 'pending-pay');
+  const from = result.receipt.nodes.find(node => node.id === 'pending');
+  const to = result.receipt.nodes.find(node => node.id === 'pay');
+  assert.deepEqual(route.points, [
+    [from.x + from.width / 2, from.y + from.height],
+    [to.x + to.width / 2, to.y],
+  ], 'a clear vertical gap must not acquire a side detour from provisional port spreading');
+  assert.equal(result.receipt.edges.length, 2, 'the timeout branch must remain present');
+  assert.equal(result.receipt.labels.find(label => label.edge === 'pending-timeout').label, 'Still unpaid');
+  assert.deepEqual(workflow, original);
+});
+
 test('readable-v2 keeps clear backward branches straight after provisional port spreading', () => {
   for (const role of ['error', 'return', undefined]) {
     const workflow = {

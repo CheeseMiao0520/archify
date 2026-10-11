@@ -4496,7 +4496,7 @@ function readableAutomaticRoute(edge, from, to, primarySides, primaryPorts) {
   const alignedStart = automaticPortCandidates(edge, from, naturalFromSide, anchor(from, naturalFromSide), to)[0];
   const alignedEnd = automaticPortCandidates(edge, to, naturalToSide, anchor(to, naturalToSide), from)[0];
   const alignedPoints = [alignedStart, alignedEnd];
-  if (to.col !== from.col && !edge.fromSide && !edge.toSide && !edge.labelAt
+  if (!edge.fromSide && !edge.toSide && !edge.labelAt
     && readableCandidateIsFeasible(edge, alignedPoints, from, to, naturalFromSide, naturalToSide)) {
     plans.push({
       family: 'aligned-facing',

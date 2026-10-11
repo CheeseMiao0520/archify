@@ -2706,12 +2706,14 @@ test('early causal failures retain diagnostic-only receipts after a complete rej
 test('rejected layout receipt belongs to the selected best route-order attempt', (t) => {
   // The first plan crosses; retrying the later edge trades it for one shared
   // corridor. Equal error counts retain the first result, not the last routes.
+  // n8 blocks the direct vertical corridor between n7 and n6; without that
+  // obstacle the aligned-facing planner now resolves the original failure.
   const document = workflow({
     lanes: [0, 1, 2, 3, 4].map((index) => ({ id: `l${index}`, label: `L${index}` })),
     nodes: [
       ['n3', 'l2', 3, 140], ['n5', 'l0', 3, 140],
       ['n6', 'l2', 4, 140], ['n7', 'l0', 4, 140],
-      ['n8', 'l1', 5, 150], ['n9', 'l0', 5, 140],
+      ['n8', 'l1', 4, 150], ['n9', 'l0', 5, 140],
       ['n11', 'l3', 4, 140], ['n12', 'l3', 5, 150],
     ].map(([id, lane, col, width]) => ({ id, lane, col, width, type: 'backend', label: id })),
     edges: [
