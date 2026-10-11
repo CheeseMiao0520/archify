@@ -688,6 +688,15 @@ function cloneWorkflow(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function compareWorkflowEdges(left, right) {
+  return stableCompare(left.id, right.id)
+    || stableCompare(left.from, right.from)
+    || stableCompare(left.to, right.to)
+    || stableCompare(left.label, right.label)
+    || stableCompare(left.route, right.route)
+    || stableCompare(stableValueKey(left), stableValueKey(right));
+}
+
 function canonicalReadableWorkflow(workflow, widthOverrides) {
   if (workflow.schema_version !== 2) return workflow;
   for (const node of asArray(workflow.nodes)) {
@@ -703,14 +712,7 @@ function canonicalReadableWorkflow(workflow, widthOverrides) {
     || left.col - right.col
     || stableCompare(left.id, right.id)
   ));
-  const edges = [...asArray(workflow.edges)].sort((left, right) => (
-    stableCompare(left.id, right.id)
-    || stableCompare(left.from, right.from)
-    || stableCompare(left.to, right.to)
-    || stableCompare(left.label, right.label)
-    || stableCompare(left.route, right.route)
-    || stableCompare(stableValueKey(left), stableValueKey(right))
-  ));
+  const edges = [...asArray(workflow.edges)].sort(compareWorkflowEdges);
   const phases = workflow.phases === undefined ? undefined : [...asArray(workflow.phases)].sort((left, right) => (
     left.fromCol - right.fromCol || left.toCol - right.toCol
     || stableCompare(left.id, right.id)
@@ -4315,7 +4317,20 @@ function workflowEdgeLabelPoint(edge, points) {
     && points.length === 2 && points[0][0] === points[1][0]) {
     // Center implicit v2 vertical labels in the corridor. Authored offsets
     // retain their existing source-relative anchor, including explicit zero.
-    return [points[0][0], (points[0][1] + points[1][1]) / 2];
+    const x = points[0][0];
+    let labelSide = 0;
+    if (layoutFeedback.fanInLabelClearance && !preservesWorkflowAbsoluteGeometry(workflow)) {
+      // On a failed-route retry, leave the shared arrival side open. The
+      // label stays beside its own straight edge, with an 8px mask gap;
+      // normal node, route, label and frame checks still decide feasibility.
+      const incoming = workflow.edges.filter(other => other !== edge && other.to === edge.to)
+        .map(other => nodes.get(other.from)?.cx)
+        .filter(value => Number.isFinite(value) && Math.abs(value - x) > 4);
+      if (incoming.length && incoming.every(value => value < x)) labelSide = 1;
+      else if (incoming.length && incoming.every(value => value > x)) labelSide = -1;
+    }
+    return [x + labelSide * (workflowLabelWidth(edge.label) / 2 + 8),
+      (points[0][1] + points[1][1]) / 2];
   }
   if (edge.labelAt || Number.isInteger(edge.labelSegment) || points.length <= 2) {
     return labelPoint(edge, points);
@@ -5485,7 +5500,7 @@ function feedbackFailure(request) {
 const ROUTE_ORDER_CODES = new Set(['composition/ambiguous-corridor', 'composition/proper-crossing']);
 const MAX_ROUTE_ORDER_RETRIES = 3;
 
-// Automatic routes are planned in source order, each against those already
+// Automatic routes are planned in canonical order, each against those already
 // placed, so an earlier edge can take the only clear corridor of a later one
 // (a long cross-lane branch dropping between two same-lane neighbours). When
 // the readable result fails only because two automatic edges share a corridor
@@ -5494,7 +5509,7 @@ const MAX_ROUTE_ORDER_RETRIES = 3;
 function errorCount(result) {
   return result.ok ? 0 : result.diagnostics.filter((diagnostic) => diagnostic.severity !== 'warning').length;
 }
-function routeOrderRetryIndex(result, layoutFeedback) {
+function routeOrderRetryIndex(result, layoutFeedback, workflow) {
   if (result.ok || !Array.isArray(result.diagnostics)) return null;
   const errors = result.diagnostics.filter((diagnostic) => diagnostic.severity !== 'warning');
   if (!errors.length || !errors.every((diagnostic) => ROUTE_ORDER_CODES.has(diagnostic.code))) return null;
@@ -5503,7 +5518,8 @@ function routeOrderRetryIndex(result, layoutFeedback) {
     const indexes = [diagnostic.subject?.index, diagnostic.evidence?.otherRelationship?.index]
       .filter(Number.isInteger);
     if (indexes.length !== 2) continue;
-    const later = Math.max(...indexes);
+    // Diagnostic indexes identify the authored array, not routing priority.
+    const later = indexes.sort((a, b) => compareWorkflowEdges(workflow.edges[a], workflow.edges[b])).at(-1);
     if (!tried.has(later)) return later;
   }
   return null;
@@ -5536,9 +5552,13 @@ function compileWithRouteOrderFeedback(options) {
   let current = first;
   let layoutFeedback = options.layoutFeedback;
   for (let retry = 0; retry < MAX_ROUTE_ORDER_RETRIES && errorCount(best) > 0; retry += 1) {
-    const index = routeOrderRetryIndex(current, layoutFeedback);
+    const index = routeOrderRetryIndex(current, layoutFeedback, options.workflow);
     if (index === null) break;
-    layoutFeedback = { ...layoutFeedback, routeFirst: [...asArray(layoutFeedback.routeFirst), index] };
+    layoutFeedback = {
+      ...layoutFeedback,
+      fanInLabelClearance: true,
+      routeFirst: [...asArray(layoutFeedback.routeFirst), index],
+    };
     try {
       current = compileWorkflowInternal({ ...options, layoutFeedback });
     } catch (error) {

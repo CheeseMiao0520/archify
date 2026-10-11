@@ -86,3 +86,25 @@ test('a crossing-free route retry can finish automatic sublabel sizing before er
   assert.deepEqual(result.receipt.nodes.map(node => node.id).sort(), workflow.nodes.map(node => node.id).sort());
   assert.deepEqual(result.receipt.edges.map(edge => [edge.from, edge.to]).sort(), workflow.edges.map(edge => [edge.from, edge.to]).sort());
 });
+
+test('automatic cancellation arrivals clear a sibling label without authoring ports or deleting branches', () => {
+  const workflow = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'workflow-fanin-label-recovery.json'), 'utf8'));
+  const original = structuredClone(workflow);
+  const result = compileWorkflow({ workflow, qualityProfile: 'showcase' });
+  assert.equal(result.ok, true, JSON.stringify(result.diagnostics));
+  assert.deepEqual(workflow, original);
+  assert.deepEqual(result.receipt.nodes.map(node => node.id).sort(), workflow.nodes.map(node => node.id).sort());
+  assert.deepEqual(result.receipt.edges.map(edge => [edge.id, edge.from, edge.to]).sort(),
+    workflow.edges.map(edge => [edge.id, edge.from, edge.to]).sort());
+  assert.deepEqual(result.receipt.labels.map(entry => entry.label).sort(),
+    workflow.edges.filter(edge => edge.label).map(edge => edge.label).sort());
+
+  // Receipt indexes refer to the input array, while routing uses canonical
+  // order. Reordering that array must not change the recovered scene.
+  const reordered = structuredClone(workflow);
+  reordered.edges.reverse();
+  const reversed = compileWorkflow({ workflow: reordered, qualityProfile: 'showcase' });
+  assert.equal(reversed.ok, true, JSON.stringify(reversed.diagnostics));
+  assert.deepEqual(reversed.receipt.edges, result.receipt.edges);
+  assert.deepEqual(reversed.receipt.labels, result.receipt.labels);
+});
