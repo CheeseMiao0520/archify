@@ -70,6 +70,46 @@ test('an automatic dataflow keeps a stage-skipping flow short with a verifiable 
   assert.equal(validation.status, 0, validation.stdout + validation.stderr);
 });
 
+test('automatic crossing optimization does not replace a readable port bridge with a micro jog', t => {
+  const diagram = {
+    schema_version: 1, diagram_type: 'dataflow',
+    meta: { title: 'Shared automatic ports', output: 'diagram.html', quality_profile: 'showcase' },
+    stages: ['Input', 'Plan', 'Process', 'Assemble', 'Output'].map(label => ({ label })),
+    nodes: [
+      ['request', 'Request', 0, 2], ['plan', 'Plan', 1, 2],
+      ['a', 'Processor A', 2, 0], ['b', 'Processor B', 2, 2],
+      ['c', 'Processor C', 2, 4], ['assembly', 'Assembly', 3, 4],
+      ['result', 'Result', 4, 3], ['archive', 'Archive', 4, 2],
+    ].map(([id, label, stage, row]) => ({ id, label, stage, row, type: id === 'request' ? 'frontend' : 'backend' })),
+    flows: [
+      ['request', 'plan', 'configuration'], ['plan', 'a', 'input'],
+      ['plan', 'b', 'conditional'], ['plan', 'c', 'render'],
+      ['request', 'assembly', 'options'], ['plan', 'result', 'result'],
+      ['request', 'archive', 'original input'],
+    ].map(([from, to, label], index) => ({ id: `f${index}`, from, to, label, variant: index === 1 ? 'emphasis' : 'default' })),
+  };
+  for (const freeLabelSlot of [false, true]) {
+    if (freeLabelSlot) {
+      const labels = ['config', 'task', 'ready', 'data', 'flags', 'result', 'source'];
+      diagram.flows.forEach((flow, index) => { flow.label = labels[index]; });
+    }
+    const result = render(diagram);
+    t.after(() => fs.rmSync(path.dirname(result.input), { recursive: true, force: true }));
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(fs.readFileSync(result.input, 'utf8'), JSON.stringify(diagram));
+    const rendered = routes(result.html);
+    assert.deepEqual(rendered.map(({ from, to }) => [from, to]),
+      diagram.flows.map(({ from, to }) => [from, to]));
+    for (const node of diagram.nodes) assert.ok(result.html.includes(`id="node-${node.id}"`));
+    for (const flow of diagram.flows) assert.ok(result.html.includes(flow.label));
+    if (freeLabelSlot) {
+      const target = rendered.find(route => route.from === 'plan' && route.to === 'b');
+      assert.ok(target.points.every(([, y]) => Math.abs(y - target.points[0][1]) < 0.0001),
+        'a free endpoint should align when its straight route and label both fit');
+    }
+  }
+});
+
 test('a pinned dataflow route keeps its geometry and its crossing diagnostic', () => {
   const diagram = JSON.parse(fs.readFileSync(fixture, 'utf8'));
   for (const flow of diagram.flows) flow.route = 'auto';

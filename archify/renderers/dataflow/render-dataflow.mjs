@@ -811,7 +811,12 @@ if (automaticShowcase) {
       .some(hit => hit.side !== 'bottom')) {
       detour = shortestOrthogonalGridRoute({ ...options, borderSegments: stageBorders });
     }
-    return detour ? normalizeRoutePoints(detour.points) : null;
+    // The grid preserves both endpoint coordinates, even when their axes
+    // are closer than its coalescing distance. Check the resulting route
+    // before a cheaper micro jog can replace a readable port bridge.
+    const normalized = detour && normalizeRoutePoints(detour.points);
+    return normalized && !collectRouteRhythmIssues({ routedRelations: [{ points: normalized }] }).length
+      ? normalized : null;
   }
   function detourFor(flow) {
     const { points } = pathFor(flow);
@@ -1128,6 +1133,66 @@ if (automaticShowcase) {
       }
       break;
     }
+  }
+  // Once labels and routes are settled, align only the free endpoint of a
+  // short port bridge. Keep other routes and labels fixed so a local straight
+  // line cannot trigger a longer detour or hide a neighbouring label.
+  let alignmentProbes = 0;
+  for (const flow of routable) {
+    if (alignmentProbes >= 16) break;
+    if (!supportsAutomaticCrossover(flow)
+      || ['labelAt', 'labelDx', 'labelDy', 'labelSegment'].some(key => flow[key] !== undefined)) continue;
+    const current = normalizeRoutePoints(pathFor(flow).points);
+    if (current.length <= 2) continue;
+    const index = resolvedLabelRects.findIndex(rect => rect.relation === flow);
+    if (index < 0) continue;
+    const from = nodes.get(flow.from), to = nodes.get(flow.to);
+    const { fromSide, toSide } = flowSides(flow);
+    let placedLabel;
+    const aligned = alignAutomaticFacingPorts(flow, from, to, current[0], current.at(-1), fromSide, toSide, automaticPorts.get(flow), {
+      accept: points => {
+        if (alignmentProbes >= 16 || intrudesNode(flow, points)
+          || unrelated(flow).some(other => intersectionCount(points, pathFor(other).points)
+            > intersectionCount(current, pathFor(other).points))
+          || resolvedLabelRects.some(rect => rect.relation !== flow && masksLabel(points, rect))) return false;
+        for (const [node, side, point, original] of [
+          [from, fromSide, points[0], current[0]], [to, toSide, points[1], current.at(-1)],
+        ]) {
+          if (Math.hypot(point[0] - original[0], point[1] - original[1]) < 0.0001) continue;
+          for (const other of routable) for (const field of ['from', 'to']) {
+            if (other === flow || other[field] !== node.id || flowSides(other)[field === 'from' ? 'fromSide' : 'toSide'] !== side) continue;
+            const occupied = field === 'from' ? pathFor(other).points[0] : pathFor(other).points.at(-1);
+            if (Math.hypot(point[0] - occupied[0], point[1] - occupied[1]) < 18 - 0.0001) return false;
+          }
+        }
+        if (routable.some(other => other !== flow && collectAmbiguousCorridors({
+          routedRelations: [{ relation: flow, points }, { relation: other, points: pathFor(other).points }],
+          includeSharedEndpoints: () => true,
+        }).length)) return false;
+        alignmentProbes++;
+        const [lx, ly] = labelPoint(flow, points), rect = resolvedLabelRects[index];
+        const labels = resolvedLabelRects.map((other, i) => i === index
+          ? { ...other, x: lx - other.width / 2, y: ly - 11, lx, ly: ly - 1 }
+          : { ...other, ly: other.ly - 1, relation: { ...other.relation, labelAt: [other.lx, other.ly] } });
+        const routes = routable.map(other => ({ relationIndex: asArray(dataflow.flows).indexOf(other), points: other === flow ? points : pathFor(other).points }));
+        const candidate = placeAutomaticLabels({ labels, routes, components: [...nodes.values()], titles,
+          viewBox, placementBottom: viewBox[1] - layout.stageBottomPad, maxOwnRouteDistance: 36 })[index];
+        if (candidate.x < 0 || candidate.y < 0 || candidate.x + candidate.width > viewBox[0]
+          || candidate.y + candidate.height > viewBox[1] - layout.stageBottomPad
+          || [...nodes.values(), ...titles].some(obstacle => rectsOverlap(candidate, obstacle, 2))
+          || resolvedLabelRects.some((other, i) => i !== index && rectsOverlap(candidate, other, 2))
+          || routes.some(route => route.relationIndex !== rect.relationIndex && masksLabel(route.points, candidate))
+          || !nearOwnRoute(candidate, points)
+          || (extraLabelLineMasksRoute(candidate, points) && !extraLabelLineMasksRoute(rect, current))) return false;
+        placedLabel = { ...candidate, ly: candidate.ly + 1 };
+        return true;
+      },
+    });
+    if (!placedLabel) continue;
+    const points = [aligned.start, aligned.end];
+    pathCache.set(flow, { points, d: polylinePath(points) });
+    resolvedLabelRects[index] = placedLabel;
+    resolvedLabelPoints.set(flow, [placedLabel.lx, placedLabel.ly]);
   }
   for (const [index, left] of routable.entries()) {
     for (const right of routable.slice(index + 1)) {

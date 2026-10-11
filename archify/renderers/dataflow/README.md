@@ -99,6 +99,10 @@ unshared endpoint can align with the spread endpoint when the straight path
 is clear. This preserves the shared slots, the 16px corner gutter, occupied
 ports and authored route/label controls. When both ends are spread or the
 direct path is blocked, the existing perpendicular bridge remains.
+After routes and labels settle, a bounded pass can retry this alignment while
+keeping every other route and label fixed. It checks at most 16 label placements;
+the straight path must retain port spacing and a clear, nearby label position.
+Grid repairs also retain the route rhythm floor before replacing a valid bridge.
 Unpinned labels stay within 36px mask clearance of their own route. If a
 label remains inside a node because a foreign route occupies its nearby slot,
 a bounded joint repair can shift that route and place the label again. It
