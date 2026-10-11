@@ -149,6 +149,8 @@ export function createRouter(components, connections = [], {
     crossoverRoutedCount: 0,
     readabilityCandidateCount: 0,
     readabilityImprovedCount: 0,
+    labelRelocationCandidateCount: 0,
+    labelRelocationImprovedCount: 0,
     reciprocalCandidateCount: 0,
     reciprocalImprovedCount: 0,
     gridAttempts: [],
@@ -1196,6 +1198,29 @@ export function createRouter(components, connections = [], {
         }) || []).some((candidate) => JSON.stringify(candidate) === interior);
       };
       const typeOwned = new Set(resolvedRoutes.filter(followsPreferredCorridor).map((entry) => entry.conn));
+      function relocatedLabelsFor(conn, routed, others) {
+        // A provisional label may occupy an otherwise clear corridor. Move at
+        // most one automatic label, on its existing route, and accept the pair
+        // only when both labels fit without borrowing other labels' space.
+        const displaced = reservedLabels.filter((label) => label.conn !== conn && routed.points.slice(1).some((end, index) =>
+          segmentIntersectsRect({ start: routed.points[index], end }, label.rect, LABEL_CLEARANCE)));
+        if (displaced.length !== 1) return null;
+        const owner = displaced[0].conn;
+        if (typeOwned.has(owner) || hasAuthoredRouteGeometry(owner) || hasAuthoredLabelPlacement(owner)) return null;
+        const labels = reservedLabels.filter((label) => label.conn !== conn && label.conn !== owner);
+        const routes = [...others, { conn, points: routed.points }];
+        const moved = routes.find((entry) => entry.conn === owner);
+        for (const entry of [moved, { conn, points: routed.points }]) {
+          const rect = labelRectFor?.(entry.conn, entry.points, {
+            routes: routes.map((route) => route.points),
+            labels: labels.map((label) => label.rect),
+          });
+          if (!labelClears(rect, entry.conn, routes, labels)
+              || (rect && [...components.values()].some((component) => rectsOverlap(rect, component, -2)))) return null;
+          if (rect) labels.push({ conn: entry.conn, rect });
+        }
+        return labels;
+      }
       allowGridSearch = false;
       try {
         improveReciprocalPairs();
@@ -1285,6 +1310,49 @@ export function createRouter(components, connections = [], {
             reservedLabels = [...otherLabels, ...(rect ? [{ conn, rect }] : [])];
             break;
           }
+        }
+        // Finish the established route/straightening plan first. Moving a
+        // label earlier could prevent a later edge from taking its straight
+        // corridor, even though the local candidate was cheaper.
+        for (const entry of resolvedRoutes) {
+          const { conn } = entry;
+          if (jointlyImproved.has(conn) || typeOwned.has(conn) || hasAuthoredRouteGeometry(conn) || hasAuthoredLabelPlacement(conn)) continue;
+          const others = resolvedRoutes.filter((other) => other !== entry);
+          if (entry.points.length <= 4 && crossingCount(conn, entry.points, others) === 0) continue;
+          let best = null;
+          let bestCost = readabilityCost(conn, entry, others);
+          if (labelRectFor && reservedLabels.some((label) => label.conn !== conn)) {
+            // One additional side sweep, with no grid search or cascading
+            // relayout. Temporary reservations can be ignored only after a
+            // replacement placement is verified against the complete scene.
+            for (const sides of candidateSidePairs(conn)) {
+              const geometry = connectionGeometry(conn, sides);
+              let routed;
+              let clear;
+              honourReservedLabels = false;
+              try {
+                routed = routedForGeometry(conn, others, geometry);
+                clear = routeIsClear(conn, routed, geometry, others);
+              } finally {
+                honourReservedLabels = true;
+              }
+              planningMetrics.labelRelocationCandidateCount += 1;
+              const cost = readabilityCost(conn, routed, others);
+              if (cost >= bestCost || !clear || !routed.points.every(withinScene)
+                  || crossingCount(conn, routed.points, others) > crossingCount(conn, entry.points, others)
+                  || !endpointSlotsClear([{ conn, points: routed.points }], others,
+                    (candidate) => candidate === conn ? sides : selectedSides.get(candidate))) continue;
+              const labels = relocatedLabelsFor(conn, routed, others);
+              if (!labels) continue;
+              best = { routed, sides, labels };
+              bestCost = cost;
+            }
+          }
+          if (!best) continue;
+          cachePath(conn, best.routed, best.sides);
+          entry.points = best.routed.points;
+          reservedLabels = best.labels;
+          planningMetrics.labelRelocationImprovedCount += 1;
         }
       } finally {
         allowGridSearch = true;

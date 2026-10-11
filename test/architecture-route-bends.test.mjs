@@ -38,6 +38,39 @@ test('architecture keeps a feasible route with label room over a fewer-bend rout
   assert.equal(points.length, 5, JSON.stringify(points));
 });
 
+test('showcase shortens a route when a neighboring automatic label can move safely', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-label-detour-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const input = path.join(directory, 'diagram.json');
+  const output = path.join(directory, 'diagram.html');
+  fs.writeFileSync(input, JSON.stringify({
+    schema_version: 1,
+    diagram_type: 'architecture',
+    meta: { title: 'Content build', output: 'diagram.html', quality_profile: 'showcase' },
+    components: [
+      { id: 'source', type: 'backend', label: 'Source', sublabel: 'Load and validate', pos: [400, 40], size: [235, 76] },
+      { id: 'published', type: 'security', label: 'Published content', sublabel: 'Exclude drafts', pos: [760, 40], size: [235, 76] },
+      { id: 'build', type: 'backend', label: 'Build', sublabel: 'Render pages', pos: [400, 210], size: [235, 76] },
+      { id: 'feed', type: 'backend', label: 'Feed', sublabel: 'Requires SITE_URL', pos: [760, 210], size: [235, 76] },
+    ],
+    connections: [
+      { id: 'publish', from: 'source', to: 'published', label: '筛选' },
+      { id: 'build-input', from: 'published', to: 'build', label: '公开内容' },
+      { id: 'feed-output', from: 'build', to: 'feed', label: 'SITE_URL 有值' },
+    ],
+  }));
+  const original = fs.readFileSync(input, 'utf8');
+  const result = spawnSync(process.execPath, [cli, 'render', 'architecture', input, output, '--quality', 'showcase'], {
+    cwd: directory, encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const html = fs.readFileSync(output, 'utf8');
+  const points = html.match(/data-edge-id="build-input"[^>]*data-composition-points="([^"]+)"/)[1].split(';');
+  assert.ok(points.length <= 4, `a movable label must not force three bends: ${points}`);
+  for (const label of ['筛选', '公开内容', 'SITE_URL 有值']) assert.ok(html.includes(`>${label}</text>`), label);
+  assert.equal(fs.readFileSync(input, 'utf8'), original);
+});
+
 function validate(t, profile, replySides) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-pinned-reply-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));

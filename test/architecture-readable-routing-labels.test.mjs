@@ -124,3 +124,33 @@ test('architecture readability sweep leaves authored route presets and channel-p
     assert.deepEqual(swept.routes[index], baseline.routes[index], `${connections[index].id} keeps authored routing geometry`);
   }
 });
+
+for (const pinned of [false, true]) {
+  test(`architecture keeps a label corridor reserved when ${pinned ? 'its label is pinned' : 'no replacement placement clears the route'}`, () => {
+    const boxes = new Map([
+      ['source', 400, 40], ['published', 760, 40], ['build', 400, 210], ['feed', 760, 210],
+    ].map(([id, x, y]) => [id, { id, x, y, width: 235, height: 76, cx: x + 117.5, cy: y + 38 }]));
+    const reserved = { x: 661.3, y: 235, width: 72.4, height: 14 };
+    const connections = [
+      { id: 'publish', from: 'source', to: 'published', label: 'Publish' },
+      { id: 'build-input', from: 'published', to: 'build', label: 'Build input' },
+      { id: 'feed-output', from: 'build', to: 'feed', label: 'SITE_URL set', ...(pinned ? { labelAt: [697.5, 245] } : {}) },
+    ];
+    const production = productionLabelRectFor(boxes);
+    const router = createRouter(boxes, connections, {
+      distinctAutomaticPorts: true,
+      preferReadableRoutes: true,
+      labelRectFor: (conn, points, context) => conn.id === 'feed-output'
+        ? { ...reserved, relation: conn, label: conn.label, lx: 697.5, ly: 245 }
+        : production(conn, points, context),
+    });
+    const points = router.pathFor(connections[1]).points;
+    for (let index = 1; index < points.length; index += 1) {
+      assert.equal(segmentIntersectsRect({ start: points[index - 1], end: points[index] }, reserved, 4), false,
+        'a cheaper route cannot use label space without a safe replacement');
+    }
+    assert.equal(router.routingMetrics().labelRelocationImprovedCount, 0);
+    assert.ok(router.routingMetrics().labelRelocationCandidateCount > 0, 'the blocked shortcut was considered');
+    assert.ok(router.routingMetrics().labelRelocationCandidateCount <= connections.length * 16);
+  });
+}
