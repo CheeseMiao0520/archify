@@ -968,7 +968,14 @@ if (automaticShowcase) {
 function labelPoint(flow, points) {
   if (automaticShowcase && !flow.classification && points.length === 2 && points[0][0] === points[1][0]
     && !['labelAt', 'labelDx', 'labelDy', 'labelSegment'].some(key => flow[key] !== undefined)) {
-    return [points[0][0], (points[0][1] + points[1][1]) / 2 - 10];
+    const anchor = [points[0][0], (points[0][1] + points[1][1]) / 2 - 10];
+    const { width, height } = flowLabelSize(flow);
+    const rect = { x: anchor[0] - width / 2, y: anchor[1] - 11, width, height };
+    // Sibling flows share a fixed source-side corridor. Keep the old search
+    // anchor if a sibling occupies the midpoint; interior routes from other
+    // nodes can still move during the later label/corridor repair.
+    if (routable.every(other => other === flow || other.from !== flow.from || segmentsOf(pathFor(other).points)
+      .every(segment => segmentRectClearanceWithin(segment, rect, 4) + 0.0001 >= 4))) return anchor;
   }
   return legacyLabelPoint(flow, points);
 }

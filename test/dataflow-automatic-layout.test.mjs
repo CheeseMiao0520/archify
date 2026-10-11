@@ -716,3 +716,16 @@ test('a crowded vertical flow renders its complete first-draft label without a r
   assert.ok(segmentRectClearanceWithin({ start: points[0], end: points[1] }, { x, y, width, height }, 4) <= 4,
     'label remains attached to its own connector');
 });
+
+test('a vertical label keeps clear of another flow leaving the same node', t => {
+  const diagram = JSON.parse(fs.readFileSync(new URL('./fixtures/dataflow-first-draft/vertical-label-neighbour.dataflow.json', import.meta.url), 'utf8'));
+  const { html } = renderedFootprint(t, diagram);
+  for (const flow of diagram.flows) assert.ok(html.includes(flow.label), flow.label);
+  const mask = html.match(/<g data-detail="context"[^>]*data-edge-id="f2"[^>]*>\s*<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"/);
+  const [x, y, width, height] = mask.slice(1).map(Number);
+  const points = html.match(/<path[^>]*data-edge-id="f4"[^>]*data-composition-points="([^"]+)"/)[1]
+    .split(';').map(point => point.split(',').map(Number));
+  assert.ok(points.slice(1).every((end, index) => segmentRectClearanceWithin(
+    { start: points[index], end }, { x, y, width, height }, 4) + 0.0001 >= 4),
+  'the complete label must not mask the neighbouring relationship');
+});
