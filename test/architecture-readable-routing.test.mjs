@@ -77,7 +77,10 @@ test('a row neighbour with a clear sideways corridor keeps its side exit', () =>
   const boxes = new Map([box('hub', 780, 80, 180), box('below', 780, 300, 180), box('store', 440, 300, 180)]);
   const connections = [{ id: 'main', from: 'hub', to: 'below' }, { id: 'write', from: 'hub', to: 'store' }];
   const router = createRouter(boxes, connections, { distinctAutomaticPorts: true, preferReadableRoutes: true });
-  assert.deepEqual(router.connectionSides(connections[1]), { fromSide: 'left', toSide: 'right' });
+  assert.equal(router.connectionSides(connections[1]).fromSide, 'left', 'the branch still exits sideways');
+  const routes = connections.map(conn => router.pathFor(conn).points);
+  assert.ok(routes[1].length <= 4, 'a clear corner may simplify the automatic target port');
+  assert.equal(crossings(routes), 0);
   assert.equal(router.pathFor(connections[0]).points.length, 2, 'the main edge stays straight');
 });
 

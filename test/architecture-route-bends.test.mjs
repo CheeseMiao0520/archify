@@ -213,3 +213,25 @@ test('showcase uses a clear off-centre corner when central ports force a detour'
   for (const { label } of diagram.connections) assert.ok(html.includes(`>${label}</text>`), label);
   assert.equal(fs.readFileSync(input, 'utf8'), original);
 });
+
+test('a two-bend automatic branch can use a clear corner without disturbing the main route', () => {
+  const boxes = new Map([
+    box('build', 400, 305, 235, 76), box('data', 40, 305, 235, 76),
+    box('output', 40, 445, 235, 76), box('main', 400, 520, 235, 76),
+  ]);
+  for (const pinned of [false, true]) {
+    const connections = [
+      { id: 'input', from: 'data', to: 'build' },
+      { id: 'branch', from: 'build', to: 'output', ...(pinned ? { fromSide: 'left', toSide: 'right' } : {}) },
+      { id: 'main', from: 'build', to: 'main' },
+    ];
+    const original = structuredClone(connections);
+    const router = createRouter(boxes, connections, { distinctAutomaticPorts: true, preferReadableRoutes: true });
+    const points = router.pathFor(connections[1]).points;
+    assert.equal(points.length, pinned ? 4 : 3, `authored sides remain authoritative: ${JSON.stringify({ pinned, points })}`);
+    for (const edge of [connections[0], connections[2]]) {
+      assert.equal(router.pathFor(edge).points.length, 2, `${edge.id} stays straight`);
+    }
+    assert.deepEqual(connections, original);
+  }
+});

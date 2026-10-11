@@ -1361,13 +1361,13 @@ export function createRouter(components, connections = [], {
           planningMetrics.labelRelocationImprovedCount += 1;
         }
         // A side's midpoint may be blocked even when a corner port has a
-        // clear one-bend route. Probe only complex automatic routes, keeping
+        // clear one-bend route. Probe bent automatic routes, keeping
         // all other paths/labels fixed and the existing corner inset intact.
         // Eight perpendicular side pairs, at most three slots per endpoint:
         // 72 cheap candidates per route, without another grid search.
         for (const entry of resolvedRoutes) {
           const { conn } = entry;
-          if (entry.points.length <= 4 || jointlyImproved.has(conn) || typeOwned.has(conn)
+          if (entry.points.length < 4 || jointlyImproved.has(conn) || typeOwned.has(conn)
               || hasAuthoredRouteGeometry(conn) || hasAuthoredLabelPlacement(conn)) continue;
           const others = resolvedRoutes.filter((other) => other !== entry);
           const labels = reservedLabels.filter((label) => label.conn !== conn);
