@@ -178,16 +178,38 @@ function pointBlocked(point, obstacles) {
   ));
 }
 
+// Prune only against the candidate segment, never the route's initial bounds:
+// a later detour can still encounter any obstacle in the complete inventory.
+// Keep epsilon-near bounds for the existing exact predicates to decide.
 function segmentBlocked(start, end, obstacles) {
-  return obstacles.some((rect) => segmentIntersectsRect({ start, end }, rect));
+  const minX = Math.min(start[0], end[0]);
+  const maxX = Math.max(start[0], end[0]);
+  const minY = Math.min(start[1], end[1]);
+  const maxY = Math.max(start[1], end[1]);
+  return obstacles.some((rect) => {
+    if (maxX < Math.min(rect.x, rect.x + rect.width) - 0.0001
+      || minX > Math.max(rect.x, rect.x + rect.width) + 0.0001
+      || maxY < Math.min(rect.y, rect.y + rect.height) - 0.0001
+      || minY > Math.max(rect.y, rect.y + rect.height) + 0.0001) return false;
+    return segmentIntersectsRect({ start, end }, rect);
+  });
 }
 
 function segmentConflictsWithAvoided(start, end, avoidedSegments, minimumOverlapPx, allowCrossings) {
-  return avoidedSegments.some((segment) => (
-    (!allowCrossings && (properSegmentIntersection(start, end, segment.start, segment.end)
+  const minX = Math.min(start[0], end[0]);
+  const maxX = Math.max(start[0], end[0]);
+  const minY = Math.min(start[1], end[1]);
+  const maxY = Math.max(start[1], end[1]);
+  return avoidedSegments.some((segment) => {
+    // A zero overlap threshold also rejects disjoint segments (0 >= 0).
+    if (minimumOverlapPx > 0 && (maxX < Math.min(segment.start[0], segment.end[0]) - 0.0001
+      || minX > Math.max(segment.start[0], segment.end[0]) + 0.0001
+      || maxY < Math.min(segment.start[1], segment.end[1]) - 0.0001
+      || minY > Math.max(segment.start[1], segment.end[1]) + 0.0001)) return false;
+    return (!allowCrossings && (properSegmentIntersection(start, end, segment.start, segment.end)
       || orthogonalTouchOnAvoidedInterior(start, end, segment.start, segment.end)))
-      || collinearOverlap(start, end, segment.start, segment.end) >= minimumOverlapPx
-  ));
+      || collinearOverlap(start, end, segment.start, segment.end) >= minimumOverlapPx;
+  });
 }
 
 function orthogonalTouchOnAvoidedInterior(start, end, avoidedStart, avoidedEnd) {

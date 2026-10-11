@@ -42,3 +42,17 @@ test('dense candidate coordinates preserve an open routing corridor without shor
       && Math.min(start[0], end[0]) < 76 && Math.max(start[0], end[0]) > 25));
   }
 });
+
+test('grid bounds pruning preserves the configured avoided-overlap threshold', () => {
+  const options = {
+    start: [0, 0], end: [100, 0], points: [[0, 0], [100, 0]],
+    fromSide: 'right', toSide: 'left', endpointStubPx: 16,
+    clearance: 2, maximumObstacleCount: 80, maximumGridNodes: 512,
+    obstacles: [], allowAvoidedCrossings: true,
+    avoidedSegments: [{ start: [0, 100], end: [100, 100] }],
+  };
+  assert.ok(shortestOrthogonalGridRoute({ ...options, minimumAvoidedOverlapPx: 8 }),
+    'a remote segment cannot obstruct an ordinary positive overlap threshold');
+  assert.equal(shortestOrthogonalGridRoute({ ...options, minimumAvoidedOverlapPx: 0 }), null,
+    'zero overlap still meets a zero threshold, even for a remote segment');
+});
