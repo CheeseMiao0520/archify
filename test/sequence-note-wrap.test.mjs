@@ -123,6 +123,48 @@ test('a short note keeps its original single-line markup', (t) => {
   assert.doesNotMatch(html, /<tspan/);
 });
 
+test('mixed Chinese notes use partial lines before requiring a later reply', (t) => {
+  const text = 'inner.run 成功或抛错都会 close；外层 init 失败发生在 try 之前。';
+  const spec = sequence({
+    participants: ['client', 'api', 'db', 'cache', 'queue', 'worker', 'store'],
+    messages: [
+      { id: 'request', from: 'client', to: 'api', y: 200, label: 'request', note: text },
+      { id: 'reply', from: 'api', to: 'client', y: 266, label: 'reply', variant: 'return' },
+    ],
+    activations: [{ participant: 'api', from: 190, to: 280 }],
+  });
+  const html = render(t, spec);
+  const [, api] = lifelines(html);
+  const [note] = notes(html);
+  assert.equal(note.lines.length, 3, 'the existing gap fits the full note in three lines');
+  assert.equal(note.lines.join('').replaceAll(' ', ''), text.replaceAll(' ', ''));
+  assert.equal(note.y, 218, 'the authored message stays in place');
+  for (const line of note.lines) {
+    assert.ok(note.x + minimumNodeTextWidth(line, 7) <= api - 11, `"${line}" clears the activation bar`);
+  }
+  assert.equal(run(t, 'validate', spec).result.status, 0, 'no extra reply spacing is required');
+});
+
+test('Chinese wrapping preserves signed scores and graphemes without growing notes', (t) => {
+  const texts = [
+    '评分：会话 ID 匹配 +4、匹配 file-edit seq +4、非空事件 +1；取最高且大于 0 的结果。',
+    '快照按 commit hash 精确优先，再前缀匹配；未命中保留空摘录，不生成推测对话。',
+    '首先说明 aaaaaaaaaaae\u0301成功或抛错都会 close；外层 init 失败发生在 try 之前。',
+  ];
+  const html = render(t, sequence({
+    participants: ['client', 'api', 'db', 'cache', 'queue', 'worker', 'store'],
+    messages: texts.map((note, index) => ({ from: 'client', to: 'api', y: 200 + index * 200, label: 'lookup', note })),
+  }));
+  const wrapped = notes(html);
+  assert.equal(wrapped[0].lines.join(' ').match(/\+4/g)?.length, 2, 'a sign stays with its score');
+  assert.match(wrapped[0].lines.join(' '), /file-edit/);
+  assert.ok(wrapped[2].lines.some((line) => line.includes('e\u0301')), 'a combining accent stays with its base letter');
+  for (const [index, note] of wrapped.entries()) {
+    assert.ok(note.lines.length <= [5, 4, 5][index], 'word segmentation never increases note height');
+    assert.equal(note.lines.join('').replaceAll(' ', ''), texts[index].replaceAll(' ', ''));
+  }
+});
+
 test('a note on a message that skips participants stays in the left-most gap, in either direction', (t) => {
   for (const [from, to] of [['client', 'db'], ['db', 'client']]) {
     const html = render(t, sequence({ messages: [{ from, to, y: 200, label: 'lookup', note: LONG_NOTE }] }));

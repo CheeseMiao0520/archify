@@ -177,6 +177,7 @@ const NOTE_LIFELINE_CLEARANCE = 11;
 const NOTE_GAP_TOLERANCE = 0.5;
 const NOTE_BREAK_AFTER = new Set(['/', '.', '-', '?', '&', '=', '#', '_']);
 const noteSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+let noteWordSegmenter;
 const noteLayouts = new Map();
 
 function noteTextWidth(text) {
@@ -192,6 +193,28 @@ function noteBreakIndex(piece) {
 }
 
 function wrapNoteText(text, width) {
+  const original = wrapNoteWords(String(text).match(/\s+|\S+/gu) || [], width);
+  if (!/\p{Script=Han}/u.test(text)) return original;
+
+  // Space-only tokens can waste half a line before a Chinese phrase. Split Han
+  // words, preserving other runs (identifiers, URLs, +4) and closing punctuation.
+  noteWordSegmenter ??= new Intl.Segmenter(undefined, { granularity: 'word' });
+  const words = [];
+  for (const token of String(text).match(/\s+|\p{Script=Han}[\p{Script=Han}\p{Mark}]*|[^\s\p{Script=Han}]+/gu) || []) {
+    if (/\p{Script=Han}/u.test(token)) {
+      for (const { segment } of noteWordSegmenter.segment(token)) words.push(segment);
+    } else if (/^[、。，；：！？）】》」』]+$/u.test(token) && words.length) {
+      words[words.length - 1] += token;
+    } else {
+      words.push(token);
+    }
+  }
+  const compact = wrapNoteWords(words, width);
+  // Never grow a note or change a same-height wrap merely to rebalance lines.
+  return compact.length < original.length ? compact : original;
+}
+
+function wrapNoteWords(words, width) {
   const lines = [];
   let line = '';
   const flush = () => {
@@ -199,7 +222,7 @@ function wrapNoteText(text, width) {
     if (trimmed) lines.push(trimmed);
     line = '';
   };
-  for (const word of String(text).match(/\s+|\S+/gu) || []) {
+  for (const word of words) {
     if (/^\s+$/u.test(word)) {
       if (line) line += ' ';
       continue;
