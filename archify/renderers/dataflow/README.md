@@ -111,6 +111,13 @@ or crossings. Unresolved placements keep their collision diagnostic.
 Explicit `labelAt`, `labelDx`, `labelDy` and `labelSegment` remain authoritative,
 including zero offsets. Existing valid labels are retained.
 
+If a complete automatic label still collides after routing, its text can wrap
+to two rows beside a horizontal segment. The font size, wording, classification
+and all routes stay unchanged. The plate stays within that segment's span and
+at least 4px from every route, rather than moving above a nearby node. This
+last capacity repair tries at most eight word-boundary splits and 64 positions
+per blocked label. If neither row fits, the original diagnostic remains.
+
 ## Design Rules
 
 - Use stages for data lifecycle boundaries: source, ingest, process, store,
