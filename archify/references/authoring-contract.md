@@ -288,11 +288,11 @@ Grid placement is preferred when the schema supports it. Free positions are appr
 ### Workflow
 
 Lanes express responsibility or phase. Columns `0..5` express logical
-progression. Each `(lane, col)` hosts at most one node — two nodes in the same
-cell fail with `workflow/node-overlap`. Start new workflows on `readable-v2`;
-retain `fixed-v1` only for legacy geometry compatibility. Keep the happy path
-monotonic, preserve semantic edge labels, and route retries and exception
-returns outside the main lane corridor.
+progression. Start new workflows on `readable-v2`; retain `fixed-v1` only for
+legacy geometry compatibility. In readable-v2, nodes may share a `(lane, col)`
+when distinct `yOffset` values leave room for their full rectangles, labels and
+connecting routes. Keep the happy path monotonic, preserve semantic edge labels,
+and route retries and exception returns outside the main lane corridor.
 
 #### Workflow viewport repair
 
@@ -303,9 +303,11 @@ is not a removable-space budget. Frame IDs identify rendered lane indices.
 
 Run `validate workflow <source.json> --layout-json` and match those frames to
 source lanes and nodes. Check whether many steps share the last logical column
-and use large `yOffset` values. Readable-v2 currently reserves symmetric space
-around offsets and shares the base content height between lanes, so increasing
-one offset can enlarge otherwise sparse lanes.
+and use large `yOffset` values. Readable-v2 reserves symmetric space around
+offsets. With a same-column vertical stack, an implicit canvas and no absolute
+route or label pins, it measures each lane independently. Other cases retain
+shared-height geometry for compatibility; see the canonical
+[lane measurement contract](../renderers/workflow/README.md#readable-v2).
 
 Where the source's ownership and explicit geometry permit, redistribute steps
 across logical columns and meaningful lanes, keeping the main path monotonic.
