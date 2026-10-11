@@ -1360,6 +1360,64 @@ export function createRouter(components, connections = [], {
           reservedLabels = best.labels;
           planningMetrics.labelRelocationImprovedCount += 1;
         }
+        // A side's midpoint may be blocked even when a corner port has a
+        // clear one-bend route. Probe only complex automatic routes, keeping
+        // all other paths/labels fixed and the existing corner inset intact.
+        // Eight perpendicular side pairs, at most three slots per endpoint:
+        // 72 cheap candidates per route, without another grid search.
+        for (const entry of resolvedRoutes) {
+          const { conn } = entry;
+          if (entry.points.length <= 4 || jointlyImproved.has(conn) || typeOwned.has(conn)
+              || hasAuthoredRouteGeometry(conn) || hasAuthoredLabelPlacement(conn)) continue;
+          const others = resolvedRoutes.filter((other) => other !== entry);
+          const labels = reservedLabels.filter((label) => label.conn !== conn);
+          const crossingsBefore = crossingCount(conn, entry.points, others);
+          let best = null;
+          let bestCost = readabilityCost(conn, entry, others);
+          const slots = (rect, side, preferred) => {
+            const horizontal = side === 'left' || side === 'right';
+            const axis = horizontal ? 1 : 0;
+            const origin = horizontal ? rect.y : rect.x;
+            const size = horizontal ? rect.height : rect.width;
+            const inset = Math.min(AUTOMATIC_PORT_CORNER_GUTTER, size / 2);
+            return [...new Set([preferred[axis], origin + inset, origin + size - inset])].map((value) => {
+              const point = [...preferred];
+              point[axis] = value;
+              return point;
+            }).filter((point) => portHasCornerClearance(rect, side, point));
+          };
+          for (const sides of candidateSidePairs(conn)) {
+            const horizontal = (side) => side === 'left' || side === 'right';
+            if (horizontal(sides.fromSide) === horizontal(sides.toSide)) continue;
+            const geometry = connectionGeometry(conn, sides);
+            for (const start of slots(geometry.from, sides.fromSide, geometry.start)) {
+              for (const end of slots(geometry.to, sides.toSide, geometry.end)) {
+                const corner = horizontal(sides.fromSide) ? [end[0], start[1]] : [start[0], end[1]];
+                const points = normalizeRoutePoints([start, corner, end]);
+                const routed = { points, d: roundedPath(points, 8) };
+                const cost = readabilityCost(conn, routed, others);
+                if (cost >= bestCost || points.length !== 3 || !points.every(withinScene)
+                    || !endpointSlotsClear([{ conn, points }], others,
+                      (candidate) => candidate === conn ? sides : selectedSides.get(candidate))
+                    || !routeIsClear(conn, routed, { ...geometry, start, end, crowded: false }, others)
+                    || crossingCount(conn, points, others) > crossingsBefore) continue;
+                const rect = labelRectFor?.(conn, points, {
+                  routes: [...others.map((other) => other.points), points],
+                  labels: labels.map((label) => label.rect),
+                });
+                if (!labelClears(rect, conn, others, labels)
+                    || (rect && [...components.values()].some((component) => rectsOverlap(rect, component, -2)))) continue;
+                best = { routed, sides, rect };
+                bestCost = cost;
+              }
+            }
+          }
+          if (!best) continue;
+          cachePath(conn, best.routed, best.sides);
+          entry.points = best.routed.points;
+          reservedLabels = [...labels, ...(best.rect ? [{ conn, rect: best.rect }] : [])];
+          planningMetrics.readabilityImprovedCount += 1;
+        }
       } finally {
         allowGridSearch = true;
       }

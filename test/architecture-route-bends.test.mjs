@@ -172,3 +172,44 @@ test('showcase moves a boundary title around an authored connection label', t =>
   assert.ok(x > 180 || x + width < 150, JSON.stringify({ x, width }));
   assert.match(html, /x="165" y="208"/);
 });
+
+test('showcase uses a clear off-centre corner when central ports force a detour', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-corner-port-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const input = path.join(directory, 'diagram.json');
+  const output = path.join(directory, 'diagram.html');
+  const diagram = {
+    schema_version: 1, diagram_type: 'architecture',
+    meta: { title: 'Shared client', output: 'diagram.html', quality_profile: 'showcase' },
+    components: [
+      { id: 'entry', type: 'backend', label: 'Entry', pos: [350, 200], size: [240, 80] },
+      { id: 'service', type: 'backend', label: 'Service', pos: [760, 200], size: [290, 90] },
+      { id: 'catalog', type: 'backend', label: 'Catalog', pos: [350, 390], size: [290, 90] },
+      { id: 'client', type: 'backend', label: 'Client', pos: [760, 390], size: [290, 90] },
+    ],
+    connections: [
+      { id: 'dispatch', from: 'entry', to: 'service', label: '解析空间后调用' },
+      { id: 'reply', from: 'service', to: 'entry', label: '受理 / 状态 / 失败' },
+      { id: 'register', from: 'service', to: 'catalog', label: '检查通过后选空间' },
+      { id: 'metadata', from: 'catalog', to: 'client', label: '目录 / 元数据 API' },
+      { id: 'write', from: 'service', to: 'client', label: '消息写入 / 状态查询' },
+    ],
+  };
+  const original = JSON.stringify(diagram);
+  fs.writeFileSync(input, original);
+  const result = spawnSync(process.execPath, [cli, 'render', 'architecture', input, output, '--quality', 'showcase'], {
+    cwd: directory, encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const html = fs.readFileSync(output, 'utf8');
+  const route = id => html.match(new RegExp(`data-edge-id="${id}"[^>]*data-composition-points="([^"]+)"`))[1].split(';').map(point => point.split(',').map(Number));
+  const points = route('register');
+  assert.equal(points.length, 3, `a legal corner needs one bend: ${JSON.stringify(points)}`);
+  for (const id of ['dispatch', 'reply', 'metadata', 'write']) {
+    assert.equal(route(id).length, 2, `${id} retains its straight route`);
+  }
+  assert.ok(points[0][1] <= 274, 'source port retains the 16px corner inset');
+  assert.ok(points.at(-1)[0] <= 624, 'target port retains the 16px corner inset');
+  for (const { label } of diagram.connections) assert.ok(html.includes(`>${label}</text>`), label);
+  assert.equal(fs.readFileSync(input, 'utf8'), original);
+});
