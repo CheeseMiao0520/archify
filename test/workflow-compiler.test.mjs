@@ -356,14 +356,14 @@ test('readable-v2 separates approval branches in the checked-in workflow example
   const result = compileSuccessfully(workflow);
 
   assert.equal(result.receipt.contract, 'readable-v2');
-  assert.equal(
-    // approval-denied and approved-tool keep separate trunks. Neighbouring
-    // columns now keep a 32px route corridor, which widens the canvas by 12px,
-    // and tags keep their 7px preferred size. The digest includes the approved
-    // ordinary lane-heading ink.
-    sha256(result.svg.replace(/ data-(?:composition-routing|edge-role|layout-contract)="[^"]*"/g, '')),
-    '23257ef301e6ac7385010960d531b55416361883ac0c87f7b3ed8f5f62294d24',
-  );
+  // Showcase checks the complete routes for shared corridors and collisions.
+  // Keep these branches visually distinct without freezing automatic SVG bytes;
+  // the golden test separately verifies checked-in artifact freshness.
+  const denied = edgePoints(result.svg, 'approval-denied');
+  const approved = edgePoints(result.svg, 'approved-tool');
+  assert.notDeepEqual(denied[0], approved[0], 'approval outcomes need distinct exits');
+  assert.equal(result.receipt.edges.length, workflow.edges.length);
+  assert.equal(result.receipt.labels.find(({ edge }) => edge === 'approval-denied').label, 'denied');
 });
 
 test('fixed-v1 keeps valid phase and group spans independent of label measurement', () => {

@@ -2296,6 +2296,12 @@ function routeContainsChannelPin(points, field, value) {
 
 function clearStraightAutomaticPlan(edge) {
   if (!independentAutomaticRoute(edge) || edge.from === edge.to) return null;
+  // A return must not reserve the shared facing corridor before its main
+  // relationship. It can still use a clear straight route in ordinary routing.
+  if (edge.role !== 'main' && workflow.edges.some(other => (
+    other.role === 'main' && other.from === edge.to && other.to === edge.from
+    && !pathCache.has(other)
+  ))) return null;
   // Relative label pins are not absolute, but they still participate in
   // placed-label conflict evidence. Reserving a straight path for them first
   // can change which edge owns the corridor and scramble supportedFixes.
@@ -4480,11 +4486,11 @@ function readableAutomaticRoute(edge, from, to, primarySides, primaryPorts) {
   let firstFailure = null;
   // Spreading ports for provisional sides can offset an otherwise clear
   // facing pair. Keep the aligned route in the same feasibility/cost contest.
+  // Error and return roles do not imply a detour when that corridor is clear.
   const alignedStart = automaticPortCandidates(edge, from, naturalFromSide, anchor(from, naturalFromSide), to)[0];
   const alignedEnd = automaticPortCandidates(edge, to, naturalToSide, anchor(to, naturalToSide), from)[0];
   const alignedPoints = [alignedStart, alignedEnd];
-  if (to.col > from.col && !['return', 'error'].includes(edge.role)
-    && !edge.fromSide && !edge.toSide && !edge.labelAt
+  if (to.col !== from.col && !edge.fromSide && !edge.toSide && !edge.labelAt
     && readableCandidateIsFeasible(edge, alignedPoints, from, to, naturalFromSide, naturalToSide)) {
     plans.push({
       family: 'aligned-facing',

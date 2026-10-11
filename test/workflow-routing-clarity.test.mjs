@@ -23,6 +23,37 @@ function edgeTag(svg, from, to) {
   return tag;
 }
 
+test('readable-v2 keeps clear backward branches straight after provisional port spreading', () => {
+  for (const role of ['error', 'return', undefined]) {
+    const workflow = {
+      schema_version: 2, diagram_type: 'workflow',
+      meta: { title: 'Timeout branch', locale: 'zh-CN', output: 'timeout.html' },
+      lanes: ['checkout', 'fulfillment', 'expiry'].map(id => ({ id, label: id })),
+      nodes: [
+        { id: 'pending', lane: 'checkout', col: 3, type: 'backend', label: '创建待支付订单' },
+        { id: 'pick', lane: 'fulfillment', col: 4, type: 'backend', label: '拣货' },
+        { id: 'timeout', lane: 'expiry', col: 4, type: 'security', label: '超过 15 分钟？' },
+        { id: 'close', lane: 'expiry', col: 3, type: 'backend', label: '超时关闭订单' },
+      ],
+      edges: [
+        { id: 'pending-timeout', from: 'pending', to: 'timeout', role: 'branch', label: '持续未支付', variant: 'dashed' },
+        { id: 'timeout-close', from: 'timeout', to: 'close', role, label: '是，仍未支付', variant: 'security' },
+      ],
+    };
+    const before = structuredClone(workflow);
+    const result = compileWorkflow({ workflow, qualityProfile: 'showcase' });
+    assert.equal(result.ok, true, JSON.stringify(result.diagnostics));
+    const edge = result.receipt.edges.find(entry => entry.id === 'timeout-close');
+    assert.equal(edge.points.length, 2, 'a clear backward branch must not loop below the lane');
+    assert.equal(edge.points[0][1], edge.points[1][1], 'keep the facing route horizontal');
+    assert.ok(edge.points[0][0] > edge.points[1][0], 'preserve the backward relationship');
+    assert.equal(result.receipt.labels.find(entry => entry.edge === edge.id).label, '是，仍未支付');
+    assert.equal(result.receipt.nodes.length, workflow.nodes.length);
+    assert.equal(result.receipt.edges.length, workflow.edges.length);
+    assert.deepEqual(workflow, before, 'routing must preserve the authored document');
+  }
+});
+
 test('readable-v2 keeps clear adjacent routes straight without moving nodes or enlarging the canvas', () => {
   const result = compileWorkflow({ workflow: workflowFixture(), qualityProfile: 'showcase' });
   assert.equal(result.ok, true, JSON.stringify(result.diagnostics, null, 2));
