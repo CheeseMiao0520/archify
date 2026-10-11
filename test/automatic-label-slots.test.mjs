@@ -77,3 +77,31 @@ test('a blocked label can use a slot vacated by a later automatic label', () => 
   assert.deepEqual(placeAutomaticLabels({ ...scene, labels: placed }), placed,
     'resolved labels must not keep moving on another placement pass');
 });
+
+test('a complete label can move outside a close reciprocal pair without extra endpoint padding', () => {
+  const scene = {
+    labels: [{ relation: {}, relationIndex: 0, label: '同步支付请求',
+      x: 246.2, y: 64, width: 67.6, height: 14, lx: 280, ly: 74 }],
+    routes: [
+      { relationIndex: 0, points: [[240, 84], [320, 84]] },
+      { relationIndex: 1, points: [[320, 70], [240, 70]] },
+    ],
+    components: [{ x: 40, y: 40, width: 200, height: 74 }, { x: 320, y: 40, width: 190, height: 74 }],
+    titles: [], viewBox: [550, 200], fallbackRing: false,
+  };
+  const before = structuredClone(scene);
+  const [placed] = placeAutomaticLabels(scene);
+  assert.equal(placed.label, scene.labels[0].label);
+  assert.equal(placed.width, scene.labels[0].width, 'do not shorten or shrink the label');
+  assert.equal(scene.components.some(rect => rectsOverlap(placed, rect, 2)), false);
+  assert.ok(segmentRectClearanceWithin({ start: [320, 70], end: [240, 70] }, placed, 4) >= 4,
+    'the label must clear the reciprocal arrow instead of forcing it to detour');
+  assert.deepEqual(scene, before);
+
+  const blocked = structuredClone(scene);
+  blocked.titles.push({ x: 240, y: 94, width: 80, height: 70 });
+  assert.deepEqual(placeAutomaticLabels(blocked)[0], blocked.labels[0], 'retain the unresolved conflict if the outer slot is occupied');
+  const pinned = structuredClone(scene);
+  pinned.labels[0].relation.labelAt = [280, 74];
+  assert.deepEqual(placeAutomaticLabels(pinned)[0], pinned.labels[0], 'authored label placement stays authoritative');
+});

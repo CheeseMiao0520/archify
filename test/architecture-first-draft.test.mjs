@@ -20,6 +20,39 @@ function layout(input) {
   return JSON.parse(result.stdout);
 }
 
+test('architecture: adjacent request and callback stay straight when their complete labels fit outside the pair', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-reciprocal-label-'));
+  try {
+    const input = path.join(tmp, 'pair.json');
+    const spec = { schema_version: 1, diagram_type: 'architecture',
+      meta: { title: 'Payment interaction', output: 'pair.html', quality_profile: 'showcase' },
+      components: [
+        { id: 'service', type: 'backend', label: 'Payment service', pos: [40, 40], size: [200, 74] },
+        { id: 'provider', type: 'external', label: 'Provider', pos: [320, 40], size: [190, 74] },
+      ],
+      connections: [
+        { from: 'service', to: 'provider', label: '同步支付请求' },
+        { from: 'provider', to: 'service', label: '支付回调', variant: 'dashed' },
+      ],
+      boundaries: [{ kind: 'region', label: 'Internal', wraps: ['service'], pad: 22 }],
+    };
+    for (const connections of [spec.connections, [...spec.connections].reverse()]) {
+      fs.writeFileSync(input, JSON.stringify({ ...spec, connections }));
+      const result = layout(input);
+      assert.equal(result.ok, true, JSON.stringify(result.diagnostics));
+      assert.deepEqual(result.components.map(c => c.pos), spec.components.map(c => c.pos));
+      assert.deepEqual(result.components.map(c => [c.width, c.height]), spec.components.map(c => c.size));
+      assert.deepEqual(result.boundaries[0].wraps, ['service']);
+      assert.deepEqual(result.connections.map(c => [c.from, c.to, c.label, c.variant]),
+        connections.map(c => [c.from, c.to, c.label, c.variant || 'default']));
+      for (const connection of result.connections) assert.equal(connection.points.length, 2,
+        'automatic routes need no turns when node and label clearance permits two distinct straight lanes');
+    }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('architecture: pinned sides clear a boundary without changing authored geometry', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-border-corridor-'));
   try {

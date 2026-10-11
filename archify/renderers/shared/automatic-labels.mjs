@@ -177,7 +177,11 @@ export function placeAutomaticLabels({
     for (const segment of segments.filter(segment => segment.relationIndex === label.relationIndex)) {
       const [a, b] = [segment.start, segment.end];
       let candidates = [];
-      if (Math.abs(a[1] - b[1]) < 0.0001 && Math.abs(a[0] - b[0]) >= label.width + 16) {
+      // These candidates sit beside the line. They need the same 2px node
+      // clearance checked by clear(), not 8px reserved at each endpoint.
+      // Extra endpoint padding can hide a valid outer slot for a reciprocal
+      // pair and make the planner send its other arrow around both nodes.
+      if (Math.abs(a[1] - b[1]) < 0.0001 && Math.abs(a[0] - b[0]) >= label.width + 4) {
         candidates = [0.5, 0.25, 0.75, 0.125, 0.875].flatMap(fraction => {
           const x = a[0] + (b[0] - a[0]) * fraction;
           if (Math.min(Math.abs(x - a[0]), Math.abs(x - b[0])) < 8) return [];
