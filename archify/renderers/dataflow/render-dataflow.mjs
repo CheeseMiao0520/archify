@@ -688,6 +688,48 @@ if (automaticShowcase) {
     ...stageFrame(stage, index), height: routingBottom - layout.stageY,
   }));
   const stageBorders = routingFrames.flatMap(frame => frameBorderSegments(frame).filter(border => border.side !== 'bottom'));
+  // Check nearby simple corridors before accepting a grid detour. Coordinate
+  // thinning can discard an open two-bend corridor beside an occupied one.
+  // Bound these candidates; the grid still handles routes around obstacles.
+  function compactCorridors(flow) {
+    const { fromSide, toSide } = flowSides(flow);
+    const axis = fromSide === 'right' && toSide === 'left' ? 0
+      : fromSide === 'left' && toSide === 'right' ? 0
+      : fromSide === 'bottom' && toSide === 'top' ? 1
+      : fromSide === 'top' && toSide === 'bottom' ? 1 : -1;
+    if (axis < 0) return [];
+    const [start, end] = [pathFor(flow).points[0], pathFor(flow).points.at(-1)];
+    const low = Math.min(start[axis], end[axis]) + ENDPOINT_STUB;
+    const high = Math.max(start[axis], end[axis]) - ENDPOINT_STUB;
+    if (low > high) return [];
+    const middle = (low + high) / 2;
+    const coordinates = new Set([low, middle, high]);
+    const others = routable.filter(other => other !== flow);
+    for (const other of others) {
+      for (const segment of segmentsOf(pathFor(other).points)) {
+        if (segment.start[axis] === segment.end[axis]) {
+          coordinates.add(segment.start[axis] - 8);
+          coordinates.add(segment.start[axis] + 8);
+        }
+      }
+    }
+    return [...coordinates].filter(value => value >= low && value <= high)
+      .sort((a, b) => Math.abs(a - middle) - Math.abs(b - middle)).slice(0, 16)
+      .map(value => {
+        const a = [...start], b = [...end];
+        a[axis] = b[axis] = value;
+        return normalizeRoutePoints([start, a, b, end]);
+      }).filter(points => routeHonorsEndpointSides(points, fromSide, toSide)
+        && !intrudesNode(flow, points)
+        && !collectRouteRhythmIssues({ routedRelations: [{ points }] }).length
+        && !collectBorderRuns({ routedRelations: [{ points }], frames: routingFrames })
+          .some(hit => hit.side !== 'bottom')
+        && crossingFlows(flow, points).every(supportsAutomaticCrossover)
+        && !others.some(other => collectAmbiguousCorridors({
+          routedRelations: [{ relation: flow, points }, { relation: other, points: pathFor(other).points }],
+          includeSharedEndpoints: () => true,
+        }).length));
+  }
   function gridDetour(flow, allowAvoidedCrossings = false, deferred = new Set()) {
     const { points } = pathFor(flow);
     const { fromSide, toSide } = flowSides(flow);
@@ -768,6 +810,7 @@ if (automaticShowcase) {
           && intrudesNode(other, pathFor(other).points)));
         if (deferred.size) candidates = candidatesFor(deferred);
       }
+      candidates.push(...compactCorridors(flow));
       candidates.sort((left, right) => readingCost(flow, left) - readingCost(flow, right));
       if (candidates.length && JSON.stringify(candidates[0]) !== JSON.stringify(current)) {
         pathCache.set(flow, { d: polylinePath(candidates[0]), points: candidates[0] });

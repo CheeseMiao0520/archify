@@ -540,6 +540,35 @@ test('automatic dataflow makes room for a complete label without adding bends or
   assert.ok(routeLength <= direct * 1.35, 'a label repair must not become a perimeter excursion');
 });
 
+test('an occupied midpoint keeps a nearby simple corridor instead of a perimeter detour', t => {
+  const diagram = {
+    schema_version: 1, diagram_type: 'dataflow',
+    meta: { title: 'Shared corridor', output: 'diagram.html', quality_profile: 'showcase' },
+    stages: Array.from({ length: 5 }, (_, index) => ({ label: `Stage ${index + 1}` })),
+    nodes: [
+      ['source', 1, 0], ['window', 1, 1], ['other', 1, 2],
+      ['upper', 2, 0], ['sink', 2, 2], ['metrics', 3, 0], ['result', 4, 1],
+    ].map(([id, stage, row]) => ({ id, label: id, type: 'backend', stage, row })),
+    flows: [
+      ['window', 'upper'], ['source', 'sink'], ['window', 'result'],
+      ['metrics', 'result'], ['other', 'result'],
+    ].map(([from, to], index) => ({ id: `f${index}`, label: `f${index}`, from, to })),
+  };
+  const { result, receipt, input, output, env } = inspect(t, diagram);
+  assert.equal(result.status, 0, JSON.stringify(receipt));
+  const rendered = spawnSync(process.execPath, [cli, 'render', 'dataflow', input, output], { encoding: 'utf8', env });
+  assert.equal(rendered.status, 0, rendered.stdout + rendered.stderr);
+  const html = fs.readFileSync(output, 'utf8');
+  const points = html.match(/data-edge-id="f1"[^>]*data-composition-points="([^"]+)"/)[1]
+    .split(';').map(point => point.split(',').map(Number));
+  const distance = points.slice(1).reduce((total, end, index) => total
+    + Math.abs(end[0] - points[index][0]) + Math.abs(end[1] - points[index][1]), 0);
+  const direct = Math.abs(points.at(-1)[0] - points[0][0]) + Math.abs(points.at(-1)[1] - points[0][1]);
+  assert.ok(points.length <= 4, 'a clear adjacent corridor needs at most two bends');
+  assert.ok(distance <= direct + 0.0001, 'the route must not double back around an empty region');
+  for (const flow of diagram.flows) assert.ok(html.includes(`data-edge-id="${flow.id}"`), flow.id);
+});
+
 for (const pin of [{ labelDx: 0 }, { labelDy: 0 }, { labelSegment: 0 }, { labelAt: [368, 217] }]) {
   test(`label-aware routing preserves authored ${Object.keys(pin)[0]} on its obstructing route`, t => {
     const diagram = labelCorridorDiagram();
