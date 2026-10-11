@@ -452,3 +452,57 @@ test('authoring defaults point to the bounded automatic port rules and READMEs d
   assert.match(fs.readFileSync(path.join(repoRoot, 'README_ZH.md'), 'utf8'), /共享的自动端点会确定性展开/);
   assert.match(fs.readFileSync(path.join(repoRoot, 'README_JA.md'), 'utf8'), /共有される自動接続点は決定論的に分散/);
 });
+
+function settledDetourDataflow() {
+  // Anonymous reduction of a settled outer detour sharing three source slots.
+  return {
+    schema_version: 1, diagram_type: 'dataflow',
+    meta: { title: 'Shared ports around an outer detour', quality_profile: 'showcase' },
+    stages: [{ label: '文文文文文文文'}, { label: '文文文文文文文'}, { label: '文文文文'}, { label: '文文文文文文'}, { label: '文文文文文文文'}],
+    nodes: [
+      {id: 'input', type: 'frontend', label: '文文／文文文文', sublabel: 'xxxx · xxxx', stage: 0, row: 0},
+      {id: 'options', type: 'frontend', label: '文文文文文文', sublabel: '文文、文文、文文文文', stage: 0, row: 3},
+      {id: 'template', type: 'database', label: 'xxxx 文文', sublabel: 'xxxxxx_ / xxxxx_ / xxxxx_', stage: 0, row: 2},
+      {id: 'script', type: 'backend', label: '文文文文', sublabel: '文文文 xxx；文文文文文文', stage: 1, row: 0},
+      {id: 'title', type: 'backend', label: '文文文', sublabel: '文文文文文；文文文文文', stage: 1, row: 1},
+      {id: 'story', type: 'backend', label: '文文文文文文文', sublabel: '文文：文文、文文、文文文', stage: 1, row: 3},
+      {id: 'render', type: 'backend', label: '文文文文文文', sublabel: '文文＋文文＋文文＋文文文文', stage: 2, row: 2},
+      {id: 'segment', type: 'backend', label: '文文文文文文', sublabel: '文文／文文；文文文文文', stage: 2, row: 3},
+      {id: 'audio', type: 'database', label: '文文文文文文', sublabel: 'xxxxxx/xx_xxxxx.xx1', stage: 3, row: 0},
+      {id: 'result', type: 'backend', label: '文文文文文文文文文', sublabel: '文文文文文文；xxxx 文文文文', stage: 4, row: 2},
+    ],
+    flows: [
+      {id: 'e1', to: 'script', label: '文文文文文', from: 'input'},
+      {id: 'e2', to: 'title', label: '文文文文文', from: 'input'},
+      {id: 'e3', to: 'title', label: '文文文文', from: 'options'},
+      {id: 'e8', to: 'story', label: '文文', from: 'title'},
+      {id: 'e18', to: 'render', label: '文文文文', from: 'template'},
+      {id: 'e23', to: 'segment', label: '文文文文', from: 'audio'},
+      {id: 'e32', to: 'result', label: '文文文文', from: 'input'},
+    ],
+  };
+}
+
+test('dataflow: settled detours reorder shared slots so the aligned branch is straight', () => {
+  const doc = settledDetourDataflow();
+  const html = render('dataflow', doc);
+  const direct = connectionPoints(html, 'e1');
+  assert.equal(direct.length, 2, 'same-row flow needs no bridge after assigning the outward return its top slot');
+  assert.equal(direct[0][1], direct[1][1]);
+  assert.ok(direct[0][0] < direct[1][0], 'the arrow still points at its target');
+  const slots = ['e1', 'e2', 'e32'].map(id => connectionPoints(html, id)[0][1]).sort((a, b) => a - b);
+  assert.ok(slots[1] - slots[0] >= 12 && slots[2] - slots[1] >= 12, 'all three branches keep separate ports');
+  for (const flow of doc.flows) {
+    assert.ok(connectionPoints(html, flow.id).length >= 2, `preserve ${flow.id}`);
+  }
+});
+
+test('dataflow: invalid placement retains a useful diagnostic during shared port ordering', () => {
+  const doc = settledDetourDataflow();
+  doc.nodes.find(node => node.id === 'result').row = 6;
+  assert.throws(() => render('dataflow', doc), error => {
+    assert.match(error.stderr.toString(), /Node "result" uses invalid row 6/);
+    assert.doesNotMatch(error.stderr.toString(), /TypeError|Cannot read properties/);
+    return true;
+  });
+});

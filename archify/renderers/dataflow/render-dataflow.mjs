@@ -882,6 +882,86 @@ if (automaticShowcase) {
   }
 }
 
+const intersectionCount = (points, otherPoints) => segmentsOf(points).reduce((count, a) => count
+  + segmentsOf(otherPoints).filter(b => properSegmentIntersection(a.start, a.end, b.start, b.end)).length, 0);
+const foldsBack = points => {
+  const segments = segmentsOf(points);
+  return segments.some((segment, index) => segments.slice(index + 2).some(other => segmentIntersectsRect(segment, {
+    x: Math.min(other.start[0], other.end[0]), y: Math.min(other.start[1], other.end[1]),
+    width: Math.abs(other.end[0] - other.start[0]), height: Math.abs(other.end[1] - other.start[1]),
+  })));
+};
+
+// Route detours can reverse the direction used to sort a shared node's ports.
+// Reorder the existing slots by the first turn of the settled route, only when
+// the whole automatic group becomes shorter without adding any intersection.
+if (automaticShowcase) {
+  const portFrames = asArray(dataflow.stages).map(stageFrame);
+  const groups = new Map();
+  for (const flow of routable) for (const field of ['from', 'to']) {
+    const side = flowSides(flow)[field === 'from' ? 'fromSide' : 'toSide'];
+    const key = `${flow[field]}\0${side}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ flow, field, side });
+  }
+  const pinned = flow => !supportsAutomaticCrossover(flow)
+    || ['fromSide', 'toSide', 'labelAt', 'labelDx', 'labelDy', 'labelSegment'].some(key => flow[key] !== undefined);
+  let probes = 0;
+  for (const group of groups.values()) {
+    if (probes >= 16) break;
+    if (group.length < 2 || group.length > 8
+      || group.some(({ flow, field }) => pinned(flow) || !automaticPorts.get(flow)?.[field])) continue;
+    const axis = ['left', 'right'].includes(group[0].side) ? 1 : 0;
+    const currentRoutes = group.map(item => ({ ...item, current: normalizeRoutePoints(pathFor(item.flow).points) }));
+    if (currentRoutes.some(({ current }) => current.length < 2
+      || current.some(point => !point.every(Number.isFinite)))) continue;
+    const items = currentRoutes.map(({ current, ...item }) => {
+      const outward = item.field === 'from' ? current : [...current].reverse();
+      return { ...item, current, outward, coordinate: outward[0][axis],
+        turn: outward.find(point => Math.abs(point[axis] - outward[0][axis]) > 0.0001)?.[axis] ?? outward[0][axis] };
+    });
+    const slots = items.map(item => item.coordinate).sort((a, b) => a - b);
+    const ordered = [...items].sort((a, b) => a.turn - b.turn || a.coordinate - b.coordinate);
+    if (ordered.every((item, index) => item.coordinate === slots[index])) continue;
+    probes++;
+    const proposal = new Map();
+    let straightened = false;
+    for (const [index, item] of ordered.entries()) {
+      const outward = item.outward.map(point => [...point]);
+      outward[0][axis] = slots[index];
+      if (outward.length > 2) outward[1][axis] = slots[index];
+      let points = item.field === 'from' ? outward : outward.reverse();
+      const { fromSide, toSide } = flowSides(item.flow);
+      const direct = [points[0], points.at(-1)];
+      if (routeHonorsEndpointSides(direct, fromSide, toSide)
+        && (direct[0][0] === direct[1][0] || direct[0][1] === direct[1][1])) points = direct;
+      points = normalizeRoutePoints(points);
+      if (points.length === 2 && item.current.length > 2) straightened = true;
+      proposal.set(item.flow, points);
+    }
+    if (!straightened || items.some(({ flow, current }) => {
+      const points = proposal.get(flow), { fromSide, toSide } = flowSides(flow);
+      return points.length > current.length || length(points) > length(current) + 0.0001 || foldsBack(points)
+        || !routeHonorsEndpointSides(points, fromSide, toSide) || intrudesNode(flow, points)
+        || collectRouteRhythmIssues({ routedRelations: [{ points }] }).length
+        || collectBorderRuns({ routedRelations: [{ points }], frames: portFrames }).length
+        || points.some(([x, y]) => x < 0 || y < 0 || x > viewBox[0] || y > viewBox[1] - layout.stageBottomPad)
+        || routable.some(other => other !== flow && (
+          intersectionCount(points, proposal.get(other) || pathFor(other).points)
+            > intersectionCount(current, pathFor(other).points)
+          || collectAmbiguousCorridors({
+            routedRelations: [{ relation: flow, points }, { relation: other, points: proposal.get(other) || pathFor(other).points }],
+            includeSharedEndpoints: () => true,
+          }).length));
+    })) continue;
+    for (const { flow, field } of items) {
+      const points = proposal.get(flow);
+      pathCache.set(flow, { points, d: polylinePath(points) });
+      automaticPorts.get(flow)[field] = field === 'from' ? points[0] : points.at(-1);
+    }
+  }
+}
+
 function extraLabelLineMasksRoute(rect, points) {
   if (rect.height <= layout.labelH) return false;
   const segments = segmentsOf(points);
@@ -1021,15 +1101,6 @@ if (automaticShowcase) {
   // Bound the complete candidate checks, including rejected geometry, across
   // the diagram. Each accepted move clears one route's label collisions.
   let attempts = 0;
-  const intersectionCount = (points, otherPoints) => segmentsOf(points).reduce((count, a) => count
-    + segmentsOf(otherPoints).filter(b => properSegmentIntersection(a.start, a.end, b.start, b.end)).length, 0);
-  const foldsBack = points => {
-    const segments = segmentsOf(points);
-    return segments.some((segment, index) => segments.slice(index + 2).some(other => segmentIntersectsRect(segment, {
-      x: Math.min(other.start[0], other.end[0]), y: Math.min(other.start[1], other.end[1]),
-      width: Math.abs(other.end[0] - other.start[0]), height: Math.abs(other.end[1] - other.start[1]),
-    })));
-  };
   const nearOwnRoute = (rect, points) => segmentsOf(points)
     .some(segment => segmentRectClearanceWithin(segment, rect, 36) <= 36);
   const masksLabel = (points, rect) => segmentsOf(points)
