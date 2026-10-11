@@ -1,3 +1,4 @@
+import { proposeWorkflowPlacement } from './workflow-placement-repair.mjs';
 import { createSpatialGrid } from '../shared/spatial-grid.mjs';
 import { esc, renderDefinitions, renderSemanticSigil, textUnits } from '../shared/utils.mjs';
 import {
@@ -5718,7 +5719,36 @@ function addVerifiedCrossingRepair(result, options) {
   return result;
 }
 
+function addVerifiedPlacementRepair(result, options) {
+  const { workflow, qualityProfile } = options;
+  if (result.ok || workflow?.schema_version !== 2
+    || (qualityProfile || workflow.meta?.quality_profile) !== 'showcase'
+    || preservesWorkflowAbsoluteGeometry(workflow)) return result;
+  const errors = result.diagnostics.filter(({ severity }) => severity !== 'warning');
+  if (!errors.length || errors.some(({ code, evidence }) =>
+    !ROUTE_ORDER_CODES.has(code) || evidence?.verifiedRepair)) return result;
+  const proposal = proposeWorkflowPlacement(workflow);
+  if (!proposal.eligible || !proposal.changes.length) return result;
+  const verified = withDiagnosticRecordingSuppressed(() => compileWorkflowWithFeedback({
+    ...options, workflow: proposal.proposed, discoverFixes: false,
+  }));
+  if (!verified.ok) return result;
+  const diagnostic = errors[0];
+  diagnostic.evidence = {
+    ...diagnostic.evidence,
+    verifiedRepair: {
+      scope: 'complete-workflow-compile', kind: 'optional-node-placement',
+      changes: proposal.changes,
+    },
+  };
+  diagnostic.supportedFixes = [
+    'if node columns and row offsets are flexible, apply the complete optional-node-placement changes in evidence.verifiedRepair together; this workflow then passes compilation with every node, relationship, lane, condition and mainPath preserved (browser verification and visual review still required)',
+    ...diagnostic.supportedFixes,
+  ];
+  return result;
+}
+
 export function compileWorkflow({ workflow, qualityProfile, sourceEvidence } = {}) {
   const options = { workflow, qualityProfile, sourceEvidence };
-  return addVerifiedCrossingRepair(compileWorkflowWithFeedback(options), options);
+  return addVerifiedPlacementRepair(addVerifiedCrossingRepair(compileWorkflowWithFeedback(options), options), options);
 }
