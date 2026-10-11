@@ -10,6 +10,7 @@ import { translateMessage as i18nText } from '../shared/i18n.mjs';
 import { DECLARED_WIDE_READER_RATIO, minimumReadableSourceTextPx, predictedFixedWidthOverflow } from '../shared/desktop-readability.mjs';
 import { placeAutomaticLabels } from '../shared/automatic-labels.mjs';
 import { shortestOrthogonalGridRoute } from '../shared/route-quality.mjs';
+import { repairLabelRoutes } from './joint-label-routing.mjs';
 import { FLOW_LABEL_HEIGHT, flowLabelSize, wrapBlockedFlowLabels } from './label-capacity.mjs';
 import {
   asArray,
@@ -1309,6 +1310,31 @@ fitAutomaticWidthToLabels(resolvedLabelRects);
 if (automaticShowcase) {
   viewBox[1] = heightForLabels(resolvedLabelRects);
   for (const frame of compositionFrames) frame.height = viewBox[1] - layout.stageY - layout.stageBottomPad;
+}
+
+// Resolve a remaining label and its occupied corridors as one proposal.
+// Earlier valid placements and authored geometry remain authoritative.
+if (automaticShowcase) {
+  const proposal = repairLabelRoutes({ labels: resolvedLabelRects,
+    routes: routable.map(flow => ({ relation: flow, relationIndex: dataflow.flows.indexOf(flow), points: pathFor(flow).points })),
+    nodes: [...nodes.values()], titles: compositionFrames.map(frame => ({ ...frame, height: layout.stageH })),
+    frames: compositionFrames, viewBox, placementBottom: viewBox[1] - layout.stageBottomPad,
+    sideFor: flowSides });
+  if (proposal.labels !== resolvedLabelRects) {
+    for (const route of proposal.routes) pathCache.set(route.relation, { points: route.points, d: polylinePath(route.points) });
+    for (const [index, rect] of proposal.labels.entries()) {
+      resolvedLabelRects[index] = rect;
+      resolvedLabelPoints.set(rect.relation, [rect.lx, rect.ly]);
+    }
+    viewBox[1] = heightForLabels(resolvedLabelRects);
+    for (const frame of compositionFrames) frame.height = viewBox[1] - layout.stageY - layout.stageBottomPad;
+    resolvedCrossoverFlows.clear();
+    for (const [index, left] of routable.entries()) for (const right of routable.slice(index + 1)) {
+      if (!related(left, right) && supportsAutomaticCrossover(left) && supportsAutomaticCrossover(right) && crosses(left, right)) {
+        resolvedCrossoverFlows.add(left); resolvedCrossoverFlows.add(right);
+      }
+    }
+  }
 }
 
 // Header measurement follows 276970789's #257, including the ordinal.

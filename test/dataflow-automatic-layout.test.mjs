@@ -729,3 +729,23 @@ test('a vertical label keeps clear of another flow leaving the same node', t => 
     { start: points[index], end }, { x, y, width, height }, 4) + 0.0001 >= 4),
   'the complete label must not mask the neighbouring relationship');
 });
+
+test('a crowded exit label and its blocking corridors settle together without dropping content', t => {
+  const diagram = JSON.parse(fs.readFileSync(new URL('./fixtures/dataflow-first-draft/joint-label-routing.dataflow.json', import.meta.url), 'utf8'));
+  const { html } = renderedFootprint(t, diagram);
+  const routes = diagram.flows.map(flow => {
+    assert.ok(html.includes(flow.label), flow.label);
+    if (flow.classification) assert.ok(html.includes(flow.classification), flow.classification);
+    const match = html.match(new RegExp(`<path[^>]*data-edge-id="${flow.id}"[^>]*data-composition-points="([^"]+)"`));
+    assert.ok(match, `preserve relationship ${flow.id}`);
+    return { id: flow.id, points: match[1].split(';').map(point => point.split(',').map(Number)) };
+  });
+  const match = html.match(/<g data-detail="context"[^>]*data-edge-id="f13"[^>]*>\s*<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"/);
+  assert.ok(match, 'preserve the complete crowded label');
+  const [x, y, width, height] = match.slice(1).map(Number);
+  const distance = route => Math.min(...route.points.slice(1).map((end, index) => segmentRectClearanceWithin(
+    { start: route.points[index], end }, { x, y, width, height }, 36)));
+  const ownDistance = distance(routes.find(route => route.id === 'f13'));
+  const foreignDistance = Math.min(...routes.filter(route => route.id !== 'f13').map(distance));
+  assert.ok(ownDistance <= foreignDistance + 0.0001, 'a clear label must still read as belonging to its own connector');
+});
