@@ -155,6 +155,53 @@ function measureNode(node) {
 }
 
 const nodes = new Map(asArray(dataflow.nodes).map((node) => [node.id, measureNode(node)]));
+// Seven incoming arrows cannot fit on a 58px box after the corner gutters.
+// Use spare row space around its centre, so clear same-row outputs stay
+// straight. Explicit geometry and incident route/label pins stay authoritative.
+if (automaticShowcase) {
+  const flows = asArray(dataflow.flows);
+  const pinned = flow => flow.via || (flow.route && flow.route !== 'auto')
+    || ['fromSide', 'toSide', 'channelX', 'channelY', 'labelAt', 'labelDx', 'labelDy', 'labelSegment']
+      .some(key => flow[key] !== undefined);
+  const originalBoxes = [...nodes.values()].map(node => ({ ...node }));
+  const rowBudget = Math.min(...layout.rowYs.slice(1).map((y, index) => y - layout.rowYs[index])) - 10;
+  for (const authored of asArray(dataflow.nodes)) {
+    if (authored.height !== undefined || authored.yOffset !== undefined) continue;
+    const node = nodes.get(authored.id);
+    const incident = flows.filter(flow => flow.from === node.id || flow.to === node.id);
+    if (incident.some(pinned)) continue;
+    const sides = { left: [], right: [] };
+    for (const flow of incident) {
+      if (!nodes.has(flow.from) || !nodes.has(flow.to)) continue;
+      const { fromSide, toSide } = flowSides(flow);
+      if (flow.from === node.id) sides[fromSide]?.push({ incoming: false, width: flowStrokeWidth(flow) });
+      if (flow.to === node.id) sides[toSide]?.push({ incoming: true, width: flowStrokeWidth(flow) });
+    }
+    const desired = Math.max(node.height, ...Object.values(sides).map(items => {
+      if (!items.some(item => item.incoming)) return 0;
+      // Markers are seven stroke-width units tall. Reserve two units of
+      // clear ink, within automaticPortSpread's existing 18px slot limit.
+      const spacing = Math.min(18, Math.ceil(Math.max(...items.map(item =>
+        item.width * (item.incoming ? 7 : 1))) + 2));
+      return 32 + (items.length - 1) * spacing;
+    }));
+    const neighbours = originalBoxes.filter(other => other.id !== node.id
+      && other.x < node.x + node.width + 10 && other.x + other.width + 10 > node.x);
+    const height = Math.min(desired, rowBudget,
+      2 * (node.cy - (layout.stageY + layout.stageH + 22)),
+      ...neighbours.map(other => {
+        const distance = Math.abs(other.cy - node.cy);
+        // Split spare space with another growing box, and also respect a
+        // taller authored neighbour. Use original bounds for stable ordering.
+        return Math.min(distance - 10, 2 * distance - other.height - 20);
+      }));
+    if (height > node.height) {
+      node.autoHeightInset = (height - node.height) / 2;
+      node.y -= node.autoHeightInset;
+      node.height = height;
+    }
+  }
+}
 const nodeSteps = new Map();
 for (const [index, flow] of asArray(dataflow.flows).entries()) {
   if (!nodeSteps.has(flow.from)) nodeSteps.set(flow.from, index);
@@ -1133,9 +1180,10 @@ function renderNode(node) {
   const labelFontSize = fittedNodeFontSize(node.label, brandLabelFitWidth(node, node.width), 10, 8);
   const sublabelFontSize = fittedNodeFontSize(node.sublabel, node.width, Math.max(nodeTextFit.sublabelPreferred, contextFontMinimum), contextFontMinimum);
   const tagFontSize = fittedNodeFontSize(node.tag, node.width, Math.max(nodeTextFit.tagPreferred, contextFontMinimum), contextFontMinimum);
-  const textRows = [{ text: node.label, font: labelFontSize, y: 21 }];
-  if (hasSub) textRows.push({ text: node.sublabel, font: sublabelFontSize, y: 37 });
-  if (node.tag) textRows.push({ text: node.tag, font: tagFontSize, y: node.height - 11 });
+  const inset = node.autoHeightInset || 0;
+  const textRows = [{ text: node.label, font: labelFontSize, y: 21 + inset }];
+  if (hasSub) textRows.push({ text: node.sublabel, font: sublabelFontSize, y: 37 + inset });
+  if (node.tag) textRows.push({ text: node.tag, font: tagFontSize, y: node.height - 11 - inset });
   const labelLayout = nodeLabelLayout({ width: node.width, height: node.height, rows: textRows,
     brand: Boolean(brandMarkFor(node)), source: Boolean(sourceEvidence?.nodes?.[node.id]?.length) });
   const sub = hasSub
@@ -1159,10 +1207,14 @@ function renderNode(node) {
         </g>`;
 }
 
+function flowStrokeWidth(flow) {
+  return flow.width || (flow.variant === 'emphasis' ? 1.8 : 1.4);
+}
+
 function renderFlowPath(flow, index) {
   const [cls, marker] = arrowClassMap[flow.variant || 'default'] || arrowClassMap.default;
   const routed = pathFor(flow);
-  const strokeWidth = flow.width || (flow.variant === 'emphasis' ? 1.8 : 1.4);
+  const strokeWidth = flowStrokeWidth(flow);
   const automatic = resolvedCrossoverFlows.has(flow);
   const edge = `        <path ${focusEdgeAttrs(flow.from, flow.to, flow.label, index, flow.id)} data-composition-points="${routePointsValue(routed.points)}"${automatic ? ' data-composition-crossover="halo"' : ''}${authoredStraightRouteAttrs(flow, routed.points)} d="${routed.d}" class="${cls}"${animateAttr(dataflow.meta, 'edge', index)} stroke-width="${strokeWidth}" marker-end="url(#${marker})"/>`;
   if (!automatic) return edge;

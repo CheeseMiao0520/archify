@@ -579,3 +579,76 @@ for (const pin of [{ labelDx: 0 }, { labelDy: 0 }, { labelSegment: 0 }, { labelA
       && message.includes('Range data')), 'the original collision stays actionable when the route is pinned');
   });
 }
+
+function crowdedInputDiagram() {
+  return {
+    schema_version: 1, diagram_type: 'dataflow',
+    meta: { title: 'Independent inputs', output: 'diagram.html', quality_profile: 'showcase' },
+    stages: ['Inputs', 'Combine', 'Output'].map(label => ({ label })),
+    nodes: [
+      ...Array.from({ length: 5 }, (_, row) => ({ id: `input${row}`, type: 'external', label: `Input ${row}`, stage: 0, row })),
+      { id: 'combine', type: 'backend', label: 'Combine', sublabel: 'All inputs', tag: 'Complete', stage: 1, row: 2 },
+      { id: 'output', type: 'database', label: 'Output', stage: 2, row: 2 },
+    ],
+    flows: [
+      ...Array.from({ length: 5 }, (_, index) => ({ id: `f${index}`, from: `input${index}`, to: 'combine', label: `Data ${index}`, ...(index === 2 ? { variant: 'emphasis' } : {}) })),
+      { id: 'result', from: 'combine', to: 'output', label: 'Result' },
+    ],
+  };
+}
+
+function renderedInputGeometry(t, diagram) {
+  const { result, receipt, input, output, env } = inspect(t, diagram);
+  assert.equal(result.status, 0, JSON.stringify(receipt.diagnostics));
+  const rendered = spawnSync(process.execPath, [cli, 'render', 'dataflow', input, output], { encoding: 'utf8', env });
+  assert.equal(rendered.status, 0, rendered.stdout + rendered.stderr);
+  const html = fs.readFileSync(output, 'utf8');
+  const group = html.match(/<g [^>]*id="node-combine"[\s\S]*?<\/g>/)[0];
+  const [, x, y, width, height] = group.match(/<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"/).map(Number);
+  const paths = new Map([...html.matchAll(/<path[^>]*data-edge-id="([^"]+)"[^>]*data-composition-points="([^"]+)"[^>]*stroke-width="([^"]+)"/g)]
+    .map(([, id, points, stroke]) => [id, { points: points.split(';').map(point => point.split(',').map(Number)), stroke: Number(stroke) }]));
+  return { html, group, x, y, width, height, paths };
+}
+
+test('crowded automatic dataflow inputs separate arrowheads while retaining a straight output and complete text', t => {
+  const diagram = crowdedInputDiagram();
+  const actual = renderedInputGeometry(t, diagram);
+  const tips = diagram.flows.slice(0, 5).map(flow => actual.paths.get(flow.id)).sort((a, b) => a.points.at(-1)[1] - b.points.at(-1)[1]);
+  for (let i = 1; i < tips.length; i++) {
+    // SVG markers use strokeWidth units and a seven-unit height. Protect
+    // visible separation, not a particular automatic port coordinate.
+    const required = 7 * (tips[i - 1].stroke + tips[i].stroke) / 2 + 1;
+    assert.ok(tips[i].points.at(-1)[1] - tips[i - 1].points.at(-1)[1] >= required, 'incoming arrowheads must remain distinguishable');
+  }
+  assert.equal(actual.y + actual.height / 2, 356 + 58 / 2, 'keep the authored row centre');
+  assert.equal(actual.paths.get('result').points.length, 2, 'a clear same-row output stays straight');
+  for (const node of diagram.nodes) assert.ok(actual.html.includes(node.label));
+  for (const flow of diagram.flows) assert.ok(actual.html.includes(flow.label));
+  assert.match(actual.html, /y="393"[^>]*>All inputs<\/text>/);
+  assert.match(actual.html, /y="403"[^>]*>Complete<\/text>/);
+  assert.equal(actual.paths.size, diagram.flows.length);
+});
+
+for (const [label, modify] of [
+  ['standard layout', diagram => { diagram.meta.quality_profile = 'standard'; }],
+  ['explicit height', diagram => { diagram.nodes[5].height = 58; }],
+  ['explicit zero yOffset', diagram => { diagram.nodes[5].yOffset = 0; }],
+  ['authored endpoint side', diagram => { diagram.flows[0].toSide = 'left'; }],
+]) {
+  test(`crowded dataflow inputs preserve ${label}`, t => {
+    const diagram = crowdedInputDiagram();
+    modify(diagram);
+    const actual = renderedInputGeometry(t, diagram);
+    assert.equal(actual.height, 58);
+    assert.equal(actual.y, 356);
+  });
+}
+
+test('crowded dataflow inputs keep clearance from a taller authored neighbour', t => {
+  const diagram = crowdedInputDiagram();
+  diagram.nodes.push({ id: 'neighbour', type: 'backend', label: 'Neighbour', stage: 1, row: 1, height: 100 });
+  const actual = renderedInputGeometry(t, diagram);
+  assert.ok(actual.y >= 242 + 100 + 10, 'growth must leave the documented node gap');
+  assert.equal(actual.y + actual.height / 2, 356 + 58 / 2);
+  assert.equal(actual.paths.size, diagram.flows.length);
+});
