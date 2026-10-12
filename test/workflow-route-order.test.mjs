@@ -16,6 +16,25 @@ const cli = path.resolve(__dirname, '..', 'archify', 'bin', 'archify.mjs');
 const fixture = path.join(__dirname, 'fixtures', 'workflow-first-draft', 'agent-tool-call.workflow.json');
 const load = () => JSON.parse(fs.readFileSync(fixture, 'utf8'));
 
+test('automatic exception routes find free space without moving nodes out of their authored lanes and columns', () => {
+  // Reduced synthetic failure: a lower exception and a normal arrival occupy
+  // the fixed offset tracks. Neither dropping the branch nor changing its
+  // lane is an acceptable repair. Mixed-script text retains width pressure.
+  const workflow = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'workflow-free-space.json'), 'utf8'));
+  const authored = structuredClone(workflow);
+  const result = compileWorkflow({ workflow, qualityProfile: 'showcase' });
+  assert.equal(result.ok, true, JSON.stringify(result.diagnostics));
+  assert.deepEqual(workflow, authored);
+  const sorted = entries => entries.sort((a, b) => a[0].localeCompare(b[0]));
+  assert.deepEqual(sorted(result.receipt.nodes.map(node => [node.id, node.lane, node.col])),
+    sorted(workflow.nodes.map(node => [node.id, node.lane, node.col])));
+  assert.deepEqual(sorted(result.receipt.edges.map(edge => [edge.id, edge.from, edge.to])),
+    sorted(workflow.edges.map(edge => [edge.id, edge.from, edge.to])));
+  assert.deepEqual(result.receipt.labels.map(entry => entry.label).sort(),
+    workflow.edges.map(edge => edge.label).sort());
+  assert.deepEqual(compileWorkflow({ workflow: authored }).receipt, result.receipt);
+});
+
 test('an automatic edge squeezed into a shared corridor is planned first instead of failing the draft', () => {
   const validation = spawnSync(process.execPath, [cli, 'validate', 'workflow', fixture, '--quality', 'showcase', '--json'], { encoding: 'utf8' });
   assert.equal(validation.status, 0, validation.stdout + validation.stderr);

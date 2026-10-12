@@ -1,5 +1,6 @@
 import { proposeWorkflowPlacement } from './workflow-placement-repair.mjs';
 import { createSpatialGrid } from '../shared/spatial-grid.mjs';
+import { shortestOrthogonalGridRoute } from '../shared/route-quality.mjs';
 import { esc, renderDefinitions, renderSemanticSigil, textUnits } from '../shared/utils.mjs';
 import {
   animateAttr,
@@ -4596,6 +4597,66 @@ function readableInternalDetourPlans(edge, selected, from, to, naturalFromSide, 
   return plans;
 }
 
+// Fixed offset tracks can miss a free corridor around several occupied rows.
+// Search only after the cheaper automatic plans still collide; pins retain
+// their existing paths. Four side pairs and explicit grid budgets bound work.
+function readableFreeSpacePlans(edge, selected, from, to, naturalFromSide, naturalToSide) {
+  if (!independentAutomaticRoute(edge) || from.lane === to.lane
+    || ['labelDx', 'labelDy', 'labelSegment', 'bias'].some(field => edge[field] !== undefined)
+    || (!selected.cost.sharedCorridorPx && !selected.cost.properCrossingCount)) return [];
+  const obstacles = [];
+  const add = (x, y, width, height, padding) => obstacles.push({
+    x: x - padding, y: y - padding, width: width + padding * 2, height: height + padding * 2,
+  });
+  for (const node of nodes.values()) add(node.x, node.y, node.width, node.height, 8);
+  sceneLabelObstacles();
+  for (const item of obstacleGrid.query({ minX: 0, minY: 0,
+    maxX: layout.laneX + layout.laneW + 64, maxY: autoHeight + 64 })) {
+    if (item.kind === 'label' || item.kind === 'scene') {
+      const rect = item.rect ?? item.obstacle;
+      add(rect.x, rect.y, rect.width, rect.height, 4);
+    } else if (item.kind === 'route' && item.edge !== edge) {
+      for (let index = 1; index < item.routed.points.length; index += 1) {
+        const a = item.routed.points[index - 1], b = item.routed.points[index];
+        add(Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), 8);
+      }
+    }
+  }
+  const down = to.cy > from.cy;
+  const pairs = [
+    { fromSide: down ? 'bottom' : 'top', toSide: down ? 'top' : 'bottom' },
+    { fromSide: 'left', toSide: 'left' },
+    { fromSide: 'right', toSide: 'right' },
+    { fromSide: selected.fromSide, toSide: selected.toSide },
+  ];
+  const plans = [];
+  const seen = new Set();
+  for (const [ordinal, { fromSide, toSide }] of pairs.entries()) {
+    const key = `${fromSide}:${toSide}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const start = automaticPortCandidates(edge, from, fromSide, anchor(from, fromSide), to)[0];
+    const end = automaticPortCandidates(edge, to, toSide, anchor(to, toSide), from)[0];
+    const candidate = shortestOrthogonalGridRoute({
+      start, end, points: selected.points, obstacles, fromSide, toSide,
+      clearance: 0, endpointStubPx: 16, bendPenaltyPx: 24,
+      maximumObstacleCount: 200, maximumGridNodes: 25600,
+      // Keep nearby coordinate candidates: coalescing can erase a whole gap.
+      // Workflow's feasibility check still rejects short or reversing segments.
+      minimumSegmentPx: 0,
+      accept(points) {
+        if (!readableCandidateIsFeasible(edge, points, from, to, fromSide, toSide)) return false;
+        const cost = readableCandidateCost(edge, points, 20000 + ordinal, naturalFromSide, naturalToSide);
+        return !cost.properCrossingCount && !cost.sharedCorridorPx && !cost.labelRouteClearanceDeficit;
+      },
+    });
+    if (!candidate) continue;
+    plans.push({ points: candidate.points, fromSide, toSide, family: 'free-space',
+      cost: readableCandidateCost(edge, candidate.points, 20000 + ordinal, naturalFromSide, naturalToSide) });
+  }
+  return plans;
+}
+
 function readableAutomaticRoute(edge, from, to, primarySides, primaryPorts) {
   const authoredFrom = edge.fromSide && edge.fromSide !== 'auto' ? edge.fromSide : null;
   const authoredTo = edge.toSide && edge.toSide !== 'auto' ? edge.toSide : null;
@@ -4773,6 +4834,8 @@ function readableAutomaticRoute(edge, from, to, primarySides, primaryPorts) {
       plans.push(...automaticEndpointRepairs(edge, plans[0], from, to, naturalFromSide, naturalToSide, true));
       plans.sort((a, b) => compareCost(a.cost, b.cost));
     }
+    plans.push(...readableFreeSpacePlans(edge, plans[0], from, to, naturalFromSide, naturalToSide));
+    plans.sort((a, b) => compareCost(a.cost, b.cost));
     const selected = plans[0];
     return {
       points: selected.points,
