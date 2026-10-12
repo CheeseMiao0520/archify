@@ -2227,6 +2227,28 @@ test('an explicit standard profile overrides an ambient showcase profile', () =>
   }
 });
 
+test('failed automatic routes retain diagnostics when an earlier route has a label pin', () => {
+  const document = oneLaneWorkflow([
+    { id: 'a-pinned', from: 'a', to: 'b', label: 'Pinned', labelAt: [94, 30] },
+    { id: 'z-self', from: 'b', to: 'b', label: 'Retry' },
+  ]);
+  const authored = clone(document);
+  for (const qualityProfile of ['standard', 'showcase']) {
+    // The earlier label pin is valid. The unsolved route must identify itself,
+    // not crash while inspecting rejected candidates or blame the other edge.
+    const result = compileWorkflow({ workflow: document, qualityProfile });
+    assert.equal(result.ok, false);
+    assert.equal(result.svg, undefined);
+    assert.deepEqual(document, authored);
+    assert.deepEqual(result.diagnostics.map(({ code }) => code), ['workflow/solver-budget-exhausted']);
+    const [diagnostic] = result.diagnostics;
+    assert.equal(diagnostic.subject.edge, 'z-self');
+    assert.ok(diagnostic.evidence.candidateCount > 0);
+    assert.deepEqual(diagnostic.supportedFixes, [], 'do not advertise an unverified repair');
+    assert.deepEqual(result.receipt.diagnostics, result.diagnostics);
+  }
+});
+
 test('readable-v2 never advertises an unverified blocking-node repair', () => {
   const document = workflow({
     lanes: [{ id: 'main', label: 'Main' }],

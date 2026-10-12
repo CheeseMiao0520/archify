@@ -1573,6 +1573,9 @@ function workflowSceneLabelObstacles() {
 const { mainPathSteps, edgeSteps, nodeStep } = createWorkflowStepIndexes(workflow);
 const edgeIndexByEdge = new Map(asArray(workflow.edges).map((edge, index) => [edge, index]));
 
+  // Several rejected routes can propose the same document edit. Reuse its
+  // full verification within this compilation, with a bounded local cache.
+  const fixResults = new Map();
   function acceptsFix(mutator) {
     if (!discoverFixes) return false;
     const candidate = cloneWorkflow(workflow);
@@ -1582,11 +1585,15 @@ const edgeIndexByEdge = new Map(asArray(workflow.edges).map((edge, index) => [ed
       candidate[symbol] = workflow[symbol];
     }
     mutator(candidate);
-    return withDiagnosticRecordingSuppressed(() => compileWorkflowWithFeedback({
+    const key = JSON.stringify(candidate);
+    if (fixResults.has(key)) return fixResults.get(key);
+    const accepted = withDiagnosticRecordingSuppressed(() => compileWorkflowWithFeedback({
       workflow: candidate,
       qualityProfile: resolvedQualityProfile,
       discoverFixes: false,
     }).ok);
+    if (fixResults.size < 128) fixResults.set(key, accepted);
+    return accepted;
   }
 
   function repointReferences(document, unknownId, nodeId) {
@@ -3999,11 +4006,15 @@ function readableAutomaticCandidateSet(
       { family: 'lane-gap-corridor', via: corridorViaY(start, end, fromSide, toSide, laneGapY + offset) },
       { family: 'column-gap-corridor', via: corridorViaX(start, end, fromSide, toSide, midX + offset) },
     ]),
-  ];
+  ].map((candidate) => ({
+    ...candidate,
+    // Failed-route diagnostics also inspect rejected candidates. Keep their
+    // complete geometry before filtering for feasible routes.
+    points: joinRoutePoints(start, candidate.via, end),
+  }));
   const candidates = rawCandidates.map((candidate, ordinal) => ({
     ...candidate,
     ordinal: ordinalOffset + ordinal,
-    points: joinRoutePoints(start, candidate.via, end),
   })).filter(({ points }) => (
     readableCandidateIsFeasible(edge, points, from, to, fromSide, toSide)
   )).map((candidate) => ({
