@@ -61,7 +61,7 @@ test('required browser evidence stays deterministic and capture-free', () => {
 });
 
 test('delivery, browser evidence, capture evidence, and perceptual review remain distinct', () => {
-  assert.match(skill, /artifact checks, browser evidence, captures, and actual perceptual review as distinct results/);
+  assert.match(skill, /When reporting verification details, distinguish artifact checks, browser evidence, captures, and actual perceptual review/);
   assert.match(skill, /Delivery contract\]\(references\/delivery-contract\.md\)/);
   for (const [name, source] of [['delivery contract', delivery]]) {
     assert.match(source, /deliver[\s\S]*deterministic/i, name);
@@ -91,7 +91,7 @@ test('perceptual review is optional for fresh architectures and available for vi
   assert.match(perceptualReviewSection, /run `visual-check`[\s\S]*contact sheet/i);
   assert.match(perceptualReviewSection, /never exceed two focused correction rounds/i);
   assert.match(perceptualReviewSection, /Never report\s+`visual_review: passed` without inspecting/i);
-  assert.match(skill, /Inspect captures before claiming visual quality; otherwise report automated checks only/);
+  assert.match(skill, /Inspect captures before claiming visual quality; qualify any check claim as automated when perceptual review has not occurred/);
   assert.match(perceptualReviewSection, /visual_review: skipped \(image reader unavailable\)[\s\S]*requested or triggered review could not run/i);
   assert.match(perceptualReviewSection, /visualReviewRecommendation/);
   assert.match(delivery, /Open the HTML contact sheet in a browser or inspect the viewport PNGs/i);
