@@ -601,7 +601,8 @@ fit, focus/search/passport closure, and export cleanliness. This review is
 supplementary and never changes `browser_evidence`. An unconstrained browser
 glance can support perceptual review only.
 
-Report one truthful optional-review status:
+In a diagnostic or structured handoff, report one truthful optional-review
+status:
 
 - `visual_review: not_requested` — no review trigger applies; this is not a visual acceptance claim.
 - `visual_review: passed` — only after inspecting the rendered artifact.

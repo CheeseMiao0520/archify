@@ -114,10 +114,13 @@ When shell access is unavailable, hand-place architecture SVG into `assets/templ
 
 ## Output
 
-Default to a short reply in the user's language, usually 3–5 lines; omit unnecessary parts:
+Reply in the user's language, as briefly as the result allows; the diagram carries the content, so a single diagram usually needs one line.
 
-1. Lead with a clickable Markdown link to the HTML using its absolute path and a descriptive diagram title. Add one sentence about the content only when useful.
-2. State limitations that affect interpretation or use, such as illustrative rather than measured timings, missing source evidence, or unresolved defects. Label an incomplete artifact as a preview and explain what remains; never present a failed or skipped required gate as completed validation.
-3. For a multi-diagram task, briefly report progress or completion. Link an existing overview, or provide compact artifact links when needed to find the batch; a directory path alone is not a useful handoff.
+- Lead with a clickable Markdown link to the HTML: a descriptive title, not the file name, and its absolute path, wrapped in `<...>` when it contains spaces.
+- When the user wants to understand a system or codebase rather than draw a described subject, add one or two sentences with the key takeaway. Skip sentences that only restate what the diagram obviously shows.
+- State anything that changes how the diagram should be read: the abstraction level or deliberately omitted parts when a reader might expect them, illustrative rather than measured values, missing source evidence, or requested content dropped or merged during repair.
+- For several diagrams, report completion once with a link to an existing overview or compact per-diagram links, not a directory path.
 
-Keep candidates, source revisions, quality/evidence profiles, hashes, and detailed checks in the existing artifacts and receipts. Surface those details and receipt links when the user requests verification, reproducibility, or troubleshooting. A successful ordinary reply needs no checklist; when verification is requested, a brief accurate summary such as “Automated checks passed” is sufficient unless details are requested or a check is incomplete. Omit routine “visual review not requested” notices, but disclose requested review that could not be completed. Claim visual inspection only when performed. Retain required update notices under Update awareness.
+Do not recap commands, repair rounds, hashes, quality profiles, or check lists; they stay in the receipts. If asked whether the diagram was verified, answer in one line, such as “Automated checks passed; not visually reviewed.” Give receipt links and details only for reproducibility or troubleshooting. Disclose requested visual review that could not run, and claim visual inspection only when performed. Keep the required update line under Update awareness.
+
+Example: `Created [Checkout request timing](/abs/path/checkout-timing.html). Durations are illustrative, not measured.`
