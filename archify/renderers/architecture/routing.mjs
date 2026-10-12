@@ -1239,11 +1239,16 @@ export function createRouter(components, connections = [], {
           const others = resolvedRoutes.filter((other) => other !== entry);
           // Preserve uncomplicated routes and their established inferred sides.
           // Spend the comparison budget where the complete scene has a reading
-          // cost: a crossover or more than two bends.
+          // cost: a crossover, more than two bends, or no room for its label.
           const crossingsBefore = crossingCount(conn, entry.points, others);
-          if (crossingsBefore === 0 && (onlyCrossings || entry.points.length <= 4)) continue;
+          const currentLabel = labelRectFor?.(conn, entry.points, {
+            routes: others.map(other => other.points),
+            labels: reservedLabels.filter(label => label.conn !== conn).map(label => label.rect),
+          });
+          const labelBlocked = Boolean(conn.label && labelRectFor && !currentLabel);
+          if (!labelBlocked && crossingsBefore === 0 && (onlyCrossings || entry.points.length <= 4)) continue;
           let best = null;
-          let bestCost = readabilityCost(conn, { points: entry.points }, others);
+          let bestCost = labelBlocked ? Infinity : readabilityCost(conn, { points: entry.points }, others);
           for (const sides of candidateSidePairs(conn)) {
             const geometry = connectionGeometry(conn, sides);
             const routed = routedForGeometry(conn, others, geometry);
@@ -1258,10 +1263,9 @@ export function createRouter(components, connections = [], {
               });
               // Include the reserved label in this pass's bounds. In
               // particular, a shorter route must not widen and shrink the graph.
-              if (rect && (!withinScene([rect.x, rect.y]) || !withinScene([rect.x + rect.width, rect.y + rect.height]))) continue;
+              if (!labelClears(rect, conn, others, reservedLabels.filter(label => label.conn !== conn))) continue;
               if (onlyCrossings && (!endpointSlotsClear([{ conn, points: routed.points }], others,
                 candidate => candidate === conn ? sides : selectedSides.get(candidate))
-                  || !labelClears(rect, conn, others, reservedLabels.filter(label => label.conn !== conn))
                   || (rect && [...components.values()].some(component => rectsOverlap(rect, component, -2))))) continue;
               best = { routed, sides, rect };
               bestCost = cost;

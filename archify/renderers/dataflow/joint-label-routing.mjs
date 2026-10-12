@@ -18,13 +18,6 @@ const pinned = flow => flow.via || (flow.route && flow.route !== 'auto')
     .some(key => flow[key] !== undefined);
 const crossingCount = (a, b) => segments(a).reduce((sum, s) => sum + segments(b)
   .filter(t => properSegmentIntersection(s.start, s.end, t.start, t.end)).length, 0);
-function score(routes) {
-  return routes.reduce((sum, route, index) => sum + length(route.points)
-    + Math.max(0, route.points.length - 2) * 48
-    + routes.slice(index + 1).filter(other => !related(route.relation, other.relation))
-      .reduce((crossings, other) => crossings + crossingCount(route.points, other.points) * 160, 0), 0);
-}
-
 // One complete label, its own bridge, and the few routes blocking its slot
 // are a single proposal. Nothing is applied until all the geometry clears.
 // Keep all endpoint coordinates and every other label fixed.
@@ -159,7 +152,9 @@ export function repairLabelRoutes({ labels, routes, nodes, titles, frames, viewB
       if (failed) continue;
       const foreignDistance = Math.min(...nextRoutes.filter(route => route.relationIndex !== own.relationIndex)
         .map(route => distance(route.points, candidate.rect)));
-      if (candidate.ownDistance > foreignDistance + 0.0001 || score(nextRoutes) > score(currentRoutes)) continue;
+      // The original label is invalid. A collision-free repair may need a longer
+      // corridor; never rank that invalid geometry above a valid proposal.
+      if (candidate.ownDistance > foreignDistance + 0.0001) continue;
       accepted = { labels: nextLabels, routes: nextRoutes }; break;
     }
     if (accepted) { currentLabels = accepted.labels; currentRoutes = accepted.routes; }

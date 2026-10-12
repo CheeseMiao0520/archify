@@ -703,7 +703,11 @@ test('Radar reflects camera viewport, status and Focus activity through normal c
     ] }, sessionId);
     async function observe(action) {
       return evaluate(browser, sessionId, `(async () => {
+        await Archify.readerLayout.whenStable();
+        await Archify.viewerChromeLayout.whenStable();
         ${action}
+        await Archify.readerLayout.whenStable();
+        await Archify.viewerChromeLayout.whenStable();
         let previous = '', equal = 0;
         for (let frame = 0; frame < 240; frame += 1) {
           await new Promise(resolve => requestAnimationFrame(resolve));

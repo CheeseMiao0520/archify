@@ -234,7 +234,7 @@ test('standard keeps default node sizing and label failure instead of silently r
   assert.ok(receipt.diagnostics.some(({ message }) => /Label "command" overlaps node "task"/.test(message)));
 });
 
-test('automatic labels reject a distant free island rather than lose the relationship', t => {
+test('automatic labels recover beside their own route rather than escape to a distant island', t => {
   const diagram = pipeline();
   diagram.stages = [{ label: 'In' }, { label: 'Out' }];
   diagram.nodes = [
@@ -244,9 +244,15 @@ test('automatic labels reject a distant free island rather than lose the relatio
       sublabel: 'Long supporting description for target', height: 100 },
   ];
   diagram.flows = [{ from: 'a', to: 'b', label: 'Long asset description' }];
-  const { result, receipt } = inspect(t, diagram);
-  assert.equal(result.status, 1);
-  assert.ok(receipt.diagnostics.some(({ message }) => /Label "Long asset description" overlaps node/.test(message)));
+  const { html } = renderedFootprint(t, diagram);
+  assert.ok(html.includes('Long asset description'));
+  const plate = html.match(/<g data-detail="context"[^>]*>\s*<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"/);
+  assert.ok(plate);
+  const [x, y, width, height] = plate.slice(1).map(Number);
+  const points = html.match(/data-composition-points="([^"]+)"/)[1].split(';').map(point => point.split(',').map(Number));
+  const distance = Math.min(...points.slice(1).map((end, index) =>
+    segmentRectClearanceWithin({ start: points[index], end }, { x, y, width, height }, 36)));
+  assert.ok(distance >= 4 && distance <= 36, 'complete label stays beside its own connector');
 });
 
 test('automatic dataflow moves a blocking corridor to make room for a label beside its own route', t => {
@@ -808,13 +814,14 @@ test('a valid mixed-port layout survives an alternative outlet that would mask i
 });
 
 
-test('an unsuccessful mixed-port recovery preserves the original diagnosis and existing artifact', t => {
+test('an invalid authored label preserves its diagnosis and the existing artifact', t => {
   const diagram = mixedPortDiagram({ omitReturn: true });
+  // Pin a label outside the canvas: automatic repair must respect author control.
+  diagram.flows.find(flow => flow.id === 'e4').labelAt = [1, 1];
   const { result, receipt, input, output, env } = inspect(t, diagram);
   assert.equal(result.status, 1);
-  const collision = receipt.diagnostics.find(diagnostic => diagnostic.code === 'composition/label-route-clearance');
-  assert.equal(collision.subject.id, 'e4', 'keep the initial conflicting relationship');
-  assert.equal(collision.evidence.otherRelationship.id, 'e1', 'keep the initial blocking relationship');
+  assert.ok(receipt.diagnostics.some(diagnostic => /outside|clipp|viewBox|canvas/i.test(diagnostic.message)),
+    'report the authored label overflow instead of silently moving its pin');
   fs.writeFileSync(output, 'previous complete diagram');
   const rendered = spawnSync(process.execPath, [cli, 'render', 'dataflow', input, output], { encoding: 'utf8', env });
   assert.equal(rendered.status, 1);
