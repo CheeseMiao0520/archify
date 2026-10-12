@@ -87,13 +87,13 @@ When a passing Architecture receipt reports `visualReviewRecommendation.signals.
 
 When `layoutReviewRecommendation.action` is `inspect-sequence-width`, follow [Sequence width review](references/delivery-contract.md#sequence-width-review) before handing off a newly authored Sequence.
 
-Perceptual review is optional for ordinary generation, including a newly positioned Architecture. Use [Optional capture evidence](references/delivery-contract.md#optional-capture-evidence), with `--out-dir <folder>/visual-check`, when the user requests visual review, during development audits, or for a concrete route/browser concern. `visualReviewRecommendation` is advisory. Inspect captures before claiming visual quality; otherwise report automated checks only.
+Perceptual review is optional for ordinary generation, including a newly positioned Architecture. Use [Optional capture evidence](references/delivery-contract.md#optional-capture-evidence), with `--out-dir <folder>/visual-check`, when the user requests visual review, during development audits, or for a concrete route/browser concern. `visualReviewRecommendation` is advisory. Inspect captures before claiming visual quality; qualify any check claim as automated when perceptual review has not occurred.
 
 Read [Delivery contract](references/delivery-contract.md) for failed gates, standalone commands, provenance/recovery, repeated delivery, exports, or opening. Recovery follows `deliver` → strict provenance `check` → `browser-check`; captures require strict provenance.
 
 For workflow viewport overflow, read [Workflow viewport repair](references/authoring-contract.md#workflow-viewport-repair) before the next layout edit.
 
-Report artifact checks, browser evidence, captures, and actual perceptual review as distinct results. For an explicitly requested immediate preview or active desktop loop, see [Optional opening](references/delivery-contract.md#optional-opening).
+When reporting verification details, distinguish artifact checks, browser evidence, captures, and actual perceptual review. For an explicitly requested immediate preview or active desktop loop, see [Optional opening](references/delivery-contract.md#optional-opening).
 
 ## Optional viewer capabilities
 
@@ -114,4 +114,10 @@ When shell access is unavailable, hand-place architecture SVG into `assets/templ
 
 ## Output
 
-Return the checked HTML as an absolute path, diagram type, validation summary, specification/artifact receipt, browser-evidence status, and truthful visual-review status. Do not claim success for a non-zero command or claim visual inspection you did not perform.
+Default to a short reply in the user's language, usually 3–5 lines; omit unnecessary parts:
+
+1. Lead with a clickable Markdown link to the HTML using its absolute path and a descriptive diagram title. Add one sentence about the content only when useful.
+2. State limitations that affect interpretation or use, such as illustrative rather than measured timings, missing source evidence, or unresolved defects. Label an incomplete artifact as a preview and explain what remains; never present a failed or skipped required gate as completed validation.
+3. For a multi-diagram task, briefly report progress or completion. Link an existing overview, or provide compact artifact links when needed to find the batch; a directory path alone is not a useful handoff.
+
+Keep candidates, source revisions, quality/evidence profiles, hashes, and detailed checks in the existing artifacts and receipts. Surface those details and receipt links when the user requests verification, reproducibility, or troubleshooting. A successful ordinary reply needs no checklist; when verification is requested, a brief accurate summary such as “Automated checks passed” is sufficient unless details are requested or a check is incomplete. Omit routine “visual review not requested” notices, but disclose requested review that could not be completed. Claim visual inspection only when performed. Retain required update notices under Update awareness.

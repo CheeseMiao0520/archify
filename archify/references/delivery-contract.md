@@ -617,14 +617,16 @@ artifact receipts are no longer current.
 
 ## Handoff receipt
 
-Return:
+For a requested diagnostic or structured handoff, derive the following details
+from the existing receipts. Ordinary user-facing replies follow
+[Output](../SKILL.md#output); this checklist is not a default chat response.
 
 ```text
-diagram_type: architecture|workflow|sequence|dataflow|lifecycle
+diagram_type: <actual diagram type>
 output: /absolute/path/to/file.html
 specification_sha256: <receipt value>
 artifact_sha256: <receipt value>
-validation: 9/9 showcase, 0 errors, 0 warnings
+validation: <actual quality profile, check counts, errors, and warnings>
 browser_evidence: passed|failed|skipped
 visual_review: not_requested|passed|skipped (image reader unavailable)|failed
 correction_rounds: 0|1|2
