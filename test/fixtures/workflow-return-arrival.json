@@ -1,0 +1,364 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "电商下单到发货工作流",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "output": "commerce-workflow.html"
+  },
+  "lanes": [
+    {
+      "id": "buyer",
+      "label": "买家 · 提交与重试"
+    },
+    {
+      "id": "order",
+      "label": "订单服务 · 校验与创建"
+    },
+    {
+      "id": "stock",
+      "label": "库存服务 · 预占与释放"
+    },
+    {
+      "id": "payment",
+      "label": "支付 · 发起与结果"
+    },
+    {
+      "id": "paid",
+      "label": "订单服务 · 支付确认与关闭"
+    },
+    {
+      "id": "warehouse",
+      "label": "仓库 · 拣货与发货"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "submit",
+      "lane": "buyer",
+      "col": 1,
+      "type": "external",
+      "label": "提交订单",
+      "sublabel": "买家",
+      "width": 152,
+      "height": 60,
+      "yOffset": 0
+    },
+    {
+      "id": "retry",
+      "lane": "buyer",
+      "col": 0,
+      "type": "external",
+      "label": "买家重试",
+      "sublabel": "支付失败后可再支付",
+      "width": 152,
+      "height": 60,
+      "yOffset": 0
+    },
+    {
+      "id": "validate",
+      "lane": "order",
+      "col": 1,
+      "type": "backend",
+      "label": "校验商品和金额",
+      "sublabel": "订单服务",
+      "width": 152,
+      "height": 60,
+      "yOffset": -50
+    },
+    {
+      "id": "pending",
+      "lane": "order",
+      "col": 2,
+      "type": "backend",
+      "label": "创建待支付订单",
+      "sublabel": "预占成功后",
+      "width": 152,
+      "height": 60,
+      "yOffset": 50
+    },
+    {
+      "id": "no_stock",
+      "lane": "order",
+      "col": 2,
+      "type": "backend",
+      "label": "告知买家并结束",
+      "sublabel": "结果：库存不足",
+      "width": 152,
+      "height": 60,
+      "yOffset": -50
+    },
+    {
+      "id": "reserve",
+      "lane": "stock",
+      "col": 1,
+      "type": "backend",
+      "label": "预占库存",
+      "sublabel": "库存服务",
+      "width": 152,
+      "height": 60,
+      "yOffset": -50
+    },
+    {
+      "id": "release",
+      "lane": "stock",
+      "col": 5,
+      "type": "backend",
+      "label": "释放库存",
+      "sublabel": "超时关闭后",
+      "width": 152,
+      "height": 60,
+      "yOffset": 50
+    },
+    {
+      "id": "pay",
+      "lane": "payment",
+      "col": 2,
+      "type": "backend",
+      "label": "发起支付",
+      "sublabel": "订单服务发起",
+      "width": 152,
+      "height": 60,
+      "yOffset": -50
+    },
+    {
+      "id": "result",
+      "lane": "payment",
+      "col": 3,
+      "type": "security",
+      "label": "支付成功？",
+      "sublabel": "支付结果判断",
+      "width": 152,
+      "height": 60,
+      "yOffset": -50
+    },
+    {
+      "id": "failed",
+      "lane": "payment",
+      "col": 0,
+      "type": "security",
+      "label": "支付失败",
+      "sublabel": "结果：可重试",
+      "width": 152,
+      "height": 60,
+      "yOffset": 50
+    },
+    {
+      "id": "deadline",
+      "lane": "payment",
+      "col": 5,
+      "type": "security",
+      "label": "超时仍未支付？",
+      "sublabel": "超过 15 分钟",
+      "width": 170,
+      "height": 60,
+      "yOffset": 50
+    },
+    {
+      "id": "paid",
+      "lane": "paid",
+      "col": 3,
+      "type": "backend",
+      "label": "标记已支付",
+      "sublabel": "订单服务",
+      "width": 152,
+      "height": 60,
+      "yOffset": 0
+    },
+    {
+      "id": "event",
+      "lane": "paid",
+      "col": 4,
+      "type": "messagebus",
+      "label": "投递 OrderPaid",
+      "sublabel": "订单服务 · 异步事件",
+      "width": 152,
+      "height": 60,
+      "yOffset": 0
+    },
+    {
+      "id": "close",
+      "lane": "paid",
+      "col": 5,
+      "type": "backend",
+      "label": "关闭订单",
+      "sublabel": "结果：超时关闭",
+      "width": 152,
+      "height": 60,
+      "yOffset": 0
+    },
+    {
+      "id": "pick",
+      "lane": "warehouse",
+      "col": 4,
+      "type": "backend",
+      "label": "仓库拣货",
+      "sublabel": "收到 OrderPaid 事件",
+      "width": 152,
+      "height": 60,
+      "yOffset": -50
+    },
+    {
+      "id": "ship",
+      "lane": "warehouse",
+      "col": 4,
+      "type": "backend",
+      "label": "发货",
+      "sublabel": "仓库完成发货",
+      "width": 152,
+      "height": 60,
+      "yOffset": 50
+    }
+  ],
+  "edges": [
+    {
+      "id": "submit-validate",
+      "to": "validate",
+      "label": "",
+      "from": "submit"
+    },
+    {
+      "id": "validate-reserve",
+      "to": "reserve",
+      "label": "校验完成",
+      "from": "validate"
+    },
+    {
+      "id": "reserve-pending",
+      "to": "pending",
+      "label": "预占成功",
+      "variant": "emphasis",
+      "from": "reserve"
+    },
+    {
+      "id": "reserve-no_stock",
+      "to": "no_stock",
+      "label": "库存不足",
+      "role": "error",
+      "variant": "security",
+      "from": "reserve"
+    },
+    {
+      "id": "pending-pay",
+      "to": "pay",
+      "label": "",
+      "from": "pending"
+    },
+    {
+      "id": "pay-result",
+      "to": "result",
+      "label": "",
+      "from": "pay"
+    },
+    {
+      "id": "result-paid",
+      "to": "paid",
+      "label": "成功",
+      "variant": "emphasis",
+      "from": "result"
+    },
+    {
+      "id": "result-failed",
+      "to": "failed",
+      "label": "失败",
+      "role": "error",
+      "variant": "security",
+      "from": "result"
+    },
+    {
+      "id": "failed-retry",
+      "to": "retry",
+      "label": "允许重试",
+      "role": "return",
+      "from": "failed"
+    },
+    {
+      "id": "retry-pay",
+      "to": "pay",
+      "label": "未超时",
+      "role": "return",
+      "variant": "dashed",
+      "from": "retry"
+    },
+    {
+      "id": "pending-deadline",
+      "to": "deadline",
+      "label": "等待支付",
+      "role": "branch",
+      "variant": "dashed",
+      "from": "pending"
+    },
+    {
+      "id": "deadline-close",
+      "to": "close",
+      "label": "是",
+      "role": "error",
+      "variant": "security",
+      "from": "deadline"
+    },
+    {
+      "id": "paid-event",
+      "to": "event",
+      "label": "",
+      "from": "paid"
+    },
+    {
+      "id": "event-pick",
+      "to": "pick",
+      "label": "OrderPaid",
+      "role": "async",
+      "variant": "dashed",
+      "from": "event"
+    },
+    {
+      "id": "pick-ship",
+      "to": "ship",
+      "label": "",
+      "from": "pick"
+    },
+    {
+      "id": "close-release",
+      "to": "release",
+      "label": "关闭后释放",
+      "variant": "security",
+      "from": "close"
+    }
+  ],
+  "mainPath": [
+    "submit",
+    "validate",
+    "reserve",
+    "pending",
+    "pay",
+    "result",
+    "paid",
+    "event",
+    "pick",
+    "ship"
+  ],
+  "semanticChecks": {
+    "allowedRoots": [
+      "submit"
+    ],
+    "allowedTerminals": [
+      "no_stock",
+      "ship",
+      "release"
+    ],
+    "requiredPaths": [
+      {
+        "from": "failed",
+        "to": "pay"
+      },
+      {
+        "from": "pending",
+        "to": "release"
+      },
+      {
+        "from": "reserve",
+        "to": "no_stock"
+      }
+    ]
+  }
+}

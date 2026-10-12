@@ -79,6 +79,7 @@ const READABLE_CANDIDATE_COST_PRIORITY = Object.freeze([
   'sharedCorridorPx',
   'automaticForwardReversePx',
   'labelRouteClearanceDeficit',
+  'laterArrivalBlockCount',
   'oppositeParallelDeficit',
   'interiorPreferred28Deficit',
   'excessiveVerticalTravelPx',
@@ -3847,6 +3848,47 @@ function automaticForwardReversePx(edge, points) {
   ), 0);
 }
 
+// Reserve only a measured, feasible horizontal arrival, not a future whole
+// route. This preference applies to automatic same-column upward rails only.
+const laterArrivalCache = new Map();
+function laterArrivalBlockCount(edge, points) {
+  if (!independentAutomaticRoute(edge)
+    || ['labelDx', 'labelDy', 'labelSegment'].some(field => edge[field] !== undefined)) return 0;
+  const from = nodes.get(edge.from), to = nodes.get(edge.to);
+  if (from.col !== to.col || to.cy >= from.cy) return 0;
+  let cached = laterArrivalCache.get(edge);
+  if (!cached || cached.routeCount !== pathCache.size) {
+    const arrivals = [];
+    const eligible = workflow.edges.filter(incoming => {
+      if (incoming === edge || pathCache.has(incoming) || !independentAutomaticRoute(incoming)
+        || ['labelDx', 'labelDy', 'labelSegment'].some(field => incoming[field] !== undefined)) return false;
+      const source = nodes.get(incoming.from), target = nodes.get(incoming.to);
+      return source && target && target.col === from.col && source.col !== target.col
+        && target.cy > to.cy && target.cy < from.cy;
+    });
+    // Skip crowded scenes entirely: no order-dependent first-eight choice,
+    // and at most eight prospective feasibility probes for this rail/scene.
+    for (const incoming of eligible.length <= 8 ? eligible : []) {
+      const source = nodes.get(incoming.from), target = nodes.get(incoming.to);
+      const fromSide = source.cx < target.cx ? 'right' : 'left';
+      const toSide = source.cx < target.cx ? 'left' : 'right';
+      const start = anchor(source, fromSide), end = anchor(target, toSide);
+      const prospective = joinRoutePoints(start,
+        corridorViaX(start, end, fromSide, toSide, (start[0] + end[0]) / 2), end);
+      if (!readableCandidateIsFeasible(incoming, prospective, source, target, fromSide, toSide)) continue;
+      const interaction = routeInteractionMetrics(incoming, prospective);
+      if (interaction.properCrossingCount || interaction.sharedCorridorPx
+        || labelRouteClearanceDeficit(incoming, prospective)) continue;
+      arrivals.push([outwardStub(end, toSide), end]);
+    }
+    cached = { routeCount: pathCache.size, arrivals };
+    laterArrivalCache.set(edge, cached);
+  }
+  return cached.arrivals.filter(([a, b]) => points.slice(1, -2).some((start, index) => (
+    properAxisCrossing(start, points[index + 2], a, b)
+  ))).length;
+}
+
 function readableCandidateCost(
   edge,
   points,
@@ -3890,6 +3932,7 @@ function readableCandidateCost(
     automaticForwardReversePx: automaticForwardReversePx(edge, points),
     properCrossingCount: interaction.properCrossingCount,
     sharedCorridorPx: interaction.sharedCorridorPx,
+    laterArrivalBlockCount: laterArrivalBlockCount(edge, points),
     labelRouteClearanceDeficit: labelRouteClearanceDeficit(edge, points),
     oppositeParallelDeficit: interaction.oppositeParallelDeficit,
     interiorPreferred28Deficit,
