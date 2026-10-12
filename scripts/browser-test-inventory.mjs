@@ -18,6 +18,7 @@ export const browserTestFiles = [
   'viewer-chrome-layout.test.mjs',
   'semantic-radar.test.mjs',
   'viewer-camera-browser.test.mjs',
+  'viewer-radar-scroll-browser.test.mjs',
   'motion-governor-browser.test.mjs',
   'finder-browser.test.mjs',
   'intent-trace-browser.test.mjs',

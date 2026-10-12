@@ -357,13 +357,17 @@ try {
   const inferredBridgeArtifact = fs.readFileSync(inferredBridgeHtml, 'utf8');
   const bridgePoints = inferredBridgeArtifact.match(/data-edge-id="terminal-return"[^>]*data-composition-points="([^"]+)"/)?.[1]
     .split(';').map(point => point.split(',').map(Number));
-  // Automatic bend positions may improve; attachment and side normals must hold.
+  // Automatic sides and port offsets may improve; attachment and normals must hold.
+  const leavesBoxNormally = ([px, py], [nx, ny], { pos: [x, y], size: [w, h] }) => (
+    (px === x && py >= y && py <= y + h && nx < px && ny === py)
+    || (px === x + w && py >= y && py <= y + h && nx > px && ny === py)
+    || (py === y && px >= x && px <= x + w && ny < py && nx === px)
+    || (py === y + h && px >= x && px <= x + w && ny > py && nx === px)
+  );
   if (!bridgePoints || bridgePoints.length < 2
     || !bridgePoints.every(point => point.length === 2 && point.every(Number.isFinite))
-    || bridgePoints[0][0] !== 700 || bridgePoints[0][1] !== 130
-    || bridgePoints[1][1] !== 130 || bridgePoints[1][0] >= 700
-    || bridgePoints.at(-1)[0] !== 160 || bridgePoints.at(-1)[1] !== 330
-    || bridgePoints.at(-2)[1] !== 330 || bridgePoints.at(-2)[0] <= 160) {
+    || !leavesBoxNormally(bridgePoints[0], bridgePoints[1], inferredBridge.components[3])
+    || !leavesBoxNormally(bridgePoints.at(-1), bridgePoints.at(-2), inferredBridge.components[0])) {
     throw new Error('packaged skill did not preserve inferred endpoint normals with a side-aware bridge');
   }
 

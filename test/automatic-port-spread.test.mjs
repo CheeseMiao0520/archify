@@ -149,16 +149,24 @@ test('architecture: reciprocal repair preserves explicit relationship label plac
   }
 });
 
-test('architecture: automatic fan-out uses distinct symmetric ports with corner clearance', () => {
+test('architecture: automatic fan-out uses distinct ports with corner clearance and outward normals', () => {
   const html = render('architecture', fanOutArchitecture([
     { id: 'to-upper', from: 'hub', to: 'upper' },
     { id: 'to-middle', from: 'hub', to: 'middle' },
     { id: 'to-lower', from: 'hub', to: 'lower' },
   ]));
 
-  assert.deepEqual(connectionPoints(html, 'to-upper')[0], [220, 296]);
-  assert.deepEqual(connectionPoints(html, 'to-middle')[0], [220, 310]);
-  assert.deepEqual(connectionPoints(html, 'to-lower')[0], [220, 324]);
+  const routes = ['to-upper', 'to-middle', 'to-lower'].map(id => connectionPoints(html, id));
+  assert.equal(new Set(routes.map(points => JSON.stringify(points[0]))).size, 3);
+  for (const [[x, y], [nx, ny]] of routes) {
+    assert.ok(
+      (x === 220 && y >= 294 && y <= 326 && nx > x && ny === y)
+      || (x === 100 && y >= 294 && y <= 326 && nx < x && ny === y)
+      || (y === 280 && x >= 114 && x <= 206 && ny < y && nx === x)
+      || (y === 340 && x >= 114 && x <= 206 && ny > y && nx === x),
+      `port ${x},${y} must leave the hub normally with at least 14px corner clearance`,
+    );
+  }
 });
 
 test('architecture: automatic port assignment is stable when relationship input order changes', () => {
