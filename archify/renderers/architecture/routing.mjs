@@ -1263,7 +1263,7 @@ export function createRouter(components, connections = [], {
               });
               // Include the reserved label in this pass's bounds. In
               // particular, a shorter route must not widen and shrink the graph.
-              if (!labelClears(rect, conn, others, reservedLabels.filter(label => label.conn !== conn))) continue;
+              if (labelRectFor && !labelClears(rect, conn, others, reservedLabels.filter(label => label.conn !== conn))) continue;
               if (onlyCrossings && (!endpointSlotsClear([{ conn, points: routed.points }], others,
                 candidate => candidate === conn ? sides : selectedSides.get(candidate))
                   || (rect && [...components.values()].some(component => rectsOverlap(rect, component, -2))))) continue;
