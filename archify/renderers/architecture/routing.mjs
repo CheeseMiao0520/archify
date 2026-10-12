@@ -68,6 +68,9 @@ import { shortestOrthogonalGridRoute } from '../shared/route-quality.mjs';
  *   from each branch and draws the bus as one path) turns this off: the floors
  *   describe a route drawn exactly as planned, and that type answers for the
  *   drawn result at its own gate instead.
+ * @param {number} [options.readabilityBottomMargin = 0] extra vertical room for
+ *   the bounded readability sweep on an intrinsic-height canvas. Width and
+ *   authored geometry stay fixed; fixed canvases leave this at zero.
  */
 export function createRouter(components, connections = [], {
   frames = [],
@@ -83,6 +86,7 @@ export function createRouter(components, connections = [], {
   crossingFreeGridFirst = false,
   componentGapPx = 0,
   minimumTerminalSegmentPx = 0,
+  readabilityBottomMargin = 0,
 } = {}) {
   const frameBorders = frames.flatMap((frame) => frameBorderSegments(frame));
   const LABEL_CLEARANCE = 4;
@@ -1043,7 +1047,8 @@ export function createRouter(components, connections = [], {
       }
       const bounds = {
         left: Math.min(...scenePoints.map(([x]) => x)), right: Math.max(...scenePoints.map(([x]) => x)),
-        top: Math.min(...scenePoints.map(([, y]) => y)), bottom: Math.max(...scenePoints.map(([, y]) => y)),
+        top: Math.min(...scenePoints.map(([, y]) => y)),
+        bottom: Math.max(...scenePoints.map(([, y]) => y)),
       };
       const withinScene = ([x, y]) => x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom;
       const jointlyImproved = new Set();
@@ -1227,9 +1232,7 @@ export function createRouter(components, connections = [], {
         }
         return labels;
       }
-      allowGridSearch = false;
-      try {
-        improveReciprocalPairs();
+      function improveComplexRoutes(onlyCrossings = false) {
         for (const entry of resolvedRoutes) {
           const { conn } = entry;
           if (jointlyImproved.has(conn) || typeOwned.has(conn) || hasAuthoredRouteGeometry(conn) || hasAuthoredLabelPlacement(conn)) continue;
@@ -1237,7 +1240,8 @@ export function createRouter(components, connections = [], {
           // Preserve uncomplicated routes and their established inferred sides.
           // Spend the comparison budget where the complete scene has a reading
           // cost: a crossover or more than two bends.
-          if (entry.points.length <= 4 && crossingCount(conn, entry.points, others) === 0) continue;
+          const crossingsBefore = crossingCount(conn, entry.points, others);
+          if (crossingsBefore === 0 && (onlyCrossings || entry.points.length <= 4)) continue;
           let best = null;
           let bestCost = readabilityCost(conn, { points: entry.points }, others);
           for (const sides of candidateSidePairs(conn)) {
@@ -1245,15 +1249,20 @@ export function createRouter(components, connections = [], {
             const routed = routedForGeometry(conn, others, geometry);
             planningMetrics.readabilityCandidateCount += 1;
             if (!routed.points.every(withinScene) || !routeIsClear(conn, routed, geometry, others)) continue;
+            if (onlyCrossings && crossingCount(conn, routed.points, others) >= crossingsBefore) continue;
             const cost = readabilityCost(conn, routed, others);
             if (cost < bestCost) {
               const rect = labelRectFor?.(conn, routed.points, {
                 routes: [...others.map((other) => other.points), routed.points],
                 labels: reservedLabels.filter((label) => label.conn !== conn).map((label) => label.rect),
               });
-              // A shorter route must not expand the canvas and shrink every
-              // label at the default viewport. Include its reserved label too.
+              // Include the reserved label in this pass's bounds. In
+              // particular, a shorter route must not widen and shrink the graph.
               if (rect && (!withinScene([rect.x, rect.y]) || !withinScene([rect.x + rect.width, rect.y + rect.height]))) continue;
+              if (onlyCrossings && (!endpointSlotsClear([{ conn, points: routed.points }], others,
+                candidate => candidate === conn ? sides : selectedSides.get(candidate))
+                  || !labelClears(rect, conn, others, reservedLabels.filter(label => label.conn !== conn))
+                  || (rect && [...components.values()].some(component => rectsOverlap(rect, component, -2))))) continue;
               best = { routed, sides, rect };
               bestCost = cost;
             }
@@ -1265,6 +1274,11 @@ export function createRouter(components, connections = [], {
           reservedLabels = reservedLabels.filter((label) => label.conn !== conn);
           if (best.rect) reservedLabels.push({ conn, rect: best.rect });
         }
+      }
+      allowGridSearch = false;
+      try {
+        improveReciprocalPairs();
+        improveComplexRoutes();
         // A bent route between nodes that overlap across the gap separating
         // them can run straight through facing sides inside that overlap.
         // Authored sides must already face; every other route, slot and label
@@ -1417,6 +1431,13 @@ export function createRouter(components, connections = [], {
           entry.points = best.routed.points;
           reservedLabels = [...labels, ...(best.rect ? [{ conn, rect: best.rect }] : [])];
           planningMetrics.readabilityImprovedCount += 1;
+        }
+        // Complete the original bounded plan first. Only a remaining crossing
+        // can justify using an extra lower corridor; an already clear scene
+        // must not grow merely because its labels could move into that space.
+        if (readabilityBottomMargin > 0) {
+          bounds.bottom += readabilityBottomMargin;
+          improveComplexRoutes(true);
         }
       } finally {
         allowGridSearch = true;

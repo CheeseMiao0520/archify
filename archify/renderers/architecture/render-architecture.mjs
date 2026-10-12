@@ -357,6 +357,9 @@ const rawBoundaries = asArray(arch.boundaries).map(boundaryRect).filter(Boolean)
 const routerOptions = {
   distinctAutomaticPorts: true,
   preferReadableRoutes: true,
+  // A single outward stub below the scene can remove a crossing without
+  // widening the canvas or shrinking its text. Fixed canvases keep their bounds.
+  readabilityBottomMargin: arch.meta?.viewBox ? 0 : 24,
   frames: rawBoundaries.map((boundary) => ({
     ...boundary,
     radius: boundary.kind === 'security-group' ? 8 : 12,
