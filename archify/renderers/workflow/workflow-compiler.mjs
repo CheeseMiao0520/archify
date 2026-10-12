@@ -55,6 +55,7 @@ import {
   collectBorderRuns,
   forwardCollinearAnalysisSegments,
   sourceSegmentIndexAtPoint,
+  polylineBendContacts,
   suggestLabelObstacleFix,
   suggestLabelPairFix,
   anchor,
@@ -77,6 +78,7 @@ import {
 const LEGACY_COLUMN_CENTERS = Object.freeze([88, 220, 300, 430, 500, 625]);
 const READABLE_CANDIDATE_COST_PRIORITY = Object.freeze([
   'properCrossingCount',
+  'unrelatedBendContactCount',
   'sharedCorridorPx',
   'automaticForwardReversePx',
   'labelRouteClearanceDeficit',
@@ -3788,6 +3790,7 @@ function independentAutomaticRoute(edge) {
 
 function routeInteractionMetrics(edge, points) {
   let properCrossingCount = 0;
+  let unrelatedBendContactCount = 0;
   let sharedCorridorPx = 0;
   let oppositeParallelDeficit = 0;
   const extent = routeBounds(points);
@@ -3802,6 +3805,9 @@ function routeInteractionMetrics(edge, points) {
     const routed = item.routed;
     const sharedEndpoint = [edge.from, edge.to].some((id) => id === otherEdge.from || id === otherEdge.to);
     if (sharedEndpoint && workflow.schema_version !== 2) continue;
+    if (!sharedEndpoint && isReadableAutomaticRoute(edge)) {
+      unrelatedBendContactCount += polylineBendContacts(points, routed.points).length;
+    }
     if (isReadableAutomaticRoute(edge)) {
       oppositeParallelDeficit += longCounterflowDeficit(points, routed.points);
     }
@@ -3818,7 +3824,7 @@ function routeInteractionMetrics(edge, points) {
       }
     }
   }
-  return { properCrossingCount, sharedCorridorPx, oppositeParallelDeficit };
+  return { properCrossingCount, unrelatedBendContactCount, sharedCorridorPx, oppositeParallelDeficit };
 }
 
 // Prefer a clear existing track for long, close counterflow. This is only a
@@ -3885,7 +3891,7 @@ function laterArrivalBlockCount(edge, points) {
         corridorViaX(start, end, fromSide, toSide, (start[0] + end[0]) / 2), end);
       if (!readableCandidateIsFeasible(incoming, prospective, source, target, fromSide, toSide)) continue;
       const interaction = routeInteractionMetrics(incoming, prospective);
-      if (interaction.properCrossingCount || interaction.sharedCorridorPx
+      if (interaction.properCrossingCount || interaction.unrelatedBendContactCount || interaction.sharedCorridorPx
         || labelRouteClearanceDeficit(incoming, prospective)) continue;
       arrivals.push([outwardStub(end, toSide), end]);
     }
@@ -3939,6 +3945,7 @@ function readableCandidateCost(
   return {
     automaticForwardReversePx: automaticForwardReversePx(edge, points),
     properCrossingCount: interaction.properCrossingCount,
+    unrelatedBendContactCount: interaction.unrelatedBendContactCount,
     sharedCorridorPx: interaction.sharedCorridorPx,
     laterArrivalBlockCount: laterArrivalBlockCount(edge, points),
     labelRouteClearanceDeficit: labelRouteClearanceDeficit(edge, points),
@@ -4494,7 +4501,8 @@ function automaticPortCandidates(edge, node, side, preferred, counterpart) {
 function automaticEndpointRepairs(edge, selected, from, to, naturalFromSide, naturalToSide, narrowSlots = false) {
   if (!independentAutomaticRoute(edge)
     || ['labelDx', 'labelDy', 'labelSegment', 'bias'].some(field => edge[field] !== undefined)
-    || selected.cost.properCrossingCount !== 0 || selected.cost.sharedCorridorPx === 0
+    || selected.cost.properCrossingCount !== 0
+    || (!selected.cost.sharedCorridorPx && !selected.cost.unrelatedBendContactCount)
     || selected.points.length < 3) return [];
   const corridorHits = (points) => [...pathCache].flatMap(([relation, routed]) => (
     collectAmbiguousCorridors({
@@ -4505,6 +4513,10 @@ function automaticEndpointRepairs(edge, selected, from, to, naturalFromSide, nat
   ));
   const originalHits = corridorHits(selected.points);
   const originalNeighbours = new Set(originalHits.map(hit => hit.right.relation));
+  const contacts = selected.cost.unrelatedBendContactCount ? [...pathCache].flatMap(([other, routed]) => (
+    [edge.from, edge.to].some(id => id === other.from || id === other.to)
+      ? [] : polylineBendContacts(selected.points, routed.points)
+  )) : [];
   const strokeWidth = relation => relation.width || (relation.variant === 'emphasis' ? 1.8 : 1.4);
   const arrowRelation = relation => ({ ...relation, width: strokeWidth(relation) });
   const ownArrow = arrowRelation(edge);
@@ -4516,7 +4528,9 @@ function automaticEndpointRepairs(edge, selected, from, to, naturalFromSide, nat
     const first = endpoint === 'from';
     const endpointIndex = first ? 0 : selected.points.length - 1;
     const segmentIndex = first ? 0 : selected.points.length - 2;
-    if (!originalHits.some(hit => hit.leftSegment === segmentIndex)) continue;
+    const corner = selected.points[first ? 1 : selected.points.length - 2];
+    const touchingCorner = contacts.some(point => Math.hypot(point[0] - corner[0], point[1] - corner[1]) <= 0.0001);
+    if (!touchingCorner && !originalHits.some(hit => hit.leftSegment === segmentIndex)) continue;
     const node = first ? from : to;
     const side = first ? selected.fromSide : selected.toSide;
     const axis = side === 'left' || side === 'right' ? 1 : 0;
@@ -4562,7 +4576,11 @@ function automaticEndpointRepairs(edge, selected, from, to, naturalFromSide, nat
       if (!clearPort) continue;
       if (!readableCandidateIsFeasible(edge, points, from, to, selected.fromSide, selected.toSide)) continue;
       const cost = readableCandidateCost(edge, points, selected.cost.stableCandidateOrdinal, naturalFromSide, naturalToSide);
-      if (cost.properCrossingCount !== 0 || cost.sharedCorridorPx >= selected.cost.sharedCorridorPx) continue;
+      if (cost.properCrossingCount !== 0
+        || cost.unrelatedBendContactCount > selected.cost.unrelatedBendContactCount
+        || cost.sharedCorridorPx > selected.cost.sharedCorridorPx
+        || (cost.sharedCorridorPx === selected.cost.sharedCorridorPx
+          && cost.unrelatedBendContactCount === selected.cost.unrelatedBendContactCount)) continue;
       if (corridorHits(points).some(hit => !originalNeighbours.has(hit.right.relation))) continue;
       if (collectArrowheadCollisions({
         routedRelations: [{ relation: ownArrow, points }, ...incoming],
@@ -4614,7 +4632,8 @@ function readableInternalDetourPlans(edge, selected, from, to, naturalFromSide, 
 function readableFreeSpacePlans(edge, selected, from, to, naturalFromSide, naturalToSide) {
   if (!independentAutomaticRoute(edge) || from.lane === to.lane
     || ['labelDx', 'labelDy', 'labelSegment', 'bias'].some(field => edge[field] !== undefined)
-    || (!selected.cost.sharedCorridorPx && !selected.cost.properCrossingCount)) return [];
+    || (!selected.cost.sharedCorridorPx && !selected.cost.properCrossingCount
+      && !selected.cost.unrelatedBendContactCount)) return [];
   const obstacles = [];
   const add = (x, y, width, height, padding) => obstacles.push({
     x: x - padding, y: y - padding, width: width + padding * 2, height: height + padding * 2,
@@ -4658,7 +4677,8 @@ function readableFreeSpacePlans(edge, selected, from, to, naturalFromSide, natur
       accept(points) {
         if (!readableCandidateIsFeasible(edge, points, from, to, fromSide, toSide)) return false;
         const cost = readableCandidateCost(edge, points, 20000 + ordinal, naturalFromSide, naturalToSide);
-        return !cost.properCrossingCount && !cost.sharedCorridorPx && !cost.labelRouteClearanceDeficit;
+        return !cost.properCrossingCount && !cost.unrelatedBendContactCount
+          && !cost.sharedCorridorPx && !cost.labelRouteClearanceDeficit;
       },
     });
     if (!candidate) continue;
@@ -4806,6 +4826,15 @@ function readableAutomaticRoute(edge, from, to, primarySides, primaryPorts) {
 
   plans.sort((left, right) => compareCost(left.cost, right.cost));
   if (plans.length) {
+    // Before paying for a long outside detour, try the existing bounded port
+    // slides on up to four otherwise viable plans with a false bend junction.
+    // Pins never enter this repair; every slide keeps route and label checks.
+    const touchingPlans = plans.filter(plan => plan.cost.unrelatedBendContactCount
+      && !plan.cost.properCrossingCount).slice(0, 4);
+    for (const plan of touchingPlans) {
+      plans.push(...automaticEndpointRepairs(edge, plan, from, to, naturalFromSide, naturalToSide));
+    }
+    plans.sort((left, right) => compareCost(left.cost, right.cost));
     plans.push(...readableInternalDetourPlans(edge, plans[0], from, to, naturalFromSide, naturalToSide));
     plans.sort((a, b) => compareCost(a.cost, b.cost));
     const endpointRepairs = automaticEndpointRepairs(edge, plans[0], from, to, naturalFromSide, naturalToSide);

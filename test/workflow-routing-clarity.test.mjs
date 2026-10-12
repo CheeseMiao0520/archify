@@ -23,6 +23,47 @@ function edgeTag(svg, from, to) {
   return tag;
 }
 
+test('readable-v2 separates unrelated automatic branches that meet at a bend', () => {
+  const workflow = {
+    schema_version: 2, diagram_type: 'workflow',
+    meta: { title: 'Independent failure branches', locale: 'zh-CN', output: 'branches.html' },
+    lanes: [{ id: 'sender', label: '请求处理' }, { id: 'stop', label: '失败处理', variant: 'exception' }],
+    nodes: [
+      { id: 'request', lane: 'sender', col: 0, type: 'external', label: '提交请求', sublabel: '待处理业务任务' },
+      { id: 'resolve', lane: 'sender', col: 1, type: 'security', label: '验证并选择目标', sublabel: '检查请求目标 · 排除自身' },
+      { id: 'dispatch', lane: 'sender', col: 3, type: 'messagebus', label: '发送任务卡', sublabel: '新 ID · 当前协议' },
+      { id: 'targetStop', lane: 'stop', col: 0, type: 'security', label: '目标不明确', sublabel: '无目标 / 多目标 / 当前未知' },
+      { id: 'deliveryFail', lane: 'stop', col: 1, type: 'security', label: '发送失败', sublabel: '未完成 · 保留记录' },
+      { id: 'invalid', lane: 'stop', col: 2, type: 'security', label: '拒绝错误请求', sublabel: '不执行 invalid 操作' },
+    ],
+    edges: [
+      { id: 'resolve-targetStop', from: 'resolve', to: 'targetStop', label: '不明确', role: 'error' },
+      { id: 'dispatch-deliveryFail', from: 'dispatch', to: 'deliveryFail', label: '拒绝', role: 'error' },
+    ],
+  };
+  const before = structuredClone(workflow);
+  const result = compileWorkflow({ workflow, qualityProfile: 'showcase' });
+  assert.equal(result.ok, true, JSON.stringify(result.diagnostics));
+  const [left, right] = result.receipt.edges;
+  // For orthogonal segments, disjoint bounding boxes prove no crossing or
+  // touching. This independently checks the visible paths, not router scores.
+  const boxes = route => route.points.slice(1).map((end, i) => {
+    const start = route.points[i];
+    assert.ok(start[0] === end[0] || start[1] === end[1]);
+    return { minX: Math.min(start[0], end[0]), maxX: Math.max(start[0], end[0]),
+      minY: Math.min(start[1], end[1]), maxY: Math.max(start[1], end[1]) };
+  });
+  for (const a of boxes(left)) for (const b of boxes(right)) {
+    assert.ok(a.maxX < b.minX || b.maxX < a.minX || a.maxY < b.minY || b.maxY < a.minY,
+      'two unrelated conditions must not acquire a false visual junction');
+  }
+  assert.deepEqual(result.receipt.nodes.map(n => n.id), workflow.nodes.map(n => n.id));
+  assert.deepEqual(result.receipt.edges.map(e => [e.id, e.from, e.to]).sort(),
+    workflow.edges.map(e => [e.id, e.from, e.to]).sort());
+  assert.deepEqual(result.receipt.labels.map(l => l.label).sort(), ['不明确', '拒绝'].sort());
+  assert.deepEqual(workflow, before);
+});
+
 test('readable-v2 keeps a clear vertical main step straight when its source also branches', () => {
   const workflow = {
     schema_version: 2, diagram_type: 'workflow',

@@ -18,6 +18,7 @@ import {
   cleanEndpointSideProblems,
   cleanFlowProblems,
   cleanCrossingProblems,
+  polylineBendContacts,
   collectAmbiguousCorridors,
   cleanAmbiguousCorridorProblems,
   collectBorderRuns,
@@ -504,6 +505,26 @@ test('cleanCrossingProblems selectively checks automatic shared-endpoint interio
   assert.deepEqual(cleanCrossingProblems({ ...options, profile: 'standard' }), []);
   relations[1].automatic = false;
   assert.deepEqual(cleanCrossingProblems(options), [], 'one authored route preserves the legacy exemption');
+});
+
+test('polyline bend contacts distinguish false junctions from actual route endpoints', () => {
+  const left = [[0, 0], [0, 20], [-20, 20]];
+  const right = [[20, 20], [0, 20], [0, 40]];
+  for (let turn = 0; turn < 4; turn++) {
+    const rotate = ([x, y]) => {
+      for (let n = 0; n < turn; n++) [x, y] = [-y, x];
+      return [x + 100, y + 100];
+    };
+    assert.deepEqual(polylineBendContacts(left.map(rotate), right.map(rotate)), [rotate([0, 20])]);
+  }
+  assert.deepEqual(polylineBendContacts(left, [[0, 20], [0, 40]]), [],
+    'an actual endpoint is not an interior bend contact');
+  assert.deepEqual(polylineBendContacts([[0, 0], [20, 0], [40, 0]], [[10, 0], [30, 0]]), [],
+    'collinear waypoints and overlap have their own contract');
+  assert.deepEqual(polylineBendContacts(left, [[20, 28], [8, 28], [8, 40]]), [],
+    'a separate corridor remains clear');
+  assert.deepEqual(polylineBendContacts(left, [[-10, 20], [10, 20]]), [[0, 20]],
+    'one bend touching the middle of a different route is also misleading');
 });
 
 test('cleanCrossingProblems exempts endpoint touches and collinear corridors', () => {

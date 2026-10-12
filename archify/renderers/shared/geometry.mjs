@@ -601,6 +601,26 @@ function pointLiesOnSegment(point, start, end) {
     && point[1] <= Math.max(start[1], end[1]) + epsilon;
 }
 
+// A bend meeting another route's interior can look like a branch even when
+// no pair of segment interiors forms a proper X. Keep actual route endpoints
+// out of this geometric query; callers decide which relationships are allowed
+// to share junctions. Collinear corridors remain a separate quality measure.
+export function polylineBendContacts(left, right) {
+  const contacts = [];
+  const near = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) <= 0.0001;
+  for (const [points, other] of [[left, right], [right, left]]) {
+    if (other.length < 2) continue;
+    for (let index = 1; index < points.length - 1; index += 1) {
+      const point = points[index];
+      if (Math.abs(crossProduct(points[index - 1], point, points[index + 1])) <= 0.0001
+        || near(point, other[0]) || near(point, other.at(-1))) continue;
+      if (other.slice(1).some((end, segment) => pointLiesOnSegment(point, other[segment], end))
+        && !contacts.some(otherPoint => near(point, otherPoint))) contacts.push(point);
+    }
+  }
+  return contacts;
+}
+
 // Authored shared endpoints retain their junction interpretation by default.
 // Renderers can opt their automatic routes into proper interior X checks;
 // endpoint touches and collinear trunks still are not proper crossings.
