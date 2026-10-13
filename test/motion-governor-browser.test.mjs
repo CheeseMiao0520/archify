@@ -151,7 +151,13 @@ test('Motion Governor preserves mode, ownership, continuous Live flow and real c
         const flows=Array.from(svg.querySelectorAll('[data-ambient-flow-overlay]'));
         window.authoredEdges=edges.map(e=>e.outerHTML);
         const circles=flows.filter(e=>e.localName==='circle'), paths=flows.filter(e=>e.localName==='path');
-        return {edges:edges.length, flows:flows.length, paths:paths.length, circles:circles.length,
+        return {choreography:svg.getAttribute('data-motion-choreography'),
+          packets:paths.filter(e=>e.classList.contains('packet')).length,
+          playheads:flows.filter(e=>e.classList.contains('ambient-flow-playhead')).length,
+          fills:flows.filter(e=>e.classList.contains('ambient-flow-fill')).length,
+          bars:svg.querySelectorAll('[data-node-id][data-waterfall-start]').length,
+          animatedEdges:edges.filter(e=>e.nextElementSibling?.hasAttribute('data-ambient-flow-overlay')).map(e=>e.getAttribute('data-edge-from')+'->'+e.getAttribute('data-edge-to')),
+          edges:edges.length, flows:flows.length, paths:paths.length, circles:circles.length,
           valid:paths.every(e=>e.getAttribute('d')===(e.previousElementSibling.getAttribute('data-motion-path')||e.previousElementSibling.getAttribute('d')))&&
           circles.every(e=>e.getAttribute('cx')!==null&&e.getAttribute('cy')!==null)&&
           flows.every(e=>Array.from(e.attributes).every(a=>!a.name.startsWith('data-')||['data-ambient-flow-overlay','data-tree-ancestors'].includes(a.name))&&
@@ -161,14 +167,22 @@ test('Motion Governor preserves mode, ownership, continuous Live flow and real c
           security:Array.from(svg.querySelectorAll('.a-security'), e=>getComputedStyle(e).strokeDasharray)};
       })()`);
       if(mode==='class') assert.ok(contract.reverse>0, 'Class bus exercises reversed visual paths.');
-      assert.equal(contract.paths, contract.edges * 5, 'Each edge carries wake, glow, halo, tail and head.');
-      assert.equal(contract.circles, contract.edges, 'Each edge carries one landing ripple.');
+      const packetsPerEdge = mode === 'dataflow' ? 3 : 0;
+      const flowEdges = mode === 'lifecycle' ? 4 : contract.edges;
+      if (mode === 'lifecycle') assert.deepEqual(contract.animatedEdges,
+        ['queued->planning', 'planning->executing', 'executing->reviewing', 'reviewing->completed'],
+        'the state walk follows the authored main path without animating every alternative at once');
+      assert.equal(contract.playheads, ['timeline', 'waterfall'].includes(mode) ? 1 : 0, mode + ': time diagrams carry a playhead.');
+      assert.equal(contract.fills, mode === 'waterfall' ? contract.bars : 0, mode + ': replay fills every bar.');
+      assert.equal(contract.packets, flowEdges * packetsPerEdge, mode + ': only stream edges carry three trailing packets.');
+      assert.equal(contract.paths, flowEdges * (5 + packetsPerEdge), mode + ': each edge carries five comet layers plus stream packets.');
+      assert.equal(contract.circles, flowEdges, 'Each animated edge carries one landing ripple.');
       assert.equal(contract.valid, true);
       assert.ok(contract.originalAnimations.every(name=>name==='none'));
       assert.ok(contract.security.every(dash=>dash==='5px, 5px'));
-      assert.equal(initial.ambient, contract.edges ? 'paused' : 'empty');
+      assert.equal(initial.ambient, contract.flows ? 'paused' : 'empty');
       await run(`Archify.motionGovernor.resume()`);
-      assert.equal((await snapshot(mode + '-live')).ambient, contract.edges ? 'running' : 'empty');
+      assert.equal((await snapshot(mode + '-live')).ambient, contract.flows ? 'running' : 'empty');
       // One actual multi-cycle observation covers shared CSS timing. Every type
       // above separately protects its renderer-to-runtime geometry contract.
       if (mode === 'architecture') {
@@ -192,7 +206,7 @@ test('Motion Governor preserves mode, ownership, continuous Live flow and real c
         })()`);
         assert.ok(cycle.iterations >= 1, 'comet layers keep cycling'); assert.equal(cycle.active, true);
         assert.equal(cycle.layers, true, 'every edge keeps its trace, wake, comet layers and landing ripple beside it');
-        assert.ok(cycle.nodeAnims.length > 0 && cycle.nodeAnims.every(names => names.length === 1 && names[0] === 'archify-relay-node'),
+        assert.ok(cycle.nodeAnims.length > 0 && cycle.nodeAnims.every(names => names.length === 1 && /^archify-relay-node-[0-9]+$/.test(names[0])),
           'after the bounded entrance, nodes keep only the receive glow: ' + JSON.stringify(cycle.nodeAnims));
         assert.ok(Number.isFinite(movement.before) && Number.isFinite(movement.after) && movement.after < movement.before,
           'comet head travels forward: ' + JSON.stringify(movement));
@@ -211,7 +225,7 @@ test('Motion Governor preserves mode, ownership, continuous Live flow and real c
       await run(`Archify.motionGovernor.pause()`);
       assert.equal(await run(`Array.from(document.querySelectorAll('.ambient-edge-flow')).every(e=>getComputedStyle(e).display==='none'&&e.getAnimations().length===0)`), true);
       await run(`Archify.motionGovernor.resume()`);
-      assert.equal((await snapshot(mode + '-resumed')).ambient, contract.edges ? 'running' : 'empty');
+      assert.equal((await snapshot(mode + '-resumed')).ambient, contract.flows ? 'running' : 'empty');
       assert.equal(await run(`Array.from(document.querySelectorAll('path[data-animate="edge"]'),e=>e.outerHTML).every((s,i)=>s===authoredEdges[i])`), true);
       if (contract.edges) {
         assert.equal(await run(`document.querySelector('.ambient-flow-wake').getAnimations().some(a=>a.playState==='running')`), true);
@@ -276,7 +290,7 @@ test('Motion Governor preserves mode, ownership, continuous Live flow and real c
           Archify.motionGovernor.pause();
           const baseline=getComputedStyle(node).filter;
           Archify.motionGovernor.resume();
-          const animation=node.getAnimations().find(a=>a.animationName==='archify-relay-node');
+          const animation=node.getAnimations().find(a=>/^archify-relay-node-[0-9]+$/.test(a.animationName));
           animation.pause();
           const timing=animation.effect.getTiming();
           animation.currentTime=timing.delay;
@@ -332,9 +346,9 @@ test('Motion Governor preserves mode, ownership, continuous Live flow and real c
       await load(mode);
       await run(`Archify.motionGovernor.resume()`);
       await run(`motionWait(()=>document.documentElement.getAttribute('data-ambient-entry')==='settled')`);
-      await run(`motionWait(()=>Array.from(document.querySelectorAll('[data-animate="node"]')).every(e=>e.getAnimations().some(a=>a.animationName==='archify-relay-node')))`);
+      await run(`motionWait(()=>Array.from(document.querySelectorAll('[data-animate="node"]')).every(e=>e.getAnimations().some(a=>/^archify-relay-node-[0-9]+$/.test(a.animationName))))`);
       const nodeState=()=>run(`Array.from(document.querySelectorAll('[data-animate="node"]'),e=>({animations:e.getAnimations().map(a=>a.animationName),filter:getComputedStyle(e).filter,opacity:getComputedStyle(e).opacity}))`);
-      assert.ok((await nodeState()).every(n=>n.animations.includes('archify-relay-node')));
+      assert.ok((await nodeState()).every(n=>n.animations.some(name => /^archify-relay-node-[0-9]+$/.test(name))));
       await send('Emulation.setEmulatedMedia', {media:'print'});
       await run(`Archify.motionGovernor.pause()`);
       const staticPrint=await nodeState();
@@ -343,7 +357,7 @@ test('Motion Governor preserves mode, ownership, continuous Live flow and real c
       assert.deepEqual(await nodeState(), staticPrint, mode + ': printed Live nodes retain Still print styling and no animations');
       assert.equal((await snapshot(mode + '-settled-print')).mode, 'live');
       await media(false);
-      await run(`motionWait(()=>Array.from(document.querySelectorAll('[data-animate="node"]')).every(e=>e.getAnimations().some(a=>a.animationName==='archify-relay-node'&&a.playState==='running')))`);
+      await run(`motionWait(()=>Array.from(document.querySelectorAll('[data-animate="node"]')).every(e=>e.getAnimations().some(a=>/^archify-relay-node-[0-9]+$/.test(a.animationName)&&a.playState==='running')))`);
       assert.equal((await snapshot(mode + '-settled-screen-return')).mode, 'live');
     }
   });

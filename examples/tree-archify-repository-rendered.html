@@ -3550,13 +3550,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       background: transparent;
       box-shadow: none;
     }
-    /* The motion button breathes on the same shared cycle as the cascade, so the
-       chrome keeps time with the wave it controls. The cycle length lives on the
-       diagram SVG, so chrome presets mirror it here. */
+    /* The motion button breathes on the relay cycle, so the chrome keeps time
+       with the wave it controls. Motion Governor mirrors the planned cycle from
+       the diagram SVG onto the document. */
     html[data-ambient-motion="running"][data-motion="live"]:not([data-motion-owner]):not([data-embed]):not([data-share-playback]):not([data-document-hidden]) #btn-motion .motion-control-dot {
       animation: archify-motion-dot-breathe var(--flow-cycle-chrome, 6.4s) ease-in-out infinite;
     }
-    html[data-preset="signal-flow"] #btn-motion .motion-control-dot { --flow-cycle-chrome: 5.2s; }
     @keyframes archify-motion-dot-breathe {
       0%, 100% { opacity: 1; transform: scale(1); }
       46% { opacity: 0.55; transform: scale(0.72); }
@@ -4725,27 +4724,23 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .c-region         { fill: rgba(251, 191, 36, 0.05); stroke: var(--cloud-stroke); stroke-dasharray: 8,4; }
     .c-lane           { fill: var(--lane-fill); stroke: var(--lane-stroke); stroke-dasharray: 6,6; }
 
-    /* Live turns each edge into a small light show on one shared cycle: a comet
-       (halo, tail, head — plus a dimmer echo, half a travel window behind on long
-       edges and half a cycle behind on short ones) cascades downstream, leaves a
-       soft wake, and lands as a ripple on the target node. Short edges carry a
-       proportionally larger comet with a brightness boost so compact diagrams read
-       as alive as sprawling ones. Original line language and markers remain
-       static. Each edge's phase follows the authored step order — source-node
-       rank, or chronological order in sequence diagrams — so the whole diagram
-       ripples downstream instead of marching uniformly. Node entry is bounded to
-       one pass per document, then a soft node glow follows the authored step
-       order. */
+    /* Live plays one relay per cycle: a comet (halo, tail, head) leaves each
+       source when the signal reaches it, travels at one shared speed, leaves a
+       soft wake, and lands as a ripple while its target glows. Downstream edges
+       depart only after their source is reached, so the reader sees the path the
+       diagram describes rather than every edge shimmering at once. Sequence
+       messages relay in authored chronological order. Motion Governor plans the
+       timeline and its per-edge keyframes; this stylesheet owns appearance.
+       Original line language and markers remain static. Node entry is bounded to
+       one pass per document. */
     svg[data-animation="trace"] {
       --flow-cycle: 6.4s;
-      --flow-step-delay: 0.2s;
       --flow-halo-peak: 0.17;
       --flow-glow-peak: 0.5;
       --flow-tail-peak: 0.42;
       --flow-head-peak: 0.95;
-      --flow-wake-peak: 0.1;
+      --flow-wake-peak: 0.3;
       --flow-ripple-peak: 0.65;
-      --flow-ripple-echo-peak: 0.26;
     }
     .ambient-edge-flow {
       fill: none;
@@ -4755,69 +4750,91 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       display: none;
     }
     .ambient-flow-wake {
+      --flow-peak: var(--flow-wake-peak, 0.3);
       stroke-width: 3.2;
       stroke-dasharray: var(--flow-dasharray, none);
-      animation-name: archify-flow-wake;
     }
     .ambient-flow-halo {
+      --flow-peak: var(--flow-halo-peak, 0.17);
       stroke-width: 6;
       stroke-dasharray: var(--flow-dash, 12px) calc(var(--flow-len, 0px) - var(--flow-dash, 12px));
-      animation-name: archify-cascade-halo;
     }
     /* A wide blurred streak centered on the head: this is the bloom that makes
        the comet read as a traveling orb of light rather than a bright dash. */
     .ambient-flow-glow {
+      --flow-peak: var(--flow-glow-peak, 0.5);
       stroke-width: 9;
       stroke-dasharray: var(--flow-dash, 12px) calc(var(--flow-len, 0px) - var(--flow-dash, 12px));
       filter: blur(2.5px);
-      animation-name: archify-cascade-glow;
     }
     .ambient-flow-tail {
+      --flow-peak: var(--flow-tail-peak, 0.42);
       stroke-width: 2.4;
       stroke-dasharray: var(--flow-dasharray, var(--flow-dash, 20px) calc(var(--flow-len, 0px) - var(--flow-dash, 20px)));
-      animation-name: archify-cascade-tail;
     }
     .ambient-flow-head {
+      --flow-peak: var(--flow-head-peak, 0.95);
       stroke: color-mix(in srgb, var(--arrow-emphasis) 40%, white);
       stroke-width: 2.6;
       stroke-dasharray: var(--flow-dash, 6px) calc(var(--flow-len, 0px) - var(--flow-dash, 6px));
-      animation-name: archify-cascade-head;
     }
-    .ambient-flow-head.echo { --flow-echo-scale: 0.76; }
-    .ambient-flow-tail.echo { --flow-echo-scale: 0.53; }
     .ambient-flow-ripple {
+      --flow-peak: var(--flow-ripple-peak, 0.65);
       stroke: color-mix(in srgb, var(--arrow-emphasis) 55%, white);
       stroke-width: 2;
-      animation-name: archify-flow-ripple;
-    }
-    .ambient-flow-ripple-echo {
-      stroke-width: 1.2;
-      animation-name: archify-flow-ripple-echo;
     }
     html[data-ambient-motion="running"][data-motion="live"]:not([data-motion-owner]):not([data-embed]):not([data-share-playback]):not([data-document-hidden]) .ambient-edge-flow {
       display: inline;
+      animation-name: var(--flow-name, none);
       animation-duration: var(--flow-cycle, 6.4s);
       animation-timing-function: linear;
       animation-iteration-count: infinite;
       animation-delay: var(--flow-delay, 0s);
       /* Without backwards fill a delayed layer would sit at its natural opacity
-         (fully lit) until its phase arrives. */
+         (fully lit) until its departure arrives. */
       animation-fill-mode: backwards;
     }
+    /* Stream packets trail the comet head as smaller, dimmer beads. */
+    .ambient-flow-head.packet {
+      --flow-peak: calc(var(--flow-head-peak, 0.95) * 0.62);
+      stroke-width: 3.4;
+    }
+    /* Timeline and waterfall playhead: a crisp rule over a soft bloom. */
+    .ambient-flow-playhead {
+      --flow-peak: 0.9;
+      stroke: color-mix(in srgb, var(--arrow-emphasis) 55%, white);
+      stroke-width: 1.6;
+    }
+    .ambient-flow-playhead-glow {
+      --flow-peak: 0.32;
+      stroke-width: 10;
+      filter: blur(4px);
+    }
+    /* Waterfall spans fill in proportion to their measured time, then settle. */
+    .ambient-flow-fill {
+      --flow-peak: 0.5;
+      fill: color-mix(in srgb, var(--flow-fill, var(--arrow-emphasis)) 55%, white);
+      stroke: none;
+      transform-box: fill-box;
+      transform-origin: left center;
+    }
+    .ambient-flow-fill-failed { fill: var(--security-stroke); --flow-peak: 0.5; }
+    html[data-theme="light"] .ambient-flow-playhead { stroke: color-mix(in srgb, var(--arrow-emphasis) 70%, black); }
+    html[data-theme="light"] .ambient-flow-fill { --flow-peak: 0.42; fill: color-mix(in srgb, var(--flow-fill, var(--arrow-emphasis)) 70%, black); }
+    svg[data-preset="editorial"] .ambient-flow-fill { --flow-peak: 0.2; }
+    svg[data-preset="editorial"] .ambient-flow-playhead-glow { --flow-peak: 0.14; }
     /* Each decorative flow follows its owning edge through tree visibility. */
     .ambient-edge-flow[data-tree-hidden] { display: none !important; animation: none !important; }
-    svg[data-preset="signal-flow"] { --flow-cycle: 5.2s; --flow-step-delay: 0.18s; }
     svg[data-preset="blueprint"] .ambient-edge-flow { stroke-linecap: square; }
-    svg[data-preset="editorial"] { --flow-halo-peak: 0.07; --flow-glow-peak: 0.28; --flow-tail-peak: 0.2; --flow-head-peak: 0.7; --flow-wake-peak: 0.05; --flow-ripple-peak: 0.3; --flow-ripple-echo-peak: 0.12; }
-    /* On light canvases the cascade reads by saturation instead of bloom: the
-       head and inner ripple mix toward ink instead of white, and every layer's
-       peak rises so the wave survives the bright background. */
+    svg[data-preset="editorial"] { --flow-halo-peak: 0.07; --flow-glow-peak: 0.28; --flow-tail-peak: 0.2; --flow-head-peak: 0.7; --flow-wake-peak: 0.14; --flow-ripple-peak: 0.3; }
+    /* On light canvases the relay reads by saturation instead of bloom: the head
+       and ripple mix toward ink instead of white, and every layer's peak rises so
+       the wave survives the bright background. */
     html[data-theme="light"] svg[data-animation="trace"] {
       --flow-halo-peak: 0.22;
       --flow-glow-peak: 0.4;
       --flow-tail-peak: 0.5;
-      --flow-wake-peak: 0.13;
-      --flow-ripple-echo-peak: 0.3;
+      --flow-wake-peak: 0.34;
     }
     html[data-theme="light"] .ambient-flow-head {
       stroke: color-mix(in srgb, var(--arrow-emphasis) 55%, black);
@@ -4844,84 +4861,32 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       animation: archify-editorial-node-pulse 3.5s ease-in-out 1 calc(var(--step, 0) * 160ms),
         archify-node-enter 0.9s cubic-bezier(0.22, 1, 0.36, 1) backwards calc(var(--step, 0) * 160ms);
     }
-    /* Node glow follows each node's authored step on the shared cycle; it does
-       not track incoming edge arrivals. During the bounded entrance all three
-       animations run; the entrance pulse is listed after the repeating glow and
-       wins on filter until it completes. */
+    /* Each node glows in its planned windows: when the relay reaches it, while a
+       walk token rests on it, as a message lands, or as the playhead passes.
+       During the bounded entrance all three animations run; the entrance pulse is
+       listed after the repeating glow and wins on filter until it completes. */
     html[data-ambient-motion="running"][data-motion="live"]:not([data-motion-owner]):not([data-embed]):not([data-share-playback]):not([data-document-hidden]) svg[data-animation="trace"] [data-animate="node"] {
-      animation: archify-node-receive var(--flow-cycle, 6.4s) ease-in-out infinite calc(var(--step, 0) * var(--flow-step-delay, 0.2s));
+      animation: var(--flow-node-name, none) var(--flow-cycle, 6.4s) linear infinite;
     }
     html[data-ambient-motion="running"][data-motion="live"]:not([data-motion-owner]):not([data-embed]):not([data-share-playback]):not([data-document-hidden])[data-ambient-entry="running"] svg[data-animation="trace"] [data-animate="node"] {
-      animation: archify-node-receive var(--flow-cycle, 6.4s) ease-in-out infinite calc(var(--step, 0) * var(--flow-step-delay, 0.2s)),
+      animation: var(--flow-node-name, none) var(--flow-cycle, 6.4s) linear infinite,
         archify-node-pulse 3.6s ease-in-out 1 calc(var(--step, 0) * 160ms),
         archify-node-enter 0.9s cubic-bezier(0.22, 1, 0.36, 1) backwards calc(var(--step, 0) * 160ms);
     }
     html[data-ambient-motion="running"][data-motion="live"]:not([data-motion-owner]):not([data-embed]):not([data-share-playback]):not([data-document-hidden])[data-ambient-entry="running"] svg[data-preset="signal-flow"][data-animation="trace"] [data-animate="node"] {
-      animation: archify-node-receive var(--flow-cycle, 6.4s) ease-in-out infinite calc(var(--step, 0) * var(--flow-step-delay, 0.2s)),
+      animation: var(--flow-node-name, none) var(--flow-cycle, 6.4s) linear infinite,
         archify-node-pulse 3.1s ease-in-out 1 calc(var(--step, 0) * 160ms),
         archify-node-enter 0.9s cubic-bezier(0.22, 1, 0.36, 1) backwards calc(var(--step, 0) * 160ms);
     }
     html[data-ambient-motion="running"][data-motion="live"]:not([data-motion-owner]):not([data-embed]):not([data-share-playback]):not([data-document-hidden])[data-ambient-entry="running"] svg[data-preset="blueprint"][data-animation="trace"] [data-animate="node"] {
-      animation: archify-node-receive var(--flow-cycle, 6.4s) ease-in-out infinite calc(var(--step, 0) * var(--flow-step-delay, 0.2s)),
+      animation: var(--flow-node-name, none) var(--flow-cycle, 6.4s) linear infinite,
         archify-blueprint-node-pulse 3.8s ease-in-out 1 calc(var(--step, 0) * 160ms),
         archify-node-enter 0.9s cubic-bezier(0.22, 1, 0.36, 1) backwards calc(var(--step, 0) * 160ms);
     }
     html[data-ambient-motion="running"][data-motion="live"]:not([data-motion-owner]):not([data-embed]):not([data-share-playback]):not([data-document-hidden])[data-ambient-entry="running"] svg[data-preset="editorial"][data-animation="trace"] [data-animate="node"] {
-      animation: archify-node-receive var(--flow-cycle, 6.4s) ease-in-out infinite calc(var(--step, 0) * var(--flow-step-delay, 0.2s)),
+      animation: var(--flow-node-name, none) var(--flow-cycle, 6.4s) linear infinite,
         archify-editorial-node-pulse 3.5s ease-in-out 1 calc(var(--step, 0) * 160ms),
         archify-node-enter 0.9s cubic-bezier(0.22, 1, 0.36, 1) backwards calc(var(--step, 0) * 160ms);
-    }
-    @keyframes archify-flow-wake {
-      0% { opacity: 0; }
-      24% { opacity: calc(var(--flow-wake-peak, 0.1) * var(--flow-boost, 1)); }
-      62% { opacity: calc(var(--flow-wake-peak, 0.1) * var(--flow-boost, 1)); }
-      82%, 100% { opacity: 0; }
-    }
-    @keyframes archify-cascade-halo {
-      0% { stroke-dashoffset: calc(var(--flow-len, 0px) + var(--flow-shift, 3px)); opacity: 0; }
-      4% { opacity: calc(var(--flow-halo-peak, 0.17) * var(--flow-boost, 1)); }
-      15% { stroke-dashoffset: calc((var(--flow-len, 0px) + var(--flow-shift, 3px)) * 0.88); }
-      48% { stroke-dashoffset: calc((var(--flow-len, 0px) + var(--flow-shift, 3px)) * 0.22); }
-      62% { stroke-dashoffset: var(--flow-shift, 3px); opacity: calc(var(--flow-halo-peak, 0.17) * var(--flow-boost, 1)); }
-      68%, 100% { stroke-dashoffset: var(--flow-shift, 3px); opacity: 0; }
-    }
-    @keyframes archify-cascade-glow {
-      0% { stroke-dashoffset: calc(var(--flow-len, 0px) + var(--flow-shift, 3px)); opacity: 0; }
-      4% { opacity: calc(var(--flow-glow-peak, 0.5) * var(--flow-boost, 1)); }
-      15% { stroke-dashoffset: calc((var(--flow-len, 0px) + var(--flow-shift, 3px)) * 0.88); }
-      48% { stroke-dashoffset: calc((var(--flow-len, 0px) + var(--flow-shift, 3px)) * 0.22); }
-      62% { stroke-dashoffset: var(--flow-shift, 3px); opacity: calc(var(--flow-glow-peak, 0.5) * var(--flow-boost, 1)); }
-      68%, 100% { stroke-dashoffset: var(--flow-shift, 3px); opacity: 0; }
-    }
-    @keyframes archify-cascade-tail {
-      0% { stroke-dashoffset: calc(var(--flow-len, 0px) + var(--flow-shift, 20px)); opacity: 0; }
-      4% { opacity: calc(var(--flow-tail-peak, 0.42) * var(--flow-echo-scale, 1) * var(--flow-boost, 1)); }
-      15% { stroke-dashoffset: calc((var(--flow-len, 0px) + var(--flow-shift, 20px)) * 0.88); }
-      48% { stroke-dashoffset: calc((var(--flow-len, 0px) + var(--flow-shift, 20px)) * 0.22); }
-      62% { stroke-dashoffset: var(--flow-shift, 20px); opacity: calc(var(--flow-tail-peak, 0.42) * var(--flow-echo-scale, 1) * var(--flow-boost, 1)); }
-      68%, 100% { stroke-dashoffset: var(--flow-shift, 20px); opacity: 0; }
-    }
-    @keyframes archify-cascade-head {
-      0% { stroke-dashoffset: var(--flow-len, 0px); opacity: 0; }
-      4% { opacity: calc(var(--flow-head-peak, 0.95) * var(--flow-echo-scale, 1) * var(--flow-boost, 1)); }
-      15% { stroke-dashoffset: calc(var(--flow-len, 0px) * 0.88); }
-      48% { stroke-dashoffset: calc(var(--flow-len, 0px) * 0.22); }
-      62% { stroke-dashoffset: 0; opacity: calc(var(--flow-head-peak, 0.95) * var(--flow-echo-scale, 1) * var(--flow-boost, 1)); }
-      68%, 100% { stroke-dashoffset: 0; opacity: 0; }
-    }
-    @keyframes archify-flow-ripple {
-      0%, 60% { r: 2px; opacity: 0; }
-      63% { r: 2px; opacity: calc(var(--flow-ripple-peak, 0.65) * var(--flow-boost, 1)); }
-      78%, 100% { r: 20px; opacity: 0; }
-    }
-    @keyframes archify-flow-ripple-echo {
-      0%, 63% { r: 2px; opacity: 0; }
-      66% { r: 2px; opacity: calc(var(--flow-ripple-echo-peak, 0.26) * var(--flow-boost, 1)); }
-      84%, 100% { r: 30px; opacity: 0; }
-    }
-    @keyframes archify-node-receive {
-      0%, 100% { filter: var(--ambient-node-base-filter, none); }
-      5%, 12% { filter: var(--ambient-node-base-filter,) drop-shadow(0 0 9px var(--arrow-emphasis)); }
     }
     @keyframes archify-node-enter {
       from { opacity: 0; }
@@ -5160,7 +5125,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / PLATE 04">
-      <svg viewBox="0 0 1841 927" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="classic" data-quality-profile="showcase" data-tree-ui="" data-tree-direction="down" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
+      <svg viewBox="0 0 1841 926" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="classic" data-quality-profile="showcase" data-tree-ui="" data-tree-direction="down" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
         <title id="archify-diagram-title">Archify repository layout</title>
         <desc id="archify-diagram-description">Observed directory structure of this repository (selected files). Runs of three or more files are listed; the viewer/ branch starts collapsed.</desc>
         <!-- Definitions -->
@@ -5182,23 +5147,41 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           </pattern>
         </defs>
         <style>
+          svg[data-tree-ui] .tree-hue-root { --tree-hue: var(--text-muted); --tree-wash: transparent; }
+          svg[data-tree-ui] .tree-hue-backend { --tree-hue: var(--backend-stroke); --tree-wash: var(--backend-fill); }
+          svg[data-tree-ui] .tree-hue-database { --tree-hue: var(--database-stroke); --tree-wash: var(--database-fill); }
+          svg[data-tree-ui] .tree-hue-cloud { --tree-hue: var(--cloud-stroke); --tree-wash: var(--cloud-fill); }
+          svg[data-tree-ui] .tree-hue-frontend { --tree-hue: var(--frontend-stroke); --tree-wash: var(--frontend-fill); }
+          svg[data-tree-ui] .tree-hue-messagebus { --tree-hue: var(--messagebus-stroke); --tree-wash: var(--messagebus-fill); }
+          svg[data-tree-ui] .tree-hue-external { --tree-hue: var(--external-stroke); --tree-wash: var(--external-fill); }
           svg[data-tree-ui] .tree-edge { stroke-linejoin: round; stroke-linecap: round; }
-          svg[data-tree-ui] .tree-leaf { fill: var(--mask); stroke: var(--lane-stroke); }
-          svg[data-tree-ui] [data-tree-stack] { display: none; fill: var(--mask); }
-          svg[data-tree-ui] .tree-stack-frontend { stroke: var(--frontend-stroke); }
-          svg[data-tree-ui] .tree-stack-backend { stroke: var(--backend-stroke); }
+          svg[data-tree-ui] .tree-edge-trunk { stroke: color-mix(in srgb, var(--text) 18%, var(--arrow)); }
+          svg[data-tree-ui] .tree-edge-hued { stroke: color-mix(in srgb, var(--tree-hue) 42%, var(--arrow)); }
+          svg[data-tree-ui] .tree-root { fill: var(--text); stroke: none; }
+          svg[data-tree-ui] [data-tree-depth="0"] .tree-label { fill: var(--mask); }
+          svg[data-tree-ui] [data-tree-depth="0"] .tree-sublabel { fill: var(--mask); opacity: 0.68; }
+          svg[data-tree-ui] .tree-branch { fill: var(--tree-wash); stroke: color-mix(in srgb, var(--tree-hue) 48%, var(--lane-stroke)); }
+          svg[data-tree-ui] .tree-leaf { fill: var(--mask); stroke: color-mix(in srgb, var(--tree-hue) 22%, var(--lane-stroke)); }
+          svg[data-tree-ui] .tree-socket { fill: var(--mask); stroke: var(--tree-hue); pointer-events: none; }
+          svg[data-tree-ui] .tree-accent { stroke: var(--tree-hue); pointer-events: none; }
+          svg[data-tree-ui] [data-tree-stack] { display: none; fill: var(--mask); stroke: color-mix(in srgb, var(--tree-hue) 70%, var(--lane-stroke)); }
           svg[data-tree-ui] [data-tree-collapsed] [data-tree-stack] { display: inline; }
           svg[data-tree-ui] [data-tree-hidden] { display: none; }
           svg[data-tree-ui] .tree-toggle-hit { fill: transparent; }
-          svg[data-tree-ui] .tree-toggle-disc { fill: var(--mask); stroke: var(--arrow); }
-          svg[data-tree-ui] .tree-toggle-glyph { stroke: var(--text); fill: none; }
+          svg[data-tree-ui] .tree-toggle-disc { fill: var(--mask); stroke: color-mix(in srgb, var(--tree-hue) 55%, var(--lane-stroke)); transition: stroke 0.15s ease, fill 0.15s ease; }
+          svg[data-tree-ui] .tree-toggle-glyph { stroke: var(--text-muted); fill: none; transition: stroke 0.15s ease; }
           svg[data-tree-ui] .tree-toggle-count { display: none; }
-          svg[data-tree-ui] .tree-count-pill { fill: var(--mask); stroke: var(--arrow); stroke-width: 1; }
+          svg[data-tree-ui] .tree-count-pill { fill: var(--tree-hue); stroke: none; }
+          svg[data-tree-ui] .tree-toggle-count text { fill: var(--mask); }
           svg[data-tree-ui] [data-tree-toggle] { cursor: pointer; outline: none; }
           svg[data-tree-ui] [data-tree-toggle][aria-expanded="true"] .tree-toggle-plus { display: none; }
           svg[data-tree-ui] [data-tree-toggle][aria-expanded="false"] .tree-toggle-count { display: inline; }
+          svg[data-tree-ui] [data-tree-toggle][aria-expanded="false"] .tree-toggle-disc { fill: var(--tree-hue); stroke: var(--tree-hue); }
+          svg[data-tree-ui] [data-tree-toggle][aria-expanded="false"] .tree-toggle-glyph { stroke: var(--mask); }
           svg[data-tree-ui] [data-tree-toggle]:hover .tree-toggle-disc,
-          svg[data-tree-ui] [data-tree-toggle]:focus-visible .tree-toggle-disc { stroke: var(--arrow-emphasis); stroke-width: 2.4; }
+          svg[data-tree-ui] [data-tree-toggle]:focus-visible .tree-toggle-disc { stroke: var(--tree-hue); stroke-width: 2; }
+          svg[data-tree-ui] [data-tree-toggle]:hover .tree-toggle-glyph,
+          svg[data-tree-ui] [data-tree-toggle]:focus-visible .tree-toggle-glyph { stroke: var(--text); }
           svg[data-tree-ui] [data-tree-expand-all] { cursor: pointer; outline: none; }
           svg[data-tree-ui] [data-tree-expand-all] rect { fill: var(--mask); stroke: var(--lane-stroke); }
           svg[data-tree-ui] [data-tree-expand-all]:is(:hover, :focus-visible) rect { stroke: var(--arrow-emphasis); stroke-width: 2; }
@@ -5209,356 +5192,418 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Containment links -->
-        <path data-edge-from="repo" data-edge-to="skill" data-edge-key="0" data-tree-ancestors="repo" data-composition-points="1157,123;1157,151;632.5,151;632.5,179" d="M 1157 123 L 1157 143 Q 1157 151 1149 151 L 640.5 151 Q 632.5 151 632.5 159 L 632.5 179" class="a-default tree-edge" data-animate="edge" style="--step:1" stroke-width="1.5"/>
-        <path data-edge-from="repo" data-edge-to="viewer" data-edge-key="1" data-tree-ancestors="repo" data-composition-points="1157,123;1157,151;1269.5,151;1269.5,179" d="M 1157 123 L 1157 143 Q 1157 151 1165 151 L 1261.5 151 Q 1269.5 151 1269.5 159 L 1269.5 179" class="a-default tree-edge" data-animate="edge" style="--step:1" stroke-width="1.5"/>
-        <path data-edge-from="repo" data-edge-to="site" data-edge-key="2" data-tree-ancestors="repo" data-composition-points="1157,123;1157,151;1481,151;1481,179" d="M 1157 123 L 1157 143 Q 1157 151 1165 151 L 1473 151 Q 1481 151 1481 159 L 1481 179" class="a-default tree-edge" data-animate="edge" style="--step:1" stroke-width="1.5"/>
-        <path data-edge-from="repo" data-edge-to="scripts" data-edge-key="3" data-tree-ancestors="repo" data-composition-points="1157,123;1157,151;1680.5,151;1680.5,179" d="M 1157 123 L 1157 143 Q 1157 151 1165 151 L 1672.5 151 Q 1680.5 151 1680.5 159 L 1680.5 179" class="a-default tree-edge" data-animate="edge" style="--step:1" stroke-width="1.5"/>
-        <path data-edge-from="skill" data-edge-to="renderers" data-edge-key="4" data-tree-ancestors="skill repo" data-composition-points="632.5,238;632.5,266;186,266;186,294" d="M 632.5 238 L 632.5 258 Q 632.5 266 624.5 266 L 194 266 Q 186 266 186 274 L 186 294" class="a-default tree-edge" data-animate="edge" style="--step:2" stroke-width="1.5"/>
-        <path data-edge-from="skill" data-edge-to="schemas" data-edge-key="5" data-tree-ancestors="skill repo" data-composition-points="632,238;632,294" d="M 632 238 L 632 294" class="a-default tree-edge" data-animate="edge" style="--step:2" stroke-width="1.5"/>
-        <path data-edge-from="skill" data-edge-to="bin" data-edge-key="6" data-tree-ancestors="skill repo" data-composition-points="632.5,238;632.5,266;810,266;810,294" d="M 632.5 238 L 632.5 258 Q 632.5 266 640.5 266 L 802 266 Q 810 266 810 274 L 810 294" class="a-default tree-edge" data-animate="edge" style="--step:2" stroke-width="1.5"/>
-        <path data-edge-from="skill" data-edge-to="references" data-edge-key="7" data-tree-ancestors="skill repo" data-composition-points="632.5,238;632.5,266;1066,266;1066,294" d="M 632.5 238 L 632.5 258 Q 632.5 266 640.5 266 L 1058 266 Q 1066 266 1066 274 L 1066 294" class="a-default tree-edge" data-animate="edge" style="--step:2" stroke-width="1.5"/>
-        <path data-edge-from="renderers" data-edge-to="r_arch" data-edge-key="8" data-tree-ancestors="renderers skill repo" data-composition-points="186,353;186,381;44,381;44,438.5;60,438.5" d="M 186 353 L 186 373 Q 186 381 178 381 L 52 381 Q 44 381 44 389 L 44 430.5 Q 44 438.5 52 438.5 L 60 438.5" class="a-default tree-edge" data-animate="edge" style="--step:3" stroke-width="1.5"/>
-        <path data-edge-from="renderers" data-edge-to="r_workflow" data-edge-key="9" data-tree-ancestors="renderers skill repo" data-composition-points="186,353;186,381;44,381;44,507.5;60,507.5" d="M 186 353 L 186 373 Q 186 381 178 381 L 52 381 Q 44 381 44 389 L 44 499.5 Q 44 507.5 52 507.5 L 60 507.5" class="a-default tree-edge" data-animate="edge" style="--step:3" stroke-width="1.5"/>
-        <path data-edge-from="renderers" data-edge-to="r_sequence" data-edge-key="10" data-tree-ancestors="renderers skill repo" data-composition-points="186,353;186,381;44,381;44,576.5;60,576.5" d="M 186 353 L 186 373 Q 186 381 178 381 L 52 381 Q 44 381 44 389 L 44 568.5 Q 44 576.5 52 576.5 L 60 576.5" class="a-default tree-edge" data-animate="edge" style="--step:3" stroke-width="1.5"/>
-        <path data-edge-from="renderers" data-edge-to="r_dataflow" data-edge-key="11" data-tree-ancestors="renderers skill repo" data-composition-points="186,353;186,381;44,381;44,645.5;60,645.5" d="M 186 353 L 186 373 Q 186 381 178 381 L 52 381 Q 44 381 44 389 L 44 637.5 Q 44 645.5 52 645.5 L 60 645.5" class="a-default tree-edge" data-animate="edge" style="--step:3" stroke-width="1.5"/>
-        <path data-edge-from="renderers" data-edge-to="r_lifecycle" data-edge-key="12" data-tree-ancestors="renderers skill repo" data-composition-points="186,353;186,381;44,381;44,714.5;60,714.5" d="M 186 353 L 186 373 Q 186 381 178 381 L 52 381 Q 44 381 44 389 L 44 706.5 Q 44 714.5 52 714.5 L 60 714.5" class="a-default tree-edge" data-animate="edge" style="--step:3" stroke-width="1.5"/>
-        <path data-edge-from="renderers" data-edge-to="r_erd" data-edge-key="13" data-tree-ancestors="renderers skill repo" data-composition-points="186,353;186,381;44,381;44,783.5;60,783.5" d="M 186 353 L 186 373 Q 186 381 178 381 L 52 381 Q 44 381 44 389 L 44 775.5 Q 44 783.5 52 783.5 L 60 783.5" class="a-default tree-edge" data-animate="edge" style="--step:3" stroke-width="1.5"/>
-        <path data-edge-from="renderers" data-edge-to="r_tree" data-edge-key="14" data-tree-ancestors="renderers skill repo" data-composition-points="186,353;186,381;44,381;44,852.5;60,852.5" d="M 186 353 L 186 373 Q 186 381 178 381 L 52 381 Q 44 381 44 389 L 44 844.5 Q 44 852.5 52 852.5 L 60 852.5" class="a-default tree-edge" data-animate="edge" style="--step:3" stroke-width="1.5"/>
-        <path data-edge-from="renderers" data-edge-to="r_shared" data-edge-key="15" data-tree-ancestors="renderers skill repo" data-composition-points="186,353;186,381;327,381;327,409" d="M 186 353 L 186 373 Q 186 381 194 381 L 319 381 Q 327 381 327 389 L 327 409" class="a-default tree-edge" data-animate="edge" style="--step:3" stroke-width="1.5"/>
-        <path data-edge-from="r_shared" data-edge-to="s_cli" data-edge-key="16" data-tree-ancestors="r_shared renderers skill repo" data-composition-points="279,468;279,553.5;295,553.5" d="M 279 468 L 279 545.5 Q 279 553.5 287 553.5 L 295 553.5" class="a-default tree-edge" data-animate="edge" style="--step:4" stroke-width="1.5"/>
-        <path data-edge-from="r_shared" data-edge-to="s_geometry" data-edge-key="17" data-tree-ancestors="r_shared renderers skill repo" data-composition-points="279,468;279,622.5;295,622.5" d="M 279 468 L 279 614.5 Q 279 622.5 287 622.5 L 295 622.5" class="a-default tree-edge" data-animate="edge" style="--step:4" stroke-width="1.5"/>
-        <path data-edge-from="r_shared" data-edge-to="s_i18n" data-edge-key="18" data-tree-ancestors="r_shared renderers skill repo" data-composition-points="279,468;279,691.5;295,691.5" d="M 279 468 L 279 683.5 Q 279 691.5 287 691.5 L 295 691.5" class="a-default tree-edge" data-animate="edge" style="--step:4" stroke-width="1.5"/>
-        <path data-edge-from="r_shared" data-edge-to="s_validators" data-edge-key="19" data-tree-ancestors="r_shared renderers skill repo" data-composition-points="279,468;279,760.5;295,760.5" d="M 279 468 L 279 752.5 Q 279 760.5 287 760.5 L 295 760.5" class="a-default tree-edge" data-animate="edge" style="--step:4" stroke-width="1.5"/>
-        <path data-edge-from="bin" data-edge-to="b_archify" data-edge-key="20" data-tree-ancestors="bin skill repo" data-composition-points="762,353;762,438.5;778,438.5" d="M 762 353 L 762 430.5 Q 762 438.5 770 438.5 L 778 438.5" class="a-default tree-edge" data-animate="edge" style="--step:3" stroke-width="1.5"/>
-        <path data-edge-from="bin" data-edge-to="b_finalize" data-edge-key="21" data-tree-ancestors="bin skill repo" data-composition-points="762,353;762,507.5;778,507.5" d="M 762 353 L 762 499.5 Q 762 507.5 770 507.5 L 778 507.5" class="a-default tree-edge" data-animate="edge" style="--step:3" stroke-width="1.5"/>
-        <path data-edge-from="bin" data-edge-to="b_preview" data-edge-key="22" data-tree-ancestors="bin skill repo" data-composition-points="762,353;762,576.5;778,576.5" d="M 762 353 L 762 568.5 Q 762 576.5 770 576.5 L 778 576.5" class="a-default tree-edge" data-animate="edge" style="--step:3" stroke-width="1.5"/>
-        <path data-edge-from="viewer" data-edge-to="v_focus" data-edge-key="23" data-tree-ancestors="viewer repo" data-composition-points="1194,238;1194,323.5;1210,323.5" d="M 1194 238 L 1194 315.5 Q 1194 323.5 1202 323.5 L 1210 323.5" class="a-default tree-edge" data-animate="edge" style="--step:2" stroke-width="1.5"/>
-        <path data-edge-from="viewer" data-edge-to="v_export" data-edge-key="24" data-tree-ancestors="viewer repo" data-composition-points="1194,238;1194,392.5;1210,392.5" d="M 1194 238 L 1194 384.5 Q 1194 392.5 1202 392.5 L 1210 392.5" class="a-default tree-edge" data-animate="edge" style="--step:2" stroke-width="1.5"/>
-        <path data-edge-from="viewer" data-edge-to="v_tree" data-edge-key="25" data-tree-ancestors="viewer repo" data-composition-points="1194,238;1194,461.5;1210,461.5" d="M 1194 238 L 1194 453.5 Q 1194 461.5 1202 461.5 L 1210 461.5" class="a-default tree-edge" data-animate="edge" style="--step:2" stroke-width="1.5"/>
-        <path data-edge-from="viewer" data-edge-to="v_camera" data-edge-key="26" data-tree-ancestors="viewer repo" data-composition-points="1194,238;1194,530.5;1210,530.5" d="M 1194 238 L 1194 522.5 Q 1194 530.5 1202 530.5 L 1210 530.5" class="a-default tree-edge" data-animate="edge" style="--step:2" stroke-width="1.5"/>
-        <path data-edge-from="scripts" data-edge-to="sc_viewer" data-edge-key="27" data-tree-ancestors="scripts repo" data-composition-points="1605,238;1605,323.5;1621,323.5" d="M 1605 238 L 1605 315.5 Q 1605 323.5 1613 323.5 L 1621 323.5" class="a-default tree-edge" data-animate="edge" style="--step:2" stroke-width="1.5"/>
-        <path data-edge-from="scripts" data-edge-to="sc_zip" data-edge-key="28" data-tree-ancestors="scripts repo" data-composition-points="1605,238;1605,392.5;1621,392.5" d="M 1605 238 L 1605 384.5 Q 1605 392.5 1613 392.5 L 1621 392.5" class="a-default tree-edge" data-animate="edge" style="--step:2" stroke-width="1.5"/>
-        <path data-edge-from="scripts" data-edge-to="sc_gallery" data-edge-key="29" data-tree-ancestors="scripts repo" data-composition-points="1605,238;1605,461.5;1621,461.5" d="M 1605 238 L 1605 453.5 Q 1605 461.5 1613 461.5 L 1621 461.5" class="a-default tree-edge" data-animate="edge" style="--step:2" stroke-width="1.5"/>
+        <path data-edge-from="repo" data-edge-to="skill" data-edge-key="0" data-tree-ancestors="repo" data-composition-points="1157,123;1157,151;632.5,151;632.5,179" d="M 1157 123 L 1157 141 Q 1157 151 1147 151 L 642.5 151 Q 632.5 151 632.5 161 L 632.5 179" class="a-default tree-edge tree-edge-trunk" data-animate="edge" style="--step:1" stroke-width="1.8"/>
+        <path data-edge-from="repo" data-edge-to="viewer" data-edge-key="1" data-tree-ancestors="repo" data-composition-points="1157,123;1157,151;1269.5,151;1269.5,179" d="M 1157 123 L 1157 141 Q 1157 151 1167 151 L 1259.5 151 Q 1269.5 151 1269.5 161 L 1269.5 179" class="a-default tree-edge tree-edge-trunk" data-animate="edge" style="--step:1" stroke-width="1.8"/>
+        <path data-edge-from="repo" data-edge-to="site" data-edge-key="2" data-tree-ancestors="repo" data-composition-points="1157,123;1157,151;1481,151;1481,179" d="M 1157 123 L 1157 141 Q 1157 151 1167 151 L 1471 151 Q 1481 151 1481 161 L 1481 179" class="a-default tree-edge tree-edge-trunk" data-animate="edge" style="--step:1" stroke-width="1.8"/>
+        <path data-edge-from="repo" data-edge-to="scripts" data-edge-key="3" data-tree-ancestors="repo" data-composition-points="1157,123;1157,151;1680.5,151;1680.5,179" d="M 1157 123 L 1157 141 Q 1157 151 1167 151 L 1670.5 151 Q 1680.5 151 1680.5 161 L 1680.5 179" class="a-default tree-edge tree-edge-trunk" data-animate="edge" style="--step:1" stroke-width="1.8"/>
+        <path data-edge-from="skill" data-edge-to="renderers" data-edge-key="4" data-tree-ancestors="skill repo" data-composition-points="632.5,238;632.5,266;186,266;186,294" d="M 632.5 238 L 632.5 256 Q 632.5 266 622.5 266 L 196 266 Q 186 266 186 276 L 186 294" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:2" stroke-width="1.5"/>
+        <path data-edge-from="skill" data-edge-to="schemas" data-edge-key="5" data-tree-ancestors="skill repo" data-composition-points="632,238;632,294" d="M 632 238 L 632 294" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:2" stroke-width="1.5"/>
+        <path data-edge-from="skill" data-edge-to="bin" data-edge-key="6" data-tree-ancestors="skill repo" data-composition-points="632.5,238;632.5,266;810,266;810,294" d="M 632.5 238 L 632.5 256 Q 632.5 266 642.5 266 L 800 266 Q 810 266 810 276 L 810 294" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:2" stroke-width="1.5"/>
+        <path data-edge-from="skill" data-edge-to="references" data-edge-key="7" data-tree-ancestors="skill repo" data-composition-points="632.5,238;632.5,266;1066,266;1066,294" d="M 632.5 238 L 632.5 256 Q 632.5 266 642.5 266 L 1056 266 Q 1066 266 1066 276 L 1066 294" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:2" stroke-width="1.5"/>
+        <path data-edge-from="renderers" data-edge-to="r_arch" data-edge-key="8" data-tree-ancestors="renderers skill repo" data-composition-points="186,353;186,381;44,381;44,438.5;60,438.5" d="M 186 353 L 186 371 Q 186 381 176 381 L 54 381 Q 44 381 44 391 L 44 430.5 Q 44 438.5 52 438.5 L 60 438.5" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:3" stroke-width="1.5"/>
+        <path data-edge-from="renderers" data-edge-to="r_workflow" data-edge-key="9" data-tree-ancestors="renderers skill repo" data-composition-points="186,353;186,381;44,381;44,507.5;60,507.5" d="M 186 353 L 186 371 Q 186 381 176 381 L 54 381 Q 44 381 44 391 L 44 499.5 Q 44 507.5 52 507.5 L 60 507.5" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:3" stroke-width="1.5"/>
+        <path data-edge-from="renderers" data-edge-to="r_sequence" data-edge-key="10" data-tree-ancestors="renderers skill repo" data-composition-points="186,353;186,381;44,381;44,576.5;60,576.5" d="M 186 353 L 186 371 Q 186 381 176 381 L 54 381 Q 44 381 44 391 L 44 568.5 Q 44 576.5 52 576.5 L 60 576.5" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:3" stroke-width="1.5"/>
+        <path data-edge-from="renderers" data-edge-to="r_dataflow" data-edge-key="11" data-tree-ancestors="renderers skill repo" data-composition-points="186,353;186,381;44,381;44,645.5;60,645.5" d="M 186 353 L 186 371 Q 186 381 176 381 L 54 381 Q 44 381 44 391 L 44 637.5 Q 44 645.5 52 645.5 L 60 645.5" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:3" stroke-width="1.5"/>
+        <path data-edge-from="renderers" data-edge-to="r_lifecycle" data-edge-key="12" data-tree-ancestors="renderers skill repo" data-composition-points="186,353;186,381;44,381;44,714.5;60,714.5" d="M 186 353 L 186 371 Q 186 381 176 381 L 54 381 Q 44 381 44 391 L 44 706.5 Q 44 714.5 52 714.5 L 60 714.5" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:3" stroke-width="1.5"/>
+        <path data-edge-from="renderers" data-edge-to="r_erd" data-edge-key="13" data-tree-ancestors="renderers skill repo" data-composition-points="186,353;186,381;44,381;44,783.5;60,783.5" d="M 186 353 L 186 371 Q 186 381 176 381 L 54 381 Q 44 381 44 391 L 44 775.5 Q 44 783.5 52 783.5 L 60 783.5" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:3" stroke-width="1.5"/>
+        <path data-edge-from="renderers" data-edge-to="r_tree" data-edge-key="14" data-tree-ancestors="renderers skill repo" data-composition-points="186,353;186,381;44,381;44,852.5;60,852.5" d="M 186 353 L 186 371 Q 186 381 176 381 L 54 381 Q 44 381 44 391 L 44 844.5 Q 44 852.5 52 852.5 L 60 852.5" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:3" stroke-width="1.5"/>
+        <path data-edge-from="renderers" data-edge-to="r_shared" data-edge-key="15" data-tree-ancestors="renderers skill repo" data-composition-points="186,353;186,381;327,381;327,409" d="M 186 353 L 186 371 Q 186 381 196 381 L 317 381 Q 327 381 327 391 L 327 409" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:3" stroke-width="1.5"/>
+        <path data-edge-from="r_shared" data-edge-to="s_cli" data-edge-key="16" data-tree-ancestors="r_shared renderers skill repo" data-composition-points="279,468;279,553.5;295,553.5" d="M 279 468 L 279 545.5 Q 279 553.5 287 553.5 L 295 553.5" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:4" stroke-width="1.5"/>
+        <path data-edge-from="r_shared" data-edge-to="s_geometry" data-edge-key="17" data-tree-ancestors="r_shared renderers skill repo" data-composition-points="279,468;279,622.5;295,622.5" d="M 279 468 L 279 614.5 Q 279 622.5 287 622.5 L 295 622.5" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:4" stroke-width="1.5"/>
+        <path data-edge-from="r_shared" data-edge-to="s_i18n" data-edge-key="18" data-tree-ancestors="r_shared renderers skill repo" data-composition-points="279,468;279,691.5;295,691.5" d="M 279 468 L 279 683.5 Q 279 691.5 287 691.5 L 295 691.5" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:4" stroke-width="1.5"/>
+        <path data-edge-from="r_shared" data-edge-to="s_validators" data-edge-key="19" data-tree-ancestors="r_shared renderers skill repo" data-composition-points="279,468;279,760.5;295,760.5" d="M 279 468 L 279 752.5 Q 279 760.5 287 760.5 L 295 760.5" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:4" stroke-width="1.5"/>
+        <path data-edge-from="bin" data-edge-to="b_archify" data-edge-key="20" data-tree-ancestors="bin skill repo" data-composition-points="762,353;762,438.5;778,438.5" d="M 762 353 L 762 430.5 Q 762 438.5 770 438.5 L 778 438.5" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:3" stroke-width="1.5"/>
+        <path data-edge-from="bin" data-edge-to="b_finalize" data-edge-key="21" data-tree-ancestors="bin skill repo" data-composition-points="762,353;762,507.5;778,507.5" d="M 762 353 L 762 499.5 Q 762 507.5 770 507.5 L 778 507.5" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:3" stroke-width="1.5"/>
+        <path data-edge-from="bin" data-edge-to="b_preview" data-edge-key="22" data-tree-ancestors="bin skill repo" data-composition-points="762,353;762,576.5;778,576.5" d="M 762 353 L 762 568.5 Q 762 576.5 770 576.5 L 778 576.5" class="a-default tree-edge tree-edge-hued tree-hue-backend" data-animate="edge" style="--step:3" stroke-width="1.5"/>
+        <path data-edge-from="viewer" data-edge-to="v_focus" data-edge-key="23" data-tree-ancestors="viewer repo" data-composition-points="1194,238;1194,323.5;1210,323.5" d="M 1194 238 L 1194 315.5 Q 1194 323.5 1202 323.5 L 1210 323.5" class="a-default tree-edge tree-edge-hued tree-hue-database" data-animate="edge" style="--step:2" stroke-width="1.5"/>
+        <path data-edge-from="viewer" data-edge-to="v_export" data-edge-key="24" data-tree-ancestors="viewer repo" data-composition-points="1194,238;1194,392.5;1210,392.5" d="M 1194 238 L 1194 384.5 Q 1194 392.5 1202 392.5 L 1210 392.5" class="a-default tree-edge tree-edge-hued tree-hue-database" data-animate="edge" style="--step:2" stroke-width="1.5"/>
+        <path data-edge-from="viewer" data-edge-to="v_tree" data-edge-key="25" data-tree-ancestors="viewer repo" data-composition-points="1194,238;1194,461.5;1210,461.5" d="M 1194 238 L 1194 453.5 Q 1194 461.5 1202 461.5 L 1210 461.5" class="a-default tree-edge tree-edge-hued tree-hue-database" data-animate="edge" style="--step:2" stroke-width="1.5"/>
+        <path data-edge-from="viewer" data-edge-to="v_camera" data-edge-key="26" data-tree-ancestors="viewer repo" data-composition-points="1194,238;1194,530.5;1210,530.5" d="M 1194 238 L 1194 522.5 Q 1194 530.5 1202 530.5 L 1210 530.5" class="a-default tree-edge tree-edge-hued tree-hue-database" data-animate="edge" style="--step:2" stroke-width="1.5"/>
+        <path data-edge-from="scripts" data-edge-to="sc_viewer" data-edge-key="27" data-tree-ancestors="scripts repo" data-composition-points="1605,238;1605,323.5;1621,323.5" d="M 1605 238 L 1605 315.5 Q 1605 323.5 1613 323.5 L 1621 323.5" class="a-default tree-edge tree-edge-hued tree-hue-frontend" data-animate="edge" style="--step:2" stroke-width="1.5"/>
+        <path data-edge-from="scripts" data-edge-to="sc_zip" data-edge-key="28" data-tree-ancestors="scripts repo" data-composition-points="1605,238;1605,392.5;1621,392.5" d="M 1605 238 L 1605 384.5 Q 1605 392.5 1613 392.5 L 1621 392.5" class="a-default tree-edge tree-edge-hued tree-hue-frontend" data-animate="edge" style="--step:2" stroke-width="1.5"/>
+        <path data-edge-from="scripts" data-edge-to="sc_gallery" data-edge-key="29" data-tree-ancestors="scripts repo" data-composition-points="1605,238;1605,461.5;1621,461.5" d="M 1605 238 L 1605 453.5 Q 1605 461.5 1613 461.5 L 1621 461.5" class="a-default tree-edge tree-edge-hued tree-hue-frontend" data-animate="edge" style="--step:2" stroke-width="1.5"/>
 
         <!-- Nodes -->
-        <g id="node-repo" data-node-id="repo" data-node-label="archify repository" tabindex="0" role="button" aria-label="Focus archify repository, Skill, viewer, and site, Root" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="Skill, viewer, and site" data-node-context="Root" data-tree-depth="0">
+        <g id="node-repo" data-node-id="repo" data-node-label="archify repository" tabindex="0" role="button" aria-label="Focus archify repository, Skill, viewer, and site, Root" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="Skill, viewer, and site" data-node-context="Root" data-tree-depth="0" class="tree-hue-root">
           <title>archify repository · Skill, viewer, and site · Root</title>
-          <rect data-tree-stack="" x="1064" y="69" width="196" height="59" rx="8" class="tree-stack-frontend" stroke-width="1.2"/>
-          <rect x="1059" y="64" width="196" height="59" rx="8" class="c-mask"/>
-          <rect x="1059" y="64" width="196" height="59" rx="8" class="c-frontend" data-animate="node" style="--step:0" stroke-width="1.8"/>
-          <text data-node-label="" x="1157" class="t-primary" font-size="14.5" font-weight="750" text-anchor="middle"><tspan x="1157" y="88.5">archify repository</tspan></text>
-          <text data-detail="context" x="1157" class="t-muted" font-size="11" text-anchor="middle"><tspan x="1157" y="107.5">Skill, viewer, and site</tspan></text>
+          <rect data-tree-stack="" x="1064" y="69" width="196" height="59" rx="10" class="tree-stack-frontend" stroke-width="1.2"/>
+          <rect x="1059" y="64" width="196" height="59" rx="10" class="c-mask"/>
+          <rect x="1059" y="64" width="196" height="59" rx="10" class="c-frontend tree-root" data-animate="node" style="--step:0" stroke-width="0"/>
+
+
+          <text data-node-label="" x="1157" class="t-primary tree-label" font-size="14.5" font-weight="750" text-anchor="middle"><tspan x="1157" y="88.5">archify repository</tspan></text>
+          <text data-detail="context" x="1157" class="t-muted tree-sublabel" font-size="11" text-anchor="middle"><tspan x="1157" y="107.5">Skill, viewer, and site</tspan></text>
         </g>
-        <g id="node-skill" data-node-id="skill" data-node-label="archify/" tabindex="0" role="button" aria-label="Focus archify/, Installable Skill package, Branch" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Installable Skill package" data-node-context="Branch" data-tree-depth="1" data-tree-ancestors="repo">
+        <g id="node-skill" data-node-id="skill" data-node-label="archify/" tabindex="0" role="button" aria-label="Focus archify/, Installable Skill package, Branch" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Installable Skill package" data-node-context="Branch" data-tree-depth="1" data-tree-ancestors="repo" class="tree-hue-backend">
           <title>archify/ · Installable Skill package · Branch</title>
-          <rect data-tree-stack="" x="540" y="184" width="195" height="59" rx="8" class="tree-stack-backend" stroke-width="1.2"/>
-          <rect x="535" y="179" width="195" height="59" rx="8" class="c-mask"/>
-          <rect x="535" y="179" width="195" height="59" rx="8" class="c-backend" data-animate="node" style="--step:1" stroke-width="1.3"/>
-          <text data-node-label="" x="632.5" class="t-primary" font-size="13" font-weight="700" text-anchor="middle"><tspan x="632.5" y="203.5">archify/</tspan></text>
-          <text data-detail="context" x="632.5" class="t-muted" font-size="11" text-anchor="middle"><tspan x="632.5" y="222.5">Installable Skill package</tspan></text>
+          <rect data-tree-stack="" x="540" y="184" width="195" height="59" rx="10" class="tree-stack-backend" stroke-width="1.2"/>
+          <rect x="535" y="179" width="195" height="59" rx="10" class="c-mask"/>
+          <rect x="535" y="179" width="195" height="59" rx="10" class="c-backend tree-branch" data-animate="node" style="--step:1" stroke-width="1.2"/>
+
+          <circle cx="632.5" cy="179" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="632.5" class="t-primary tree-label" font-size="13" font-weight="700" text-anchor="middle"><tspan x="632.5" y="203.5">archify/</tspan></text>
+          <text data-detail="context" x="632.5" class="t-muted tree-sublabel" font-size="11" text-anchor="middle"><tspan x="632.5" y="222.5">Installable Skill package</tspan></text>
         </g>
-        <g id="node-viewer" data-node-id="viewer" data-node-label="viewer/" tabindex="0" role="button" aria-label="Focus viewer/, Inlined into the template, Branch" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Inlined into the template" data-node-context="Branch" data-tree-depth="1" data-tree-ancestors="repo">
+        <g id="node-viewer" data-node-id="viewer" data-node-label="viewer/" tabindex="0" role="button" aria-label="Focus viewer/, Inlined into the template, Branch" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Inlined into the template" data-node-context="Branch" data-tree-depth="1" data-tree-ancestors="repo" class="tree-hue-database">
           <title>viewer/ · Inlined into the template · Branch</title>
-          <rect data-tree-stack="" x="1177" y="184" width="195" height="59" rx="8" class="tree-stack-backend" stroke-width="1.2"/>
-          <rect x="1172" y="179" width="195" height="59" rx="8" class="c-mask"/>
-          <rect x="1172" y="179" width="195" height="59" rx="8" class="c-backend" data-animate="node" style="--step:1" stroke-width="1.3"/>
-          <text data-node-label="" x="1269.5" class="t-primary" font-size="13" font-weight="700" text-anchor="middle"><tspan x="1269.5" y="203.5">viewer/</tspan></text>
-          <text data-detail="context" x="1269.5" class="t-muted" font-size="11" text-anchor="middle"><tspan x="1269.5" y="222.5">Inlined into the template</tspan></text>
+          <rect data-tree-stack="" x="1177" y="184" width="195" height="59" rx="10" class="tree-stack-backend" stroke-width="1.2"/>
+          <rect x="1172" y="179" width="195" height="59" rx="10" class="c-mask"/>
+          <rect x="1172" y="179" width="195" height="59" rx="10" class="c-backend tree-branch" data-animate="node" style="--step:1" stroke-width="1.2"/>
+
+          <circle cx="1269.5" cy="179" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="1269.5" class="t-primary tree-label" font-size="13" font-weight="700" text-anchor="middle"><tspan x="1269.5" y="203.5">viewer/</tspan></text>
+          <text data-detail="context" x="1269.5" class="t-muted tree-sublabel" font-size="11" text-anchor="middle"><tspan x="1269.5" y="222.5">Inlined into the template</tspan></text>
         </g>
-        <g id="node-site" data-node-id="site" data-node-label="website/" tabindex="0" role="button" aria-label="Focus website/, Astro project site, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Astro project site" data-node-context="Leaf" data-tree-depth="1" data-tree-ancestors="repo">
+        <g id="node-site" data-node-id="site" data-node-label="website/" tabindex="0" role="button" aria-label="Focus website/, Astro project site, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Astro project site" data-node-context="Leaf" data-tree-depth="1" data-tree-ancestors="repo" class="tree-hue-cloud">
           <title>website/ · Astro project site · Leaf</title>
-          
-          <rect x="1407" y="179" width="148" height="59" rx="8" class="c-mask"/>
-          <rect x="1407" y="179" width="148" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:1" stroke-width="1.3"/>
-          <text data-node-label="" x="1481" class="t-primary" font-size="13" font-weight="600" text-anchor="middle"><tspan x="1481" y="203.5">website/</tspan></text>
-          <text data-detail="context" x="1481" class="t-muted" font-size="11" text-anchor="middle"><tspan x="1481" y="222.5">Astro project site</tspan></text>
+
+          <rect x="1407" y="179" width="148" height="59" rx="10" class="c-mask"/>
+          <rect x="1407" y="179" width="148" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:1" stroke-width="1"/>
+
+          <circle cx="1481" cy="179" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="1481" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="middle"><tspan x="1481" y="203.5">website/</tspan></text>
+          <text data-detail="context" x="1481" class="t-muted tree-sublabel" font-size="11" text-anchor="middle"><tspan x="1481" y="222.5">Astro project site</tspan></text>
         </g>
-        <g id="node-scripts" data-node-id="scripts" data-node-label="scripts/" tabindex="0" role="button" aria-label="Focus scripts/, Build and freshness tools, Branch" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Build and freshness tools" data-node-context="Branch" data-tree-depth="1" data-tree-ancestors="repo">
+        <g id="node-scripts" data-node-id="scripts" data-node-label="scripts/" tabindex="0" role="button" aria-label="Focus scripts/, Build and freshness tools, Branch" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Build and freshness tools" data-node-context="Branch" data-tree-depth="1" data-tree-ancestors="repo" class="tree-hue-frontend">
           <title>scripts/ · Build and freshness tools · Branch</title>
-          <rect data-tree-stack="" x="1588" y="184" width="195" height="59" rx="8" class="tree-stack-backend" stroke-width="1.2"/>
-          <rect x="1583" y="179" width="195" height="59" rx="8" class="c-mask"/>
-          <rect x="1583" y="179" width="195" height="59" rx="8" class="c-backend" data-animate="node" style="--step:1" stroke-width="1.3"/>
-          <text data-node-label="" x="1680.5" class="t-primary" font-size="13" font-weight="700" text-anchor="middle"><tspan x="1680.5" y="203.5">scripts/</tspan></text>
-          <text data-detail="context" x="1680.5" class="t-muted" font-size="11" text-anchor="middle"><tspan x="1680.5" y="222.5">Build and freshness tools</tspan></text>
+          <rect data-tree-stack="" x="1588" y="184" width="195" height="59" rx="10" class="tree-stack-backend" stroke-width="1.2"/>
+          <rect x="1583" y="179" width="195" height="59" rx="10" class="c-mask"/>
+          <rect x="1583" y="179" width="195" height="59" rx="10" class="c-backend tree-branch" data-animate="node" style="--step:1" stroke-width="1.2"/>
+
+          <circle cx="1680.5" cy="179" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="1680.5" class="t-primary tree-label" font-size="13" font-weight="700" text-anchor="middle"><tspan x="1680.5" y="203.5">scripts/</tspan></text>
+          <text data-detail="context" x="1680.5" class="t-muted tree-sublabel" font-size="11" text-anchor="middle"><tspan x="1680.5" y="222.5">Build and freshness tools</tspan></text>
         </g>
-        <g id="node-renderers" data-node-id="renderers" data-node-label="renderers/" tabindex="0" role="button" aria-label="Focus renderers/, One per diagram type, Branch" aria-pressed="false" data-node-kind="backend" data-node-sublabel="One per diagram type" data-node-context="Branch" data-tree-depth="2" data-tree-ancestors="skill repo">
+        <g id="node-renderers" data-node-id="renderers" data-node-label="renderers/" tabindex="0" role="button" aria-label="Focus renderers/, One per diagram type, Branch" aria-pressed="false" data-node-kind="backend" data-node-sublabel="One per diagram type" data-node-context="Branch" data-tree-depth="2" data-tree-ancestors="skill repo" class="tree-hue-backend">
           <title>renderers/ · One per diagram type · Branch</title>
-          <rect data-tree-stack="" x="111" y="299" width="160" height="59" rx="8" class="tree-stack-backend" stroke-width="1.2"/>
-          <rect x="106" y="294" width="160" height="59" rx="8" class="c-mask"/>
-          <rect x="106" y="294" width="160" height="59" rx="8" class="c-backend" data-animate="node" style="--step:2" stroke-width="1.3"/>
-          <text data-node-label="" x="186" class="t-primary" font-size="13" font-weight="700" text-anchor="middle"><tspan x="186" y="318.5">renderers/</tspan></text>
-          <text data-detail="context" x="186" class="t-muted" font-size="11" text-anchor="middle"><tspan x="186" y="337.5">One per diagram type</tspan></text>
+          <rect data-tree-stack="" x="111" y="299" width="160" height="59" rx="10" class="tree-stack-backend" stroke-width="1.2"/>
+          <rect x="106" y="294" width="160" height="59" rx="10" class="c-mask"/>
+          <rect x="106" y="294" width="160" height="59" rx="10" class="c-backend tree-branch" data-animate="node" style="--step:2" stroke-width="1.2"/>
+
+          <circle cx="186" cy="294" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="186" class="t-primary tree-label" font-size="13" font-weight="700" text-anchor="middle"><tspan x="186" y="318.5">renderers/</tspan></text>
+          <text data-detail="context" x="186" class="t-muted tree-sublabel" font-size="11" text-anchor="middle"><tspan x="186" y="337.5">One per diagram type</tspan></text>
         </g>
-        <g id="node-schemas" data-node-id="schemas" data-node-label="schemas/" tabindex="0" role="button" aria-label="Focus schemas/, Typed JSON contracts, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Typed JSON contracts" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="skill repo">
+        <g id="node-schemas" data-node-id="schemas" data-node-label="schemas/" tabindex="0" role="button" aria-label="Focus schemas/, Typed JSON contracts, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Typed JSON contracts" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="skill repo" class="tree-hue-backend">
           <title>schemas/ · Typed JSON contracts · Leaf</title>
-          
-          <rect x="552" y="294" width="160" height="59" rx="8" class="c-mask"/>
-          <rect x="552" y="294" width="160" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1.3"/>
-          <text data-node-label="" x="632" class="t-primary" font-size="13" font-weight="600" text-anchor="middle"><tspan x="632" y="318.5">schemas/</tspan></text>
-          <text data-detail="context" x="632" class="t-muted" font-size="11" text-anchor="middle"><tspan x="632" y="337.5">Typed JSON contracts</tspan></text>
+
+          <rect x="552" y="294" width="160" height="59" rx="10" class="c-mask"/>
+          <rect x="552" y="294" width="160" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1"/>
+
+          <circle cx="632" cy="294" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="632" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="middle"><tspan x="632" y="318.5">schemas/</tspan></text>
+          <text data-detail="context" x="632" class="t-muted tree-sublabel" font-size="11" text-anchor="middle"><tspan x="632" y="337.5">Typed JSON contracts</tspan></text>
         </g>
-        <g id="node-bin" data-node-id="bin" data-node-label="bin/" tabindex="0" role="button" aria-label="Focus bin/, CLI entry points, Branch" aria-pressed="false" data-node-kind="backend" data-node-sublabel="CLI entry points" data-node-context="Branch" data-tree-depth="2" data-tree-ancestors="skill repo">
+        <g id="node-bin" data-node-id="bin" data-node-label="bin/" tabindex="0" role="button" aria-label="Focus bin/, CLI entry points, Branch" aria-pressed="false" data-node-kind="backend" data-node-sublabel="CLI entry points" data-node-context="Branch" data-tree-depth="2" data-tree-ancestors="skill repo" class="tree-hue-backend">
           <title>bin/ · CLI entry points · Branch</title>
-          <rect data-tree-stack="" x="745" y="299" width="140" height="59" rx="8" class="tree-stack-backend" stroke-width="1.2"/>
-          <rect x="740" y="294" width="140" height="59" rx="8" class="c-mask"/>
-          <rect x="740" y="294" width="140" height="59" rx="8" class="c-backend" data-animate="node" style="--step:2" stroke-width="1.3"/>
-          <text data-node-label="" x="810" class="t-primary" font-size="13" font-weight="700" text-anchor="middle"><tspan x="810" y="318.5">bin/</tspan></text>
-          <text data-detail="context" x="810" class="t-muted" font-size="11" text-anchor="middle"><tspan x="810" y="337.5">CLI entry points</tspan></text>
+          <rect data-tree-stack="" x="745" y="299" width="140" height="59" rx="10" class="tree-stack-backend" stroke-width="1.2"/>
+          <rect x="740" y="294" width="140" height="59" rx="10" class="c-mask"/>
+          <rect x="740" y="294" width="140" height="59" rx="10" class="c-backend tree-branch" data-animate="node" style="--step:2" stroke-width="1.2"/>
+
+          <circle cx="810" cy="294" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="810" class="t-primary tree-label" font-size="13" font-weight="700" text-anchor="middle"><tspan x="810" y="318.5">bin/</tspan></text>
+          <text data-detail="context" x="810" class="t-muted tree-sublabel" font-size="11" text-anchor="middle"><tspan x="810" y="337.5">CLI entry points</tspan></text>
         </g>
-        <g id="node-references" data-node-id="references" data-node-label="references/" tabindex="0" role="button" aria-label="Focus references/, Authoring contracts, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Authoring contracts" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="skill repo">
+        <g id="node-references" data-node-id="references" data-node-label="references/" tabindex="0" role="button" aria-label="Focus references/, Authoring contracts, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Authoring contracts" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="skill repo" class="tree-hue-backend">
           <title>references/ · Authoring contracts · Leaf</title>
-          
-          <rect x="988" y="294" width="156" height="59" rx="8" class="c-mask"/>
-          <rect x="988" y="294" width="156" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1.3"/>
-          <text data-node-label="" x="1066" class="t-primary" font-size="13" font-weight="600" text-anchor="middle"><tspan x="1066" y="318.5">references/</tspan></text>
-          <text data-detail="context" x="1066" class="t-muted" font-size="11" text-anchor="middle"><tspan x="1066" y="337.5">Authoring contracts</tspan></text>
+
+          <rect x="988" y="294" width="156" height="59" rx="10" class="c-mask"/>
+          <rect x="988" y="294" width="156" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1"/>
+
+          <circle cx="1066" cy="294" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="1066" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="middle"><tspan x="1066" y="318.5">references/</tspan></text>
+          <text data-detail="context" x="1066" class="t-muted tree-sublabel" font-size="11" text-anchor="middle"><tspan x="1066" y="337.5">Authoring contracts</tspan></text>
         </g>
-        <g id="node-r_arch" data-node-id="r_arch" data-node-label="architecture/" tabindex="0" role="button" aria-label="Focus architecture/, Boundaries and router, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Boundaries and router" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="renderers skill repo">
+        <g id="node-r_arch" data-node-id="r_arch" data-node-label="architecture/" tabindex="0" role="button" aria-label="Focus architecture/, Boundaries and router, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Boundaries and router" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="renderers skill repo" class="tree-hue-backend">
           <title>architecture/ · Boundaries and router · Leaf</title>
-          
-          <rect x="60" y="409" width="169" height="59" rx="8" class="c-mask"/>
-          <rect x="60" y="409" width="169" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1.3"/>
-          <text data-node-label="" x="74" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="74" y="433.5">architecture/</tspan></text>
-          <text data-detail="context" x="74" class="t-muted" font-size="11" text-anchor="start"><tspan x="74" y="452.5">Boundaries and router</tspan></text>
+
+          <rect x="60" y="409" width="169" height="59" rx="10" class="c-mask"/>
+          <rect x="60" y="409" width="169" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1"/>
+          <path class="tree-accent" d="M 64.5 418 V 459" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="60" cy="438.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="76" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="76" y="433.5">architecture/</tspan></text>
+          <text data-detail="context" x="76" class="t-muted tree-sublabel" font-size="11" text-anchor="start"><tspan x="76" y="452.5">Boundaries and router</tspan></text>
         </g>
-        <g id="node-r_workflow" data-node-id="r_workflow" data-node-label="workflow/" tabindex="0" role="button" aria-label="Focus workflow/, Workflow compiler, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Workflow compiler" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="renderers skill repo">
+        <g id="node-r_workflow" data-node-id="r_workflow" data-node-label="workflow/" tabindex="0" role="button" aria-label="Focus workflow/, Workflow compiler, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Workflow compiler" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="renderers skill repo" class="tree-hue-backend">
           <title>workflow/ · Workflow compiler · Leaf</title>
-          
-          <rect x="60" y="478" width="169" height="59" rx="8" class="c-mask"/>
-          <rect x="60" y="478" width="169" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1.3"/>
-          <text data-node-label="" x="74" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="74" y="502.5">workflow/</tspan></text>
-          <text data-detail="context" x="74" class="t-muted" font-size="11" text-anchor="start"><tspan x="74" y="521.5">Workflow compiler</tspan></text>
+
+          <rect x="60" y="478" width="169" height="59" rx="10" class="c-mask"/>
+          <rect x="60" y="478" width="169" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1"/>
+          <path class="tree-accent" d="M 64.5 487 V 528" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="60" cy="507.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="76" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="76" y="502.5">workflow/</tspan></text>
+          <text data-detail="context" x="76" class="t-muted tree-sublabel" font-size="11" text-anchor="start"><tspan x="76" y="521.5">Workflow compiler</tspan></text>
         </g>
-        <g id="node-r_sequence" data-node-id="r_sequence" data-node-label="sequence/" tabindex="0" role="button" aria-label="Focus sequence/, Leaf" aria-pressed="false" data-node-kind="external" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="renderers skill repo">
+        <g id="node-r_sequence" data-node-id="r_sequence" data-node-label="sequence/" tabindex="0" role="button" aria-label="Focus sequence/, Leaf" aria-pressed="false" data-node-kind="external" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="renderers skill repo" class="tree-hue-backend">
           <title>sequence/ · Leaf</title>
-          
-          <rect x="60" y="547" width="169" height="59" rx="8" class="c-mask"/>
-          <rect x="60" y="547" width="169" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1.3"/>
-          <text data-node-label="" x="74" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="74" y="580.5">sequence/</tspan></text>
-          
+
+          <rect x="60" y="547" width="169" height="59" rx="10" class="c-mask"/>
+          <rect x="60" y="547" width="169" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1"/>
+          <path class="tree-accent" d="M 64.5 556 V 597" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="60" cy="576.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="76" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="76" y="580.5">sequence/</tspan></text>
+
         </g>
-        <g id="node-r_dataflow" data-node-id="r_dataflow" data-node-label="dataflow/" tabindex="0" role="button" aria-label="Focus dataflow/, Leaf" aria-pressed="false" data-node-kind="external" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="renderers skill repo">
+        <g id="node-r_dataflow" data-node-id="r_dataflow" data-node-label="dataflow/" tabindex="0" role="button" aria-label="Focus dataflow/, Leaf" aria-pressed="false" data-node-kind="external" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="renderers skill repo" class="tree-hue-backend">
           <title>dataflow/ · Leaf</title>
-          
-          <rect x="60" y="616" width="169" height="59" rx="8" class="c-mask"/>
-          <rect x="60" y="616" width="169" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1.3"/>
-          <text data-node-label="" x="74" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="74" y="649.5">dataflow/</tspan></text>
-          
+
+          <rect x="60" y="616" width="169" height="59" rx="10" class="c-mask"/>
+          <rect x="60" y="616" width="169" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1"/>
+          <path class="tree-accent" d="M 64.5 625 V 666" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="60" cy="645.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="76" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="76" y="649.5">dataflow/</tspan></text>
+
         </g>
-        <g id="node-r_lifecycle" data-node-id="r_lifecycle" data-node-label="lifecycle/" tabindex="0" role="button" aria-label="Focus lifecycle/, Leaf" aria-pressed="false" data-node-kind="external" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="renderers skill repo">
+        <g id="node-r_lifecycle" data-node-id="r_lifecycle" data-node-label="lifecycle/" tabindex="0" role="button" aria-label="Focus lifecycle/, Leaf" aria-pressed="false" data-node-kind="external" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="renderers skill repo" class="tree-hue-backend">
           <title>lifecycle/ · Leaf</title>
-          
-          <rect x="60" y="685" width="169" height="59" rx="8" class="c-mask"/>
-          <rect x="60" y="685" width="169" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1.3"/>
-          <text data-node-label="" x="74" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="74" y="718.5">lifecycle/</tspan></text>
-          
+
+          <rect x="60" y="685" width="169" height="59" rx="10" class="c-mask"/>
+          <rect x="60" y="685" width="169" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1"/>
+          <path class="tree-accent" d="M 64.5 694 V 735" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="60" cy="714.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="76" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="76" y="718.5">lifecycle/</tspan></text>
+
         </g>
-        <g id="node-r_erd" data-node-id="r_erd" data-node-label="erd/" tabindex="0" role="button" aria-label="Focus erd/, Crow&#39;s foot markers, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Crow&#39;s foot markers" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="renderers skill repo">
+        <g id="node-r_erd" data-node-id="r_erd" data-node-label="erd/" tabindex="0" role="button" aria-label="Focus erd/, Crow&#39;s foot markers, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Crow&#39;s foot markers" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="renderers skill repo" class="tree-hue-backend">
           <title>erd/ · Crow&#39;s foot markers · Leaf</title>
-          
-          <rect x="60" y="754" width="169" height="59" rx="8" class="c-mask"/>
-          <rect x="60" y="754" width="169" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1.3"/>
-          <text data-node-label="" x="74" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="74" y="778.5">erd/</tspan></text>
-          <text data-detail="context" x="74" class="t-muted" font-size="11" text-anchor="start"><tspan x="74" y="797.5">Crow&#39;s foot markers</tspan></text>
+
+          <rect x="60" y="754" width="169" height="59" rx="10" class="c-mask"/>
+          <rect x="60" y="754" width="169" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1"/>
+          <path class="tree-accent" d="M 64.5 763 V 804" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="60" cy="783.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="76" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="76" y="778.5">erd/</tspan></text>
+          <text data-detail="context" x="76" class="t-muted tree-sublabel" font-size="11" text-anchor="start"><tspan x="76" y="797.5">Crow&#39;s foot markers</tspan></text>
         </g>
-        <g id="node-r_tree" data-node-id="r_tree" data-node-label="tree/" tabindex="0" role="button" aria-label="Focus tree/, This renderer, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="This renderer" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="renderers skill repo">
+        <g id="node-r_tree" data-node-id="r_tree" data-node-label="tree/" tabindex="0" role="button" aria-label="Focus tree/, This renderer, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="This renderer" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="renderers skill repo" class="tree-hue-backend">
           <title>tree/ · This renderer · Leaf</title>
-          
-          <rect x="60" y="823" width="169" height="59" rx="8" class="c-mask"/>
-          <rect x="60" y="823" width="169" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1.3"/>
-          <text data-node-label="" x="74" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="74" y="847.5">tree/</tspan></text>
-          <text data-detail="context" x="74" class="t-muted" font-size="11" text-anchor="start"><tspan x="74" y="866.5">This renderer</tspan></text>
+
+          <rect x="60" y="823" width="169" height="59" rx="10" class="c-mask"/>
+          <rect x="60" y="823" width="169" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1"/>
+          <path class="tree-accent" d="M 64.5 832 V 873" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="60" cy="852.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="76" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="76" y="847.5">tree/</tspan></text>
+          <text data-detail="context" x="76" class="t-muted tree-sublabel" font-size="11" text-anchor="start"><tspan x="76" y="866.5">This renderer</tspan></text>
         </g>
-        <g id="node-r_shared" data-node-id="r_shared" data-node-label="shared/" tabindex="0" role="button" aria-label="Focus shared/, Shared helpers, Branch" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Shared helpers" data-node-context="Branch" data-tree-depth="3" data-tree-ancestors="renderers skill repo">
+        <g id="node-r_shared" data-node-id="r_shared" data-node-label="shared/" tabindex="0" role="button" aria-label="Focus shared/, Shared helpers, Branch" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Shared helpers" data-node-context="Branch" data-tree-depth="3" data-tree-ancestors="renderers skill repo" class="tree-hue-backend">
           <title>shared/ · Shared helpers · Branch</title>
-          <rect data-tree-stack="" x="262" y="414" width="140" height="59" rx="8" class="tree-stack-backend" stroke-width="1.2"/>
-          <rect x="257" y="409" width="140" height="59" rx="8" class="c-mask"/>
-          <rect x="257" y="409" width="140" height="59" rx="8" class="c-backend" data-animate="node" style="--step:3" stroke-width="1.3"/>
-          <text data-node-label="" x="327" class="t-primary" font-size="13" font-weight="700" text-anchor="middle"><tspan x="327" y="433.5">shared/</tspan></text>
-          <text data-detail="context" x="327" class="t-muted" font-size="11" text-anchor="middle"><tspan x="327" y="452.5">Shared helpers</tspan></text>
+          <rect data-tree-stack="" x="262" y="414" width="140" height="59" rx="10" class="tree-stack-backend" stroke-width="1.2"/>
+          <rect x="257" y="409" width="140" height="59" rx="10" class="c-mask"/>
+          <rect x="257" y="409" width="140" height="59" rx="10" class="c-backend tree-branch" data-animate="node" style="--step:3" stroke-width="1.2"/>
+
+          <circle cx="327" cy="409" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="327" class="t-primary tree-label" font-size="13" font-weight="700" text-anchor="middle"><tspan x="327" y="433.5">shared/</tspan></text>
+          <text data-detail="context" x="327" class="t-muted tree-sublabel" font-size="11" text-anchor="middle"><tspan x="327" y="452.5">Shared helpers</tspan></text>
         </g>
-        <g id="node-s_cli" data-node-id="s_cli" data-node-label="cli.mjs" tabindex="0" role="button" aria-label="Focus cli.mjs, Load, validate, write, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Load, validate, write" data-node-context="Leaf" data-tree-depth="4" data-tree-ancestors="r_shared renderers skill repo">
+        <g id="node-s_cli" data-node-id="s_cli" data-node-label="cli.mjs" tabindex="0" role="button" aria-label="Focus cli.mjs, Load, validate, write, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Load, validate, write" data-node-context="Leaf" data-tree-depth="4" data-tree-ancestors="r_shared renderers skill repo" class="tree-hue-backend">
           <title>cli.mjs · Load, validate, write · Leaf</title>
-          
-          <rect x="295" y="524" width="229" height="59" rx="8" class="c-mask"/>
-          <rect x="295" y="524" width="229" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:4" stroke-width="1.3"/>
-          <text data-node-label="" x="309" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="309" y="548.5">cli.mjs</tspan></text>
-          <text data-detail="context" x="309" class="t-muted" font-size="11" text-anchor="start"><tspan x="309" y="567.5">Load, validate, write</tspan></text>
+
+          <rect x="295" y="524" width="229" height="59" rx="10" class="c-mask"/>
+          <rect x="295" y="524" width="229" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:4" stroke-width="1"/>
+          <path class="tree-accent" d="M 299.5 533 V 574" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="295" cy="553.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="311" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="311" y="548.5">cli.mjs</tspan></text>
+          <text data-detail="context" x="311" class="t-muted tree-sublabel" font-size="11" text-anchor="start"><tspan x="311" y="567.5">Load, validate, write</tspan></text>
         </g>
-        <g id="node-s_geometry" data-node-id="s_geometry" data-node-label="geometry.mjs" tabindex="0" role="button" aria-label="Focus geometry.mjs, Composition gates, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Composition gates" data-node-context="Leaf" data-tree-depth="4" data-tree-ancestors="r_shared renderers skill repo">
+        <g id="node-s_geometry" data-node-id="s_geometry" data-node-label="geometry.mjs" tabindex="0" role="button" aria-label="Focus geometry.mjs, Composition gates, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Composition gates" data-node-context="Leaf" data-tree-depth="4" data-tree-ancestors="r_shared renderers skill repo" class="tree-hue-backend">
           <title>geometry.mjs · Composition gates · Leaf</title>
-          
-          <rect x="295" y="593" width="229" height="59" rx="8" class="c-mask"/>
-          <rect x="295" y="593" width="229" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:4" stroke-width="1.3"/>
-          <text data-node-label="" x="309" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="309" y="617.5">geometry.mjs</tspan></text>
-          <text data-detail="context" x="309" class="t-muted" font-size="11" text-anchor="start"><tspan x="309" y="636.5">Composition gates</tspan></text>
+
+          <rect x="295" y="593" width="229" height="59" rx="10" class="c-mask"/>
+          <rect x="295" y="593" width="229" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:4" stroke-width="1"/>
+          <path class="tree-accent" d="M 299.5 602 V 643" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="295" cy="622.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="311" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="311" y="617.5">geometry.mjs</tspan></text>
+          <text data-detail="context" x="311" class="t-muted tree-sublabel" font-size="11" text-anchor="start"><tspan x="311" y="636.5">Composition gates</tspan></text>
         </g>
-        <g id="node-s_i18n" data-node-id="s_i18n" data-node-label="i18n.mjs" tabindex="0" role="button" aria-label="Focus i18n.mjs, Locale catalogs, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Locale catalogs" data-node-context="Leaf" data-tree-depth="4" data-tree-ancestors="r_shared renderers skill repo">
+        <g id="node-s_i18n" data-node-id="s_i18n" data-node-label="i18n.mjs" tabindex="0" role="button" aria-label="Focus i18n.mjs, Locale catalogs, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Locale catalogs" data-node-context="Leaf" data-tree-depth="4" data-tree-ancestors="r_shared renderers skill repo" class="tree-hue-backend">
           <title>i18n.mjs · Locale catalogs · Leaf</title>
-          
-          <rect x="295" y="662" width="229" height="59" rx="8" class="c-mask"/>
-          <rect x="295" y="662" width="229" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:4" stroke-width="1.3"/>
-          <text data-node-label="" x="309" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="309" y="686.5">i18n.mjs</tspan></text>
-          <text data-detail="context" x="309" class="t-muted" font-size="11" text-anchor="start"><tspan x="309" y="705.5">Locale catalogs</tspan></text>
+
+          <rect x="295" y="662" width="229" height="59" rx="10" class="c-mask"/>
+          <rect x="295" y="662" width="229" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:4" stroke-width="1"/>
+          <path class="tree-accent" d="M 299.5 671 V 712" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="295" cy="691.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="311" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="311" y="686.5">i18n.mjs</tspan></text>
+          <text data-detail="context" x="311" class="t-muted tree-sublabel" font-size="11" text-anchor="start"><tspan x="311" y="705.5">Locale catalogs</tspan></text>
         </g>
-        <g id="node-s_validators" data-node-id="s_validators" data-node-label="generated-validators.mjs" tabindex="0" role="button" aria-label="Focus generated-validators.mjs, Schema validators, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Schema validators" data-node-context="Leaf" data-tree-depth="4" data-tree-ancestors="r_shared renderers skill repo">
+        <g id="node-s_validators" data-node-id="s_validators" data-node-label="generated-validators.mjs" tabindex="0" role="button" aria-label="Focus generated-validators.mjs, Schema validators, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Schema validators" data-node-context="Leaf" data-tree-depth="4" data-tree-ancestors="r_shared renderers skill repo" class="tree-hue-backend">
           <title>generated-validators.mjs · Schema validators · Leaf</title>
-          
-          <rect x="295" y="731" width="229" height="59" rx="8" class="c-mask"/>
-          <rect x="295" y="731" width="229" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:4" stroke-width="1.3"/>
-          <text data-node-label="" x="309" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="309" y="755.5">generated-validators.mjs</tspan></text>
-          <text data-detail="context" x="309" class="t-muted" font-size="11" text-anchor="start"><tspan x="309" y="774.5">Schema validators</tspan></text>
+
+          <rect x="295" y="731" width="229" height="59" rx="10" class="c-mask"/>
+          <rect x="295" y="731" width="229" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:4" stroke-width="1"/>
+          <path class="tree-accent" d="M 299.5 740 V 781" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="295" cy="760.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="311" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="311" y="755.5">generated-validators.mjs</tspan></text>
+          <text data-detail="context" x="311" class="t-muted tree-sublabel" font-size="11" text-anchor="start"><tspan x="311" y="774.5">Schema validators</tspan></text>
         </g>
-        <g id="node-b_archify" data-node-id="b_archify" data-node-label="archify.mjs" tabindex="0" role="button" aria-label="Focus archify.mjs, CLI: validate, finalize, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="CLI: validate, finalize" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="bin skill repo">
+        <g id="node-b_archify" data-node-id="b_archify" data-node-label="archify.mjs" tabindex="0" role="button" aria-label="Focus archify.mjs, CLI: validate, finalize, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="CLI: validate, finalize" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="bin skill repo" class="tree-hue-backend">
           <title>archify.mjs · CLI: validate, finalize · Leaf</title>
-          
-          <rect x="778" y="409" width="182" height="59" rx="8" class="c-mask"/>
-          <rect x="778" y="409" width="182" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1.3"/>
-          <text data-node-label="" x="792" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="792" y="433.5">archify.mjs</tspan></text>
-          <text data-detail="context" x="792" class="t-muted" font-size="11" text-anchor="start"><tspan x="792" y="452.5">CLI: validate, finalize</tspan></text>
+
+          <rect x="778" y="409" width="182" height="59" rx="10" class="c-mask"/>
+          <rect x="778" y="409" width="182" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1"/>
+          <path class="tree-accent" d="M 782.5 418 V 459" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="778" cy="438.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="794" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="794" y="433.5">archify.mjs</tspan></text>
+          <text data-detail="context" x="794" class="t-muted tree-sublabel" font-size="11" text-anchor="start"><tspan x="794" y="452.5">CLI: validate, finalize</tspan></text>
         </g>
-        <g id="node-b_finalize" data-node-id="b_finalize" data-node-label="finalize.mjs" tabindex="0" role="button" aria-label="Focus finalize.mjs, Render, check, deliver, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Render, check, deliver" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="bin skill repo">
+        <g id="node-b_finalize" data-node-id="b_finalize" data-node-label="finalize.mjs" tabindex="0" role="button" aria-label="Focus finalize.mjs, Render, check, deliver, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Render, check, deliver" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="bin skill repo" class="tree-hue-backend">
           <title>finalize.mjs · Render, check, deliver · Leaf</title>
-          
-          <rect x="778" y="478" width="182" height="59" rx="8" class="c-mask"/>
-          <rect x="778" y="478" width="182" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1.3"/>
-          <text data-node-label="" x="792" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="792" y="502.5">finalize.mjs</tspan></text>
-          <text data-detail="context" x="792" class="t-muted" font-size="11" text-anchor="start"><tspan x="792" y="521.5">Render, check, deliver</tspan></text>
+
+          <rect x="778" y="478" width="182" height="59" rx="10" class="c-mask"/>
+          <rect x="778" y="478" width="182" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1"/>
+          <path class="tree-accent" d="M 782.5 487 V 528" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="778" cy="507.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="794" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="794" y="502.5">finalize.mjs</tspan></text>
+          <text data-detail="context" x="794" class="t-muted tree-sublabel" font-size="11" text-anchor="start"><tspan x="794" y="521.5">Render, check, deliver</tspan></text>
         </g>
-        <g id="node-b_preview" data-node-id="b_preview" data-node-label="preview.mjs" tabindex="0" role="button" aria-label="Focus preview.mjs, Live preview server, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Live preview server" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="bin skill repo">
+        <g id="node-b_preview" data-node-id="b_preview" data-node-label="preview.mjs" tabindex="0" role="button" aria-label="Focus preview.mjs, Live preview server, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Live preview server" data-node-context="Leaf" data-tree-depth="3" data-tree-ancestors="bin skill repo" class="tree-hue-backend">
           <title>preview.mjs · Live preview server · Leaf</title>
-          
-          <rect x="778" y="547" width="182" height="59" rx="8" class="c-mask"/>
-          <rect x="778" y="547" width="182" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1.3"/>
-          <text data-node-label="" x="792" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="792" y="571.5">preview.mjs</tspan></text>
-          <text data-detail="context" x="792" class="t-muted" font-size="11" text-anchor="start"><tspan x="792" y="590.5">Live preview server</tspan></text>
+
+          <rect x="778" y="547" width="182" height="59" rx="10" class="c-mask"/>
+          <rect x="778" y="547" width="182" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:3" stroke-width="1"/>
+          <path class="tree-accent" d="M 782.5 556 V 597" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="778" cy="576.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="794" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="794" y="571.5">preview.mjs</tspan></text>
+          <text data-detail="context" x="794" class="t-muted tree-sublabel" font-size="11" text-anchor="start"><tspan x="794" y="590.5">Live preview server</tspan></text>
         </g>
-        <g id="node-v_focus" data-node-id="v_focus" data-node-label="focus.js" tabindex="0" role="button" aria-label="Focus focus.js, Semantic passport, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Semantic passport" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="viewer repo">
+        <g id="node-v_focus" data-node-id="v_focus" data-node-label="focus.js" tabindex="0" role="button" aria-label="Focus focus.js, Semantic passport, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Semantic passport" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="viewer repo" class="tree-hue-database">
           <title>focus.js · Semantic passport · Leaf</title>
-          
-          <rect x="1210" y="294" width="169" height="59" rx="8" class="c-mask"/>
-          <rect x="1210" y="294" width="169" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1.3"/>
-          <text data-node-label="" x="1224" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="1224" y="318.5">focus.js</tspan></text>
-          <text data-detail="context" x="1224" class="t-muted" font-size="11" text-anchor="start"><tspan x="1224" y="337.5">Semantic passport</tspan></text>
+
+          <rect x="1210" y="294" width="169" height="59" rx="10" class="c-mask"/>
+          <rect x="1210" y="294" width="169" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1"/>
+          <path class="tree-accent" d="M 1214.5 303 V 344" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="1210" cy="323.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="1226" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="1226" y="318.5">focus.js</tspan></text>
+          <text data-detail="context" x="1226" class="t-muted tree-sublabel" font-size="11" text-anchor="start"><tspan x="1226" y="337.5">Semantic passport</tspan></text>
         </g>
-        <g id="node-v_export" data-node-id="v_export" data-node-label="export.js" tabindex="0" role="button" aria-label="Focus export.js, SVG, PNG, WebM export, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="SVG, PNG, WebM export" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="viewer repo">
+        <g id="node-v_export" data-node-id="v_export" data-node-label="export.js" tabindex="0" role="button" aria-label="Focus export.js, SVG, PNG, WebM export, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="SVG, PNG, WebM export" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="viewer repo" class="tree-hue-database">
           <title>export.js · SVG, PNG, WebM export · Leaf</title>
-          
-          <rect x="1210" y="363" width="169" height="59" rx="8" class="c-mask"/>
-          <rect x="1210" y="363" width="169" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1.3"/>
-          <text data-node-label="" x="1224" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="1224" y="387.5">export.js</tspan></text>
-          <text data-detail="context" x="1224" class="t-muted" font-size="11" text-anchor="start"><tspan x="1224" y="406.5">SVG, PNG, WebM export</tspan></text>
+
+          <rect x="1210" y="363" width="169" height="59" rx="10" class="c-mask"/>
+          <rect x="1210" y="363" width="169" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1"/>
+          <path class="tree-accent" d="M 1214.5 372 V 413" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="1210" cy="392.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="1226" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="1226" y="387.5">export.js</tspan></text>
+          <text data-detail="context" x="1226" class="t-muted tree-sublabel" font-size="11" text-anchor="start"><tspan x="1226" y="406.5">SVG, PNG, WebM export</tspan></text>
         </g>
-        <g id="node-v_tree" data-node-id="v_tree" data-node-label="tree-branches.js" tabindex="0" role="button" aria-label="Focus tree-branches.js, Expand and collapse, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Expand and collapse" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="viewer repo">
+        <g id="node-v_tree" data-node-id="v_tree" data-node-label="tree-branches.js" tabindex="0" role="button" aria-label="Focus tree-branches.js, Expand and collapse, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Expand and collapse" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="viewer repo" class="tree-hue-database">
           <title>tree-branches.js · Expand and collapse · Leaf</title>
-          
-          <rect x="1210" y="432" width="169" height="59" rx="8" class="c-mask"/>
-          <rect x="1210" y="432" width="169" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1.3"/>
-          <text data-node-label="" x="1224" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="1224" y="456.5">tree-branches.js</tspan></text>
-          <text data-detail="context" x="1224" class="t-muted" font-size="11" text-anchor="start"><tspan x="1224" y="475.5">Expand and collapse</tspan></text>
+
+          <rect x="1210" y="432" width="169" height="59" rx="10" class="c-mask"/>
+          <rect x="1210" y="432" width="169" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1"/>
+          <path class="tree-accent" d="M 1214.5 441 V 482" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="1210" cy="461.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="1226" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="1226" y="456.5">tree-branches.js</tspan></text>
+          <text data-detail="context" x="1226" class="t-muted tree-sublabel" font-size="11" text-anchor="start"><tspan x="1226" y="475.5">Expand and collapse</tspan></text>
         </g>
-        <g id="node-v_camera" data-node-id="v_camera" data-node-label="viewer-camera.js" tabindex="0" role="button" aria-label="Focus viewer-camera.js, Pan, zoom, reveal, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Pan, zoom, reveal" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="viewer repo">
+        <g id="node-v_camera" data-node-id="v_camera" data-node-label="viewer-camera.js" tabindex="0" role="button" aria-label="Focus viewer-camera.js, Pan, zoom, reveal, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Pan, zoom, reveal" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="viewer repo" class="tree-hue-database">
           <title>viewer-camera.js · Pan, zoom, reveal · Leaf</title>
-          
-          <rect x="1210" y="501" width="169" height="59" rx="8" class="c-mask"/>
-          <rect x="1210" y="501" width="169" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1.3"/>
-          <text data-node-label="" x="1224" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="1224" y="525.5">viewer-camera.js</tspan></text>
-          <text data-detail="context" x="1224" class="t-muted" font-size="11" text-anchor="start"><tspan x="1224" y="544.5">Pan, zoom, reveal</tspan></text>
+
+          <rect x="1210" y="501" width="169" height="59" rx="10" class="c-mask"/>
+          <rect x="1210" y="501" width="169" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1"/>
+          <path class="tree-accent" d="M 1214.5 510 V 551" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="1210" cy="530.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="1226" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="1226" y="525.5">viewer-camera.js</tspan></text>
+          <text data-detail="context" x="1226" class="t-muted tree-sublabel" font-size="11" text-anchor="start"><tspan x="1226" y="544.5">Pan, zoom, reveal</tspan></text>
         </g>
-        <g id="node-sc_viewer" data-node-id="sc_viewer" data-node-label="generate-viewer.mjs" tabindex="0" role="button" aria-label="Focus generate-viewer.mjs, Inlines viewer/, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Inlines viewer/" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="scripts repo">
+        <g id="node-sc_viewer" data-node-id="sc_viewer" data-node-label="generate-viewer.mjs" tabindex="0" role="button" aria-label="Focus generate-viewer.mjs, Inlines viewer/, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Inlines viewer/" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="scripts repo" class="tree-hue-frontend">
           <title>generate-viewer.mjs · Inlines viewer/ · Leaf</title>
-          
-          <rect x="1621" y="294" width="188" height="59" rx="8" class="c-mask"/>
-          <rect x="1621" y="294" width="188" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1.3"/>
-          <text data-node-label="" x="1635" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="1635" y="318.5">generate-viewer.mjs</tspan></text>
-          <text data-detail="context" x="1635" class="t-muted" font-size="11" text-anchor="start"><tspan x="1635" y="337.5">Inlines viewer/</tspan></text>
+
+          <rect x="1621" y="294" width="188" height="59" rx="10" class="c-mask"/>
+          <rect x="1621" y="294" width="188" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1"/>
+          <path class="tree-accent" d="M 1625.5 303 V 344" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="1621" cy="323.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="1637" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="1637" y="318.5">generate-viewer.mjs</tspan></text>
+          <text data-detail="context" x="1637" class="t-muted tree-sublabel" font-size="11" text-anchor="start"><tspan x="1637" y="337.5">Inlines viewer/</tspan></text>
         </g>
-        <g id="node-sc_zip" data-node-id="sc_zip" data-node-label="build-zip.sh" tabindex="0" role="button" aria-label="Focus build-zip.sh, Deterministic archive, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Deterministic archive" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="scripts repo">
+        <g id="node-sc_zip" data-node-id="sc_zip" data-node-label="build-zip.sh" tabindex="0" role="button" aria-label="Focus build-zip.sh, Deterministic archive, Leaf" aria-pressed="false" data-node-kind="external" data-node-sublabel="Deterministic archive" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="scripts repo" class="tree-hue-frontend">
           <title>build-zip.sh · Deterministic archive · Leaf</title>
-          
-          <rect x="1621" y="363" width="188" height="59" rx="8" class="c-mask"/>
-          <rect x="1621" y="363" width="188" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1.3"/>
-          <text data-node-label="" x="1635" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="1635" y="387.5">build-zip.sh</tspan></text>
-          <text data-detail="context" x="1635" class="t-muted" font-size="11" text-anchor="start"><tspan x="1635" y="406.5">Deterministic archive</tspan></text>
+
+          <rect x="1621" y="363" width="188" height="59" rx="10" class="c-mask"/>
+          <rect x="1621" y="363" width="188" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1"/>
+          <path class="tree-accent" d="M 1625.5 372 V 413" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="1621" cy="392.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="1637" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="1637" y="387.5">build-zip.sh</tspan></text>
+          <text data-detail="context" x="1637" class="t-muted tree-sublabel" font-size="11" text-anchor="start"><tspan x="1637" y="406.5">Deterministic archive</tspan></text>
         </g>
-        <g id="node-sc_gallery" data-node-id="sc_gallery" data-node-label="build-gallery.mjs" tabindex="0" role="button" aria-label="Focus build-gallery.mjs, Leaf" aria-pressed="false" data-node-kind="external" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="scripts repo">
+        <g id="node-sc_gallery" data-node-id="sc_gallery" data-node-label="build-gallery.mjs" tabindex="0" role="button" aria-label="Focus build-gallery.mjs, Leaf" aria-pressed="false" data-node-kind="external" data-node-context="Leaf" data-tree-depth="2" data-tree-ancestors="scripts repo" class="tree-hue-frontend">
           <title>build-gallery.mjs · Leaf</title>
-          
-          <rect x="1621" y="432" width="188" height="59" rx="8" class="c-mask"/>
-          <rect x="1621" y="432" width="188" height="59" rx="8" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1.3"/>
-          <text data-node-label="" x="1635" class="t-primary" font-size="13" font-weight="600" text-anchor="start"><tspan x="1635" y="465.5">build-gallery.mjs</tspan></text>
-          
+
+          <rect x="1621" y="432" width="188" height="59" rx="10" class="c-mask"/>
+          <rect x="1621" y="432" width="188" height="59" rx="10" class="c-external tree-leaf" data-animate="node" style="--step:2" stroke-width="1"/>
+          <path class="tree-accent" d="M 1625.5 441 V 482" stroke-width="3" stroke-linecap="round" fill="none"/>
+          <circle cx="1621" cy="461.5" r="2.6" class="tree-socket" stroke-width="1.4"/>
+          <text data-node-label="" x="1637" class="t-primary tree-label" font-size="13" font-weight="560" text-anchor="start"><tspan x="1637" y="465.5">build-gallery.mjs</tspan></text>
+
         </g>
 
         <!-- Branch toggles -->
-        <g data-tree-toggle="repo" data-tree-count="30" data-tree-label-collapse="Collapse archify repository (30 below)" data-tree-label-expand="Expand archify repository (30 hidden)" role="button" tabindex="0" aria-expanded="true" aria-label="Collapse archify repository (30 below)">
-          <circle cx="1157" cy="123" r="15" class="tree-toggle-hit"/>
-          <circle cx="1157" cy="123" r="9" class="tree-toggle-disc" stroke-width="1.4"/>
-          <path class="tree-toggle-glyph" d="M 1153 123 H 1161" stroke-width="1.6" stroke-linecap="round"/>
-          <path class="tree-toggle-glyph tree-toggle-plus" d="M 1157 119 V 127" stroke-width="1.6" stroke-linecap="round"/>
+        <g data-tree-toggle="repo" data-tree-count="30" data-tree-label-collapse="Collapse archify repository (30 below)" data-tree-label-expand="Expand archify repository (30 hidden)" role="button" tabindex="0" aria-expanded="true" aria-label="Collapse archify repository (30 below)" class="tree-hue-root">
+          <circle cx="1157" cy="123" r="14.5" class="tree-toggle-hit"/>
+          <circle cx="1157" cy="123" r="7.5" class="tree-toggle-disc" stroke-width="1.2"/>
+          <path class="tree-toggle-glyph" d="M 1153.85 123 H 1160.15" stroke-width="1.5" stroke-linecap="round"/>
+          <path class="tree-toggle-glyph tree-toggle-plus" d="M 1157 119.85 V 126.15" stroke-width="1.5" stroke-linecap="round"/>
           <g class="tree-toggle-count">
-            <rect x="1169" y="115.5" width="23.4" height="15" rx="7.5" class="tree-count-pill"/>
-            <text x="1180.7" y="126.6" class="t-primary" font-size="10" font-weight="700" text-anchor="middle">30</text>
+            <rect x="1167.5" y="115.5" width="23.4" height="15" rx="7.5" class="tree-count-pill"/>
+            <text x="1179.2" y="126.6" class="t-primary" font-size="10" font-weight="700" text-anchor="middle">30</text>
           </g>
         </g>
-        <g data-tree-toggle="skill" data-tree-count="19" data-tree-ancestors="repo" data-tree-label-collapse="Collapse archify/ (19 below)" data-tree-label-expand="Expand archify/ (19 hidden)" role="button" tabindex="0" aria-expanded="true" aria-label="Collapse archify/ (19 below)">
-          <circle cx="632.5" cy="238" r="15" class="tree-toggle-hit"/>
-          <circle cx="632.5" cy="238" r="9" class="tree-toggle-disc" stroke-width="1.4"/>
-          <path class="tree-toggle-glyph" d="M 628.5 238 H 636.5" stroke-width="1.6" stroke-linecap="round"/>
-          <path class="tree-toggle-glyph tree-toggle-plus" d="M 632.5 234 V 242" stroke-width="1.6" stroke-linecap="round"/>
+        <g data-tree-toggle="skill" data-tree-count="19" data-tree-ancestors="repo" data-tree-label-collapse="Collapse archify/ (19 below)" data-tree-label-expand="Expand archify/ (19 hidden)" role="button" tabindex="0" aria-expanded="true" aria-label="Collapse archify/ (19 below)" class="tree-hue-backend">
+          <circle cx="632.5" cy="238" r="14.5" class="tree-toggle-hit"/>
+          <circle cx="632.5" cy="238" r="7.5" class="tree-toggle-disc" stroke-width="1.2"/>
+          <path class="tree-toggle-glyph" d="M 629.35 238 H 635.65" stroke-width="1.5" stroke-linecap="round"/>
+          <path class="tree-toggle-glyph tree-toggle-plus" d="M 632.5 234.85 V 241.15" stroke-width="1.5" stroke-linecap="round"/>
           <g class="tree-toggle-count">
-            <rect x="644.5" y="230.5" width="23.4" height="15" rx="7.5" class="tree-count-pill"/>
-            <text x="656.2" y="241.6" class="t-primary" font-size="10" font-weight="700" text-anchor="middle">19</text>
+            <rect x="643" y="230.5" width="23.4" height="15" rx="7.5" class="tree-count-pill"/>
+            <text x="654.7" y="241.6" class="t-primary" font-size="10" font-weight="700" text-anchor="middle">19</text>
           </g>
         </g>
-        <g data-tree-toggle="viewer" data-tree-count="4" data-tree-ancestors="repo" data-tree-initially-collapsed="" data-tree-label-collapse="Collapse viewer/ (4 below)" data-tree-label-expand="Expand viewer/ (4 hidden)" role="button" tabindex="0" aria-expanded="true" aria-label="Collapse viewer/ (4 below)">
-          <circle cx="1194" cy="238" r="15" class="tree-toggle-hit"/>
-          <circle cx="1194" cy="238" r="9" class="tree-toggle-disc" stroke-width="1.4"/>
-          <path class="tree-toggle-glyph" d="M 1190 238 H 1198" stroke-width="1.6" stroke-linecap="round"/>
-          <path class="tree-toggle-glyph tree-toggle-plus" d="M 1194 234 V 242" stroke-width="1.6" stroke-linecap="round"/>
+        <g data-tree-toggle="viewer" data-tree-count="4" data-tree-ancestors="repo" data-tree-initially-collapsed="" data-tree-label-collapse="Collapse viewer/ (4 below)" data-tree-label-expand="Expand viewer/ (4 hidden)" role="button" tabindex="0" aria-expanded="true" aria-label="Collapse viewer/ (4 below)" class="tree-hue-database">
+          <circle cx="1194" cy="238" r="14.5" class="tree-toggle-hit"/>
+          <circle cx="1194" cy="238" r="7.5" class="tree-toggle-disc" stroke-width="1.2"/>
+          <path class="tree-toggle-glyph" d="M 1190.85 238 H 1197.15" stroke-width="1.5" stroke-linecap="round"/>
+          <path class="tree-toggle-glyph tree-toggle-plus" d="M 1194 234.85 V 241.15" stroke-width="1.5" stroke-linecap="round"/>
           <g class="tree-toggle-count">
-            <rect x="1206" y="230.5" width="17.2" height="15" rx="7.5" class="tree-count-pill"/>
-            <text x="1214.6" y="241.6" class="t-primary" font-size="10" font-weight="700" text-anchor="middle">4</text>
+            <rect x="1204.5" y="230.5" width="17.2" height="15" rx="7.5" class="tree-count-pill"/>
+            <text x="1213.1" y="241.6" class="t-primary" font-size="10" font-weight="700" text-anchor="middle">4</text>
           </g>
         </g>
-        <g data-tree-toggle="scripts" data-tree-count="3" data-tree-ancestors="repo" data-tree-label-collapse="Collapse scripts/ (3 below)" data-tree-label-expand="Expand scripts/ (3 hidden)" role="button" tabindex="0" aria-expanded="true" aria-label="Collapse scripts/ (3 below)">
-          <circle cx="1605" cy="238" r="15" class="tree-toggle-hit"/>
-          <circle cx="1605" cy="238" r="9" class="tree-toggle-disc" stroke-width="1.4"/>
-          <path class="tree-toggle-glyph" d="M 1601 238 H 1609" stroke-width="1.6" stroke-linecap="round"/>
-          <path class="tree-toggle-glyph tree-toggle-plus" d="M 1605 234 V 242" stroke-width="1.6" stroke-linecap="round"/>
+        <g data-tree-toggle="scripts" data-tree-count="3" data-tree-ancestors="repo" data-tree-label-collapse="Collapse scripts/ (3 below)" data-tree-label-expand="Expand scripts/ (3 hidden)" role="button" tabindex="0" aria-expanded="true" aria-label="Collapse scripts/ (3 below)" class="tree-hue-frontend">
+          <circle cx="1605" cy="238" r="14.5" class="tree-toggle-hit"/>
+          <circle cx="1605" cy="238" r="7.5" class="tree-toggle-disc" stroke-width="1.2"/>
+          <path class="tree-toggle-glyph" d="M 1601.85 238 H 1608.15" stroke-width="1.5" stroke-linecap="round"/>
+          <path class="tree-toggle-glyph tree-toggle-plus" d="M 1605 234.85 V 241.15" stroke-width="1.5" stroke-linecap="round"/>
           <g class="tree-toggle-count">
-            <rect x="1617" y="230.5" width="17.2" height="15" rx="7.5" class="tree-count-pill"/>
-            <text x="1625.6" y="241.6" class="t-primary" font-size="10" font-weight="700" text-anchor="middle">3</text>
+            <rect x="1615.5" y="230.5" width="17.2" height="15" rx="7.5" class="tree-count-pill"/>
+            <text x="1624.1" y="241.6" class="t-primary" font-size="10" font-weight="700" text-anchor="middle">3</text>
           </g>
         </g>
-        <g data-tree-toggle="renderers" data-tree-count="12" data-tree-ancestors="skill repo" data-tree-label-collapse="Collapse renderers/ (12 below)" data-tree-label-expand="Expand renderers/ (12 hidden)" role="button" tabindex="0" aria-expanded="true" aria-label="Collapse renderers/ (12 below)">
-          <circle cx="186" cy="353" r="15" class="tree-toggle-hit"/>
-          <circle cx="186" cy="353" r="9" class="tree-toggle-disc" stroke-width="1.4"/>
-          <path class="tree-toggle-glyph" d="M 182 353 H 190" stroke-width="1.6" stroke-linecap="round"/>
-          <path class="tree-toggle-glyph tree-toggle-plus" d="M 186 349 V 357" stroke-width="1.6" stroke-linecap="round"/>
+        <g data-tree-toggle="renderers" data-tree-count="12" data-tree-ancestors="skill repo" data-tree-label-collapse="Collapse renderers/ (12 below)" data-tree-label-expand="Expand renderers/ (12 hidden)" role="button" tabindex="0" aria-expanded="true" aria-label="Collapse renderers/ (12 below)" class="tree-hue-backend">
+          <circle cx="186" cy="353" r="14.5" class="tree-toggle-hit"/>
+          <circle cx="186" cy="353" r="7.5" class="tree-toggle-disc" stroke-width="1.2"/>
+          <path class="tree-toggle-glyph" d="M 182.85 353 H 189.15" stroke-width="1.5" stroke-linecap="round"/>
+          <path class="tree-toggle-glyph tree-toggle-plus" d="M 186 349.85 V 356.15" stroke-width="1.5" stroke-linecap="round"/>
           <g class="tree-toggle-count">
-            <rect x="198" y="345.5" width="23.4" height="15" rx="7.5" class="tree-count-pill"/>
-            <text x="209.7" y="356.6" class="t-primary" font-size="10" font-weight="700" text-anchor="middle">12</text>
+            <rect x="196.5" y="345.5" width="23.4" height="15" rx="7.5" class="tree-count-pill"/>
+            <text x="208.2" y="356.6" class="t-primary" font-size="10" font-weight="700" text-anchor="middle">12</text>
           </g>
         </g>
-        <g data-tree-toggle="bin" data-tree-count="3" data-tree-ancestors="skill repo" data-tree-label-collapse="Collapse bin/ (3 below)" data-tree-label-expand="Expand bin/ (3 hidden)" role="button" tabindex="0" aria-expanded="true" aria-label="Collapse bin/ (3 below)">
-          <circle cx="762" cy="353" r="15" class="tree-toggle-hit"/>
-          <circle cx="762" cy="353" r="9" class="tree-toggle-disc" stroke-width="1.4"/>
-          <path class="tree-toggle-glyph" d="M 758 353 H 766" stroke-width="1.6" stroke-linecap="round"/>
-          <path class="tree-toggle-glyph tree-toggle-plus" d="M 762 349 V 357" stroke-width="1.6" stroke-linecap="round"/>
+        <g data-tree-toggle="bin" data-tree-count="3" data-tree-ancestors="skill repo" data-tree-label-collapse="Collapse bin/ (3 below)" data-tree-label-expand="Expand bin/ (3 hidden)" role="button" tabindex="0" aria-expanded="true" aria-label="Collapse bin/ (3 below)" class="tree-hue-backend">
+          <circle cx="762" cy="353" r="14.5" class="tree-toggle-hit"/>
+          <circle cx="762" cy="353" r="7.5" class="tree-toggle-disc" stroke-width="1.2"/>
+          <path class="tree-toggle-glyph" d="M 758.85 353 H 765.15" stroke-width="1.5" stroke-linecap="round"/>
+          <path class="tree-toggle-glyph tree-toggle-plus" d="M 762 349.85 V 356.15" stroke-width="1.5" stroke-linecap="round"/>
           <g class="tree-toggle-count">
-            <rect x="774" y="345.5" width="17.2" height="15" rx="7.5" class="tree-count-pill"/>
-            <text x="782.6" y="356.6" class="t-primary" font-size="10" font-weight="700" text-anchor="middle">3</text>
+            <rect x="772.5" y="345.5" width="17.2" height="15" rx="7.5" class="tree-count-pill"/>
+            <text x="781.1" y="356.6" class="t-primary" font-size="10" font-weight="700" text-anchor="middle">3</text>
           </g>
         </g>
-        <g data-tree-toggle="r_shared" data-tree-count="4" data-tree-ancestors="renderers skill repo" data-tree-label-collapse="Collapse shared/ (4 below)" data-tree-label-expand="Expand shared/ (4 hidden)" role="button" tabindex="0" aria-expanded="true" aria-label="Collapse shared/ (4 below)">
-          <circle cx="279" cy="468" r="15" class="tree-toggle-hit"/>
-          <circle cx="279" cy="468" r="9" class="tree-toggle-disc" stroke-width="1.4"/>
-          <path class="tree-toggle-glyph" d="M 275 468 H 283" stroke-width="1.6" stroke-linecap="round"/>
-          <path class="tree-toggle-glyph tree-toggle-plus" d="M 279 464 V 472" stroke-width="1.6" stroke-linecap="round"/>
+        <g data-tree-toggle="r_shared" data-tree-count="4" data-tree-ancestors="renderers skill repo" data-tree-label-collapse="Collapse shared/ (4 below)" data-tree-label-expand="Expand shared/ (4 hidden)" role="button" tabindex="0" aria-expanded="true" aria-label="Collapse shared/ (4 below)" class="tree-hue-backend">
+          <circle cx="279" cy="468" r="14.5" class="tree-toggle-hit"/>
+          <circle cx="279" cy="468" r="7.5" class="tree-toggle-disc" stroke-width="1.2"/>
+          <path class="tree-toggle-glyph" d="M 275.85 468 H 282.15" stroke-width="1.5" stroke-linecap="round"/>
+          <path class="tree-toggle-glyph tree-toggle-plus" d="M 279 464.85 V 471.15" stroke-width="1.5" stroke-linecap="round"/>
           <g class="tree-toggle-count">
-            <rect x="291" y="460.5" width="17.2" height="15" rx="7.5" class="tree-count-pill"/>
-            <text x="299.6" y="471.6" class="t-primary" font-size="10" font-weight="700" text-anchor="middle">4</text>
+            <rect x="289.5" y="460.5" width="17.2" height="15" rx="7.5" class="tree-count-pill"/>
+            <text x="298.1" y="471.6" class="t-primary" font-size="10" font-weight="700" text-anchor="middle">4</text>
           </g>
         </g>
 
@@ -7641,36 +7686,321 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       // Runtime decoration carries geometry and tree visibility only. Keep each
       // flow beside its authored edge so transforms, clipping and crossover
       // paint order apply.
-      // Each edge carries a small light show: a comet (halo, tail, head)
-      // cascading downstream on one shared cycle, a lingering wake, and a
-      // ripple where the comet lands. Phases follow the authored step order:
-      // source-node rank where known, chronological message order in sequence
-      // diagrams.
-      function readSecondsVar(name, fallback) {
-        var value = '';
-        try { value = window.getComputedStyle(svg).getPropertyValue(name); } catch (_) {}
-        var seconds = parseFloat(value);
-        return Number.isFinite(seconds) && seconds > 0 ? seconds : fallback;
+      // Each renderer may declare a choreography that matches what its diagram
+      // means. Relay (the default) sends a comet from each source when the
+      // signal reaches it; stream adds a packet train for continuous data; walk
+      // moves one token along the main state path; sequence plays messages in
+      // authored order; sweep runs a playhead along a timeline; replay fills
+      // waterfall spans in proportion to their measured time. Motion Governor
+      // plans the timeline and per-element keyframes; viewer.css owns looks.
+      var SVG_NS = 'http://www.w3.org/2000/svg';
+      var choreography = svg ? (svg.getAttribute('data-motion-choreography') || 'relay') : 'relay';
+      var RELAY = {
+        speed: 280,
+        minTravel: 0.42,
+        maxTravel: 1.5,
+        handoff: 0.1,
+        dwell: 0.55,
+        maxSpan: 9,
+        land: 0.9,
+        rest: 1.4,
+        minCycle: 3.6
+      };
+      function stepOf(element, fallback) {
+        var step = parseFloat(element && element.style ? element.style.getPropertyValue('--step') : '');
+        return Number.isFinite(step) ? step : fallback;
       }
-      function nodeStep(from) {
-        // Authored IDs follow the schema's conservative identifier pattern, so
-        // direct selector interpolation stays safe here. The semantic wrapper
-        // groups the animated shape; its authored step ranks the node.
-        var node = from ? svg.querySelector('[data-node-id="' + from + '"]') : null;
-        var shape = node ? node.querySelector('[data-animate="node"]') : null;
-        return shape && shape.style ? shape.style.getPropertyValue('--step') : '';
+      function byStep(a, b) { return a.step - b.step || a.index - b.index; }
+      function addWindow(windows, id, start, end, strong) {
+        if (!id) return;
+        (windows[id] = windows[id] || []).push({ start: start, end: end, strong: !!strong });
       }
-      function edgePhase(shape, fallbackStep) {
-        // Sequence messages have no data-edge-from; their own authored step is
-        // already chronological, which is the right phase there.
-        var raw = nodeStep(shape.getAttribute('data-edge-from'));
-        if (raw === '' && shape.style) raw = shape.style.getPropertyValue('--step');
-        var step = parseFloat(raw);
-        return Number.isFinite(step) ? step : fallbackStep;
+      function planRelay(records, windows) {
+        var arrive = Object.create(null);
+        var seeded = Object.create(null);
+        var targets = Object.create(null);
+        records.forEach(function (record) { if (record.from !== record.to) targets[record.to] = true; });
+        function seed(id) {
+          if (arrive[id] !== undefined) return;
+          arrive[id] = 0;
+          seeded[id] = true;
+        }
+        function relax() {
+          // Earliest arrival over a few dozen edges; a scan per settle keeps
+          // cycles and fan-in deterministic without a priority queue.
+          var settled = Object.create(null);
+          for (;;) {
+            var next = null;
+            Object.keys(arrive).forEach(function (id) {
+              if (!settled[id] && (next === null || arrive[id] < arrive[next])) next = id;
+            });
+            if (next === null) return;
+            settled[next] = true;
+            var depart = arrive[next] + (seeded[next] ? 0 : RELAY.handoff);
+            records.forEach(function (record) {
+              if (record.from !== next) return;
+              var at = depart + record.travel;
+              if (arrive[record.to] === undefined || at < arrive[record.to]) arrive[record.to] = at;
+            });
+          }
+        }
+        records.forEach(function (record) { if (!targets[record.from]) seed(record.from); });
+        relax();
+        for (;;) {
+          // A closed cycle has no entry; start it at its earliest authored edge.
+          var orphan = records.filter(function (record) { return arrive[record.from] === undefined; }).sort(byStep)[0];
+          if (!orphan) break;
+          seed(orphan.from);
+          relax();
+        }
+        records.forEach(function (record) {
+          record.depart = arrive[record.from] + (seeded[record.from] ? 0 : RELAY.handoff);
+          record.active = true;
+        });
+        Object.keys(arrive).forEach(function (id) { addWindow(windows, id, arrive[id], arrive[id]); });
+      }
+      function planWalk(records, windows) {
+        // A state machine is in one state at a time: follow the first authored
+        // transition to an unvisited state and let the current state stay lit.
+        var targets = Object.create(null);
+        records.forEach(function (record) { if (record.from !== record.to) targets[record.to] = true; });
+        var ordered = records.slice().sort(byStep);
+        var start = (ordered.find(function (record) { return !targets[record.from]; }) || ordered[0]).from;
+        var visited = Object.create(null);
+        var current = start;
+        var clock = 0;
+        var enteredAt = 0;
+        visited[start] = true;
+        for (var hops = 0; hops < 16; hops += 1) {
+          var next = ordered.find(function (record) { return record.from === current && !visited[record.to]; });
+          if (!next) break;
+          next.active = true;
+          next.depart = clock + RELAY.dwell;
+          addWindow(windows, current, enteredAt, next.depart, true);
+          clock = next.depart + next.travel;
+          enteredAt = clock;
+          current = next.to;
+          visited[current] = true;
+        }
+        addWindow(windows, current, enteredAt, enteredAt + 1.2, true);
+      }
+      function planSequence(records, windows) {
+        var clock = 0;
+        records.slice().sort(byStep).forEach(function (record) {
+          record.active = true;
+          record.depart = clock;
+          clock += record.travel + RELAY.handoff;
+          addWindow(windows, record.from, record.depart, record.depart);
+          addWindow(windows, record.to, record.depart + record.travel, record.depart + record.travel);
+        });
+      }
+      function scalePlan(records, windows, span) {
+        var scale = span > RELAY.maxSpan ? RELAY.maxSpan / span : 1;
+        if (scale === 1) return span;
+        records.forEach(function (record) {
+          if (!record.active) return;
+          record.depart *= scale;
+          record.travel *= scale;
+        });
+        Object.keys(windows).forEach(function (id) {
+          windows[id].forEach(function (window) { window.start *= scale; window.end *= scale; });
+        });
+        return span * scale;
+      }
+      function nodeShapes() {
+        var shapes = Object.create(null);
+        Array.prototype.forEach.call(svg.querySelectorAll('[data-animate="node"]'), function (shape) {
+          var wrapper = shape.closest('[data-node-id]');
+          var id = wrapper ? wrapper.getAttribute('data-node-id') : '';
+          if (id) (shapes[id] = shapes[id] || []).push(shape);
+        });
+        return shapes;
+      }
+      function sceneBounds(elements) {
+        var box = null;
+        elements.forEach(function (element) {
+          var b = null;
+          try { b = element.getBBox(); } catch (_) {}
+          if (!b || !(b.width || b.height)) return;
+          if (!box) box = { x: b.x, y: b.y, right: b.x + b.width, bottom: b.y + b.height };
+          else {
+            box.x = Math.min(box.x, b.x); box.y = Math.min(box.y, b.y);
+            box.right = Math.max(box.right, b.x + b.width); box.bottom = Math.max(box.bottom, b.y + b.height);
+          }
+        });
+        return box;
+      }
+      function overlay(tag, cls, attrs, parent, before) {
+        var element = document.createElementNS(SVG_NS, tag);
+        Object.keys(attrs).forEach(function (name) { element.setAttribute(name, attrs[name]); });
+        element.setAttribute('class', 'ambient-edge-flow ' + cls);
+        element.setAttribute('data-ambient-flow-overlay', 'true');
+        element.setAttribute('aria-hidden', 'true');
+        parent.insertBefore(element, before || null);
+        return element;
+      }
+      // Timeline and waterfall share a playhead: a lit vertical rule and its
+      // bloom travel the time axis linearly, because time is the subject.
+      function addPlayhead(box, x0, x1, lead, sweep, extras) {
+        var anchor = svg.querySelector('[data-node-id]');
+        var parent = anchor ? anchor.parentNode : svg;
+        var attrs = { x1: x0.toFixed(1), x2: x0.toFixed(1), y1: (box.y - 10).toFixed(1), y2: (box.bottom + 10).toFixed(1) };
+        ['playhead-glow', 'playhead'].forEach(function (kind) {
+          var line = overlay('line', 'ambient-flow-' + kind, attrs, parent, anchor);
+          line.style.setProperty('--flow-name', 'archify-motion-playhead');
+          extras.push(line);
+        });
+        extras.playhead = { distance: x1 - x0, lead: lead, sweep: sweep };
+      }
+      function planSweep(windows, extras) {
+        var events = Array.prototype.filter.call(svg.querySelectorAll('[data-node-id][data-timeline-x]'), function (node) {
+          return Number.isFinite(parseFloat(node.getAttribute('data-timeline-x')));
+        });
+        if (!events.length) return 0;
+        var xs = events.map(function (node) { return parseFloat(node.getAttribute('data-timeline-x')); });
+        var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+        var lead = 0.35;
+        var sweep = Math.min(7, Math.max(3.2, events.length * 0.6));
+        events.forEach(function (node, index) {
+          var at = lead + (x1 > x0 ? (xs[index] - x0) / (x1 - x0) : 0) * sweep;
+          addWindow(windows, node.getAttribute('data-node-id'), at, at + 0.35, true);
+        });
+        var box = sceneBounds(Array.prototype.slice.call(svg.querySelectorAll('[data-timeline-lane]')));
+        if (box && x1 > x0) addPlayhead(box, x0, x1, lead, sweep, extras);
+        return lead + sweep + 0.6;
+      }
+      function planReplay(windows, extras) {
+        var spans = [];
+        Array.prototype.forEach.call(svg.querySelectorAll('[data-node-id][data-waterfall-start]'), function (node) {
+          var start = parseFloat(node.getAttribute('data-waterfall-start'));
+          var end = parseFloat(node.getAttribute('data-waterfall-end'));
+          var bar = node.querySelector('[data-animate="node"]');
+          if (!bar || !Number.isFinite(start) || !(end >= start)) return;
+          var width = parseFloat(bar.getAttribute('width'));
+          var x = parseFloat(bar.getAttribute('x'));
+          if (!(width > 0) || !Number.isFinite(x)) return;
+          spans.push({ node: node, bar: bar, start: start, end: end, x: x, width: width });
+        });
+        if (!spans.length) return 0;
+        var t0 = Math.min.apply(null, spans.map(function (span) { return span.start; }));
+        var t1 = Math.max.apply(null, spans.map(function (span) { return span.end; }));
+        if (!(t1 > t0)) return 0;
+        var ruler = spans.reduce(function (best, span) { return span.end - span.start > best.end - best.start ? span : best; });
+        var pxPerUnit = ruler.width / Math.max(ruler.end - ruler.start, 1e-9);
+        var x0 = ruler.x - (ruler.start - t0) * pxPerUnit;
+        var lead = 0.35;
+        var replay = Math.min(6, Math.max(3.4, spans.length * 0.45));
+        var at = function (t) { return lead + (t - t0) / (t1 - t0) * replay; };
+        var settle = lead + replay + 0.9;
+        spans.forEach(function (span) {
+          var fill = overlay('rect', 'ambient-flow-fill', {
+            x: span.bar.getAttribute('x'), y: span.bar.getAttribute('y'),
+            width: span.bar.getAttribute('width'), height: span.bar.getAttribute('height'),
+            rx: span.bar.getAttribute('rx') || '0'
+          }, span.bar.parentNode, span.bar.nextSibling);
+          var tone = /(?:^|\s)c-([a-z]+)(?:\s|$)/.exec(span.bar.getAttribute('class') || '');
+          if (tone) fill.style.setProperty('--flow-fill', 'var(--' + tone[1] + '-stroke)');
+          if (span.node.getAttribute('data-waterfall-status') && span.node.getAttribute('data-waterfall-status') !== 'ok') {
+            fill.classList.add('ambient-flow-fill-failed');
+          }
+          fill.timing = { start: at(span.start), end: Math.max(at(span.end), at(span.start) + 0.08), settle: settle };
+          extras.push(fill);
+          addWindow(windows, span.node.getAttribute('data-node-id'), fill.timing.end, fill.timing.end);
+        });
+        var box = sceneBounds(spans.map(function (span) { return span.bar; }));
+        if (box) addPlayhead(box, x0, x0 + (t1 - t0) * pxPerUnit, lead, replay, extras);
+        return settle;
+      }
+      function writeKeyframes(records, windows, extras, cycle) {
+        function at(seconds) {
+          return (Math.min(100, Math.max(0, seconds / cycle * 100))).toFixed(3) + '%';
+        }
+        var ease = 'animation-timing-function: cubic-bezier(0.45, 0.05, 0.35, 1);';
+        var rules = [
+          '@keyframes archify-relay-ripple {',
+          '  0% { r: 2px; opacity: var(--flow-peak, 0.6); }',
+          '  ' + at(0.75) + ', 100% { r: 20px; opacity: 0; }',
+          '}'
+        ];
+        records.forEach(function (record) {
+          if (!record.active) return;
+          var travel = record.travel;
+          rules.push(
+            '@keyframes archify-relay-comet-' + record.index + ' {',
+            '  0% { stroke-dashoffset: calc(var(--flow-len, 0px) + var(--flow-shift, 0px)); opacity: 0; ' + ease + ' }',
+            '  ' + at(Math.min(0.12, travel * 0.2)) + ' { opacity: var(--flow-peak, 0.9); }',
+            '  ' + at(travel) + ' { stroke-dashoffset: var(--flow-shift, 0px); opacity: var(--flow-peak, 0.9); }',
+            '  ' + at(travel + 0.16) + ', 100% { stroke-dashoffset: var(--flow-shift, 0px); opacity: 0; }',
+            '}',
+            // A solid wake draws the travelled path behind the head on the same
+            // easing; a dashed wake only brightens its authored segments.
+            '@keyframes archify-relay-wake-' + record.index + ' {',
+            record.dashed
+              ? '  0%, ' + at(travel * 0.3) + ' { opacity: 0; }'
+              : '  0% { stroke-dashoffset: var(--flow-len, 0px); opacity: var(--flow-peak, 0.3); ' + ease + ' }',
+            record.dashed
+              ? '  ' + at(travel) + ' { opacity: var(--flow-peak, 0.3); }'
+              : '  ' + at(travel) + ' { stroke-dashoffset: 0px; opacity: var(--flow-peak, 0.3); }',
+            '  ' + at(travel + 0.9) + ', 100% { stroke-dashoffset: 0px; opacity: 0; }',
+            '}'
+          );
+        });
+        var glow = function (strong) {
+          return 'filter: var(--ambient-node-base-filter,) drop-shadow(0 0 ' + (strong ? 14 : 10) + 'px var(--arrow-emphasis));';
+        };
+        var base = 'filter: var(--ambient-node-base-filter, none);';
+        Object.keys(windows).forEach(function (id, index) {
+          var merged = [];
+          windows[id].slice().sort(function (a, b) { return a.start - b.start; }).forEach(function (window) {
+            var peakEnd = Math.max(window.end, window.start + 0.42);
+            var last = merged[merged.length - 1];
+            if (last && window.start <= last.peakEnd + 0.78) {
+              last.peakEnd = Math.max(last.peakEnd, peakEnd);
+              last.strong = last.strong || window.strong;
+            } else merged.push({ start: window.start, peakEnd: peakEnd, strong: window.strong });
+          });
+          var frames = ['  0%, 100% { ' + base + ' }'];
+          merged.forEach(function (window) {
+            frames.push(
+              '  ' + at(window.start) + ' { ' + base + ' }',
+              '  ' + at(window.start + 0.12) + ', ' + at(window.peakEnd) + ' { ' + glow(window.strong) + ' }',
+              '  ' + at(window.peakEnd + 0.78) + ' { ' + base + ' }'
+            );
+          });
+          rules.push('@keyframes archify-relay-node-' + index + ' {', frames.join('\n'), '}');
+          windows[id].keyframes = 'archify-relay-node-' + index;
+        });
+        if (extras.playhead) {
+          var p = extras.playhead;
+          rules.push(
+            '@keyframes archify-motion-playhead {',
+            '  0% { transform: translateX(0px); opacity: 0; }',
+            '  ' + at(Math.max(0.05, p.lead - 0.2)) + ' { transform: translateX(0px); opacity: 0; }',
+            '  ' + at(p.lead) + ' { transform: translateX(0px); opacity: var(--flow-peak, 0.9); }',
+            '  ' + at(p.lead + p.sweep) + ' { transform: translateX(' + p.distance.toFixed(1) + 'px); opacity: var(--flow-peak, 0.9); }',
+            '  ' + at(p.lead + p.sweep + 0.45) + ', 100% { transform: translateX(' + p.distance.toFixed(1) + 'px); opacity: 0; }',
+            '}'
+          );
+        }
+        extras.forEach(function (element, index) {
+          if (!element.timing) return;
+          var t = element.timing;
+          rules.push(
+            '@keyframes archify-replay-fill-' + index + ' {',
+            '  0%, ' + at(t.start) + ' { transform: scaleX(0); opacity: var(--flow-peak, 0.4); }',
+            '  ' + at(t.end) + ', ' + at(t.settle) + ' { transform: scaleX(1); opacity: var(--flow-peak, 0.4); }',
+            '  ' + at(t.settle + 0.7) + ', 100% { transform: scaleX(1); opacity: 0; }',
+            '}'
+          );
+          element.style.setProperty('--flow-name', 'archify-replay-fill-' + index);
+        });
+        var style = document.createElement('style');
+        style.setAttribute('data-ambient-flow-keyframes', 'true');
+        style.textContent = rules.join('\n');
+        document.head.appendChild(style);
       }
       function createFlows() {
-        var stepDelay = readSecondsVar('--flow-step-delay', 0.2);
-        var cycle = readSecondsVar('--flow-cycle', 6.4);
+        var records = [];
         Array.prototype.forEach.call(svg.querySelectorAll('path[data-animate="edge"]'), function (shape, index) {
           var d = shape.getAttribute('data-motion-path') || shape.getAttribute('d');
           if (!d) return;
@@ -7685,7 +8015,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             }
           }
           function addPath(cls) {
-            var flow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            var flow = document.createElementNS(SVG_NS, 'path');
             flow.setAttribute('d', d);
             ['transform', 'mask', 'clip-path', 'vector-effect'].forEach(function (name) {
               if (shape.hasAttribute(name)) flow.setAttribute(name, shape.getAttribute(name));
@@ -7703,76 +8033,114 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             wake.remove();
             return;
           }
-          var glow = addPath('glow');
-          var halo = addPath('halo');
-          var tail = addPath('tail');
-          var head = addPath('head');
-          var end = null;
-          try { end = head.getPointAtLength(len); } catch (_) {}
-          // Dashed authored lines keep their dash language through the show:
+          var record = {
+            index: records.length,
+            len: len,
+            from: shape.getAttribute('data-edge-from') || shape.getAttribute('data-composition-edge-from') || '',
+            to: shape.getAttribute('data-edge-to') || shape.getAttribute('data-composition-edge-to') || '',
+            step: stepOf(shape, index),
+            travel: Math.min(RELAY.maxTravel, Math.max(RELAY.minTravel, len / RELAY.speed)),
+            depart: 0,
+            active: false,
+            layers: []
+          };
+          records.push(record);
+          // Dashed authored lines keep their dash language through the relay:
           // the wake brightens only the authored segments and never fills the
           // gaps back into a solid line.
           var authoredDash = '';
           try { authoredDash = window.getComputedStyle(shape).strokeDasharray; } catch (_) {}
-          if (authoredDash && authoredDash !== 'none') {
-            wake.style.setProperty('--flow-dasharray', authoredDash);
-          }
+          record.dashed = !!(authoredDash && authoredDash !== 'none');
+          wake.style.setProperty('--flow-dasharray', record.dashed ? authoredDash : len.toFixed(1) + ' ' + len.toFixed(1));
           // Absolute caps keep the comet a slim streak on long edges instead
           // of growing into a bright slab; the tail disintegrates into a
           // sparkle of fragments behind the head, and --flow-shift trails
-          // each layer behind the head tip by its own length. Short edges get
-          // a proportionally larger comet and a brightness boost so a compact
-          // diagram reads as alive as a sprawling one.
-          var headLen = Math.min(12, Math.max(5, len * 0.02));
-          var haloLen = Math.min(18, Math.max(10, len * 0.06));
-          var boost = len < 260 ? Math.min(1.7, 260 / Math.max(len, 90)) : 1;
+          // each layer behind the head tip by its own length.
+          var headLen = Math.min(14, Math.max(7, len * 0.03));
+          var haloLen = Math.min(22, Math.max(12, len * 0.07));
           var trail = len >= 120
             ? { pattern: '2.5 2 4 3 5.5 4.5 8 ' + (len - 30).toFixed(1), length: 30 }
             : (len >= 60
               ? { pattern: '3 3 7 ' + (len - 13).toFixed(1), length: 13 }
               : { pattern: '5 ' + Math.max(4, len - 5).toFixed(1), length: 5 });
-          var phase = edgePhase(shape, index) * stepDelay;
-          var configs = [
-            { flow: wake, dash: len, shift: 0, delay: phase },
-            { flow: glow, dash: haloLen, shift: (haloLen - headLen) / 2, delay: phase },
-            { flow: halo, dash: haloLen, shift: (haloLen - headLen) / 2, delay: phase },
-            { flow: tail, dash: trail.length, shift: trail.length - headLen, delay: phase, dasharray: trail.pattern },
-            { flow: head, dash: headLen, shift: 0, delay: phase },
-          ];
-          // Every edge earns a dimmer echo comet: half a travel window behind
-          // on long edges, half a cycle behind on short ones so compact
-          // diagrams never sit in a silent gap between passes.
-          var echoShift = len > 340 ? cycle * 0.31 : cycle * 0.5;
-          configs.push({ flow: addPath('tail echo'), dash: trail.length, shift: trail.length - headLen, delay: phase + echoShift, dasharray: trail.pattern, echo: true });
-          configs.push({ flow: addPath('head echo'), dash: headLen, shift: 0, delay: phase + echoShift, echo: true });
-          configs.forEach(function (cfg) {
-            cfg.flow.style.setProperty('--flow-len', len.toFixed(1) + 'px');
-            cfg.flow.style.setProperty('--flow-delay', cfg.delay.toFixed(3) + 's');
-            cfg.flow.style.setProperty('--flow-dash', cfg.dash.toFixed(1) + 'px');
-            cfg.flow.style.setProperty('--flow-shift', cfg.shift.toFixed(1) + 'px');
-            // Echoes stay background texture: they never inherit the boost.
-            if (!cfg.echo) cfg.flow.style.setProperty('--flow-boost', boost.toFixed(2));
-            if (cfg.dasharray) cfg.flow.style.setProperty('--flow-dasharray', cfg.dasharray);
-          });
-          // The sonar pair lands where the comet does; keep it out of the
-          // edge's mask so it can bloom over the node boundary.
-          if (end) {
-            ['ripple', 'ripple-echo'].forEach(function (kind) {
-              var ripple = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-              ripple.setAttribute('cx', end.x.toFixed(1));
-              ripple.setAttribute('cy', end.y.toFixed(1));
-              ripple.setAttribute('r', '2');
-              if (shape.hasAttribute('transform')) ripple.setAttribute('transform', shape.getAttribute('transform'));
-              ripple.setAttribute('class', 'ambient-edge-flow ambient-flow-' + kind);
-              tagOverlay(ripple);
-              ripple.style.setProperty('--flow-delay', phase.toFixed(3) + 's');
-              ripple.style.setProperty('--flow-boost', boost.toFixed(2));
-              shape.parentNode.insertBefore(ripple, anchor.nextSibling);
-              anchor = ripple;
+          record.layers.push(
+            { flow: wake, kind: 'wake', dash: len, shift: 0 },
+            { flow: addPath('glow'), kind: 'comet', dash: haloLen, shift: (haloLen - headLen) / 2 },
+            { flow: addPath('halo'), kind: 'comet', dash: haloLen, shift: (haloLen - headLen) / 2 },
+            { flow: addPath('tail'), kind: 'comet', dash: trail.length, shift: trail.length - headLen, dasharray: trail.pattern },
+            { flow: addPath('head'), kind: 'comet', dash: headLen, shift: 0 }
+          );
+          if (choreography === 'stream') {
+            // A packet train behind the comet reads as a continuous stream.
+            [1, 2, 3].forEach(function (order) {
+              record.layers.push({ flow: addPath('head packet'), kind: 'comet', dash: Math.max(4, headLen * 0.55), shift: 0, packet: order });
             });
           }
-          flowCount += 1;
+          // The ripple lands where the comet does; keep it out of the edge's
+          // mask so it can bloom over the node boundary.
+          var end = null;
+          try { end = wake.getPointAtLength(len); } catch (_) {}
+          if (end) {
+            var ripple = document.createElementNS(SVG_NS, 'circle');
+            ripple.setAttribute('cx', end.x.toFixed(1));
+            ripple.setAttribute('cy', end.y.toFixed(1));
+            ripple.setAttribute('r', '2');
+            if (shape.hasAttribute('transform')) ripple.setAttribute('transform', shape.getAttribute('transform'));
+            ripple.setAttribute('class', 'ambient-edge-flow ambient-flow-ripple');
+            tagOverlay(ripple);
+            shape.parentNode.insertBefore(ripple, anchor.nextSibling);
+            record.ripple = ripple;
+          }
         });
+        var windows = Object.create(null);
+        var extras = [];
+        var span = 0;
+        if (choreography === 'sweep') span = planSweep(windows, extras);
+        else if (choreography === 'replay') span = planReplay(windows, extras);
+        else if (records.length) {
+          var linked = records.filter(function (record) { return record.from && record.to; });
+          if (choreography === 'sequence' || linked.length < records.length) planSequence(records, windows);
+          else if (choreography === 'walk') planWalk(records, windows);
+          else planRelay(records, windows);
+          span = records.reduce(function (max, record) {
+            return record.active ? Math.max(max, record.depart + record.travel) : max;
+          }, 0);
+          span = scalePlan(records, windows, span);
+        }
+        records.forEach(function (record) {
+          if (record.active) return;
+          record.layers.forEach(function (layer) { layer.flow.remove(); });
+          if (record.ripple) record.ripple.remove();
+        });
+        var active = records.filter(function (record) { return record.active; });
+        if (!active.length && !extras.length) return;
+        var cycle = Math.max(RELAY.minCycle, span + RELAY.land + RELAY.rest);
+        writeKeyframes(active, windows, extras, cycle);
+        svg.style.setProperty('--flow-cycle', cycle.toFixed(3) + 's');
+        html.style.setProperty('--flow-cycle-chrome', cycle.toFixed(3) + 's');
+        active.forEach(function (record) {
+          var gap = Math.min(0.22, record.travel * 0.28);
+          record.layers.forEach(function (layer) {
+            var flow = layer.flow;
+            flow.style.setProperty('--flow-len', record.len.toFixed(1) + 'px');
+            flow.style.setProperty('--flow-delay', (record.depart + (layer.packet || 0) * gap).toFixed(3) + 's');
+            flow.style.setProperty('--flow-dash', layer.dash.toFixed(1) + 'px');
+            flow.style.setProperty('--flow-shift', layer.shift.toFixed(1) + 'px');
+            flow.style.setProperty('--flow-name', 'archify-relay-' + layer.kind + '-' + record.index);
+            if (layer.dasharray) flow.style.setProperty('--flow-dasharray', layer.dasharray);
+          });
+          if (record.ripple) {
+            record.ripple.style.setProperty('--flow-delay', (record.depart + record.travel).toFixed(3) + 's');
+            record.ripple.style.setProperty('--flow-name', 'archify-relay-ripple');
+          }
+        });
+        var shapes = nodeShapes();
+        Object.keys(windows).forEach(function (id) {
+          (shapes[id] || []).forEach(function (shape) {
+            shape.style.setProperty('--flow-node-name', windows[id].keyframes);
+          });
+        });
+        flowCount = active.length + extras.length;
       }
       function settleEntry() {
         entryPending.clear();

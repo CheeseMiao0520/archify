@@ -195,7 +195,7 @@ test('Live relay ships comet layers whose timing the Motion Governor plans', () 
   assert.match(html, /html\[data-theme="light"\] \.ambient-flow-head \{/);
   // Per-edge keyframes come from the planned relay; no fixed shared-cycle
   // cascade, echo comet or load-time trace layer remains.
-  assert.match(html, /function planRelay\(records\)/);
+  assert.match(html, /function planRelay\(records, windows\)/);
   assert.match(html, /animation-name: var\(--flow-name, none\)/);
   assert.doesNotMatch(html, /archify-cascade-|archify-flow-ripple-echo|tail echo|--flow-step-delay/);
   assert.doesNotMatch(html, /archify-ambient-flow|--ambient-flow-duration/);

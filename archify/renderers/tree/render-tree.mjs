@@ -460,7 +460,7 @@ function renderNode(node) {
           ${socket}
           <text data-node-label="" x="${cx}" class="t-primary tree-label" font-size="${node.labelFont}" font-weight="${node.isRoot ? 750 : leaf ? 560 : 700}" text-anchor="${anchor}">${label}</text>
           ${sublabel ? `<text data-detail="context" x="${cx}" class="t-muted tree-sublabel" font-size="${layout.sublabelFont}" text-anchor="${anchor}">${sublabel}</text>` : ''}
-        </g>`;
+        </g>`.replace(/[ \t]+$/gm, '');
 }
 
 // The toggle is a separate control after its node, not nested inside it, so a
@@ -483,7 +483,7 @@ function renderToggle(node) {
             <rect x="${cx + r + 3}" y="${cy - 7.5}" width="${String(hidden).length * 6.2 + 11}" height="15" rx="7.5" class="tree-count-pill"/>
             <text x="${cx + r + 3 + (String(hidden).length * 6.2 + 11) / 2}" y="${cy + 3.6}" class="t-primary" font-size="10" font-weight="700" text-anchor="middle">${hidden}</text>
           </g>
-        </g>`;
+        </g>`.replace(/[ \t]+$/gm, '');
 }
 
 function renderEdge(edge) {

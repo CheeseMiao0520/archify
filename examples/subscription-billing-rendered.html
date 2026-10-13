@@ -3550,13 +3550,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       background: transparent;
       box-shadow: none;
     }
-    /* The motion button breathes on the same shared cycle as the cascade, so the
-       chrome keeps time with the wave it controls. The cycle length lives on the
-       diagram SVG, so chrome presets mirror it here. */
+    /* The motion button breathes on the relay cycle, so the chrome keeps time
+       with the wave it controls. Motion Governor mirrors the planned cycle from
+       the diagram SVG onto the document. */
     html[data-ambient-motion="running"][data-motion="live"]:not([data-motion-owner]):not([data-embed]):not([data-share-playback]):not([data-document-hidden]) #btn-motion .motion-control-dot {
       animation: archify-motion-dot-breathe var(--flow-cycle-chrome, 6.4s) ease-in-out infinite;
     }
-    html[data-preset="signal-flow"] #btn-motion .motion-control-dot { --flow-cycle-chrome: 5.2s; }
     @keyframes archify-motion-dot-breathe {
       0%, 100% { opacity: 1; transform: scale(1); }
       46% { opacity: 0.55; transform: scale(0.72); }
@@ -4725,27 +4724,23 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .c-region         { fill: rgba(251, 191, 36, 0.05); stroke: var(--cloud-stroke); stroke-dasharray: 8,4; }
     .c-lane           { fill: var(--lane-fill); stroke: var(--lane-stroke); stroke-dasharray: 6,6; }
 
-    /* Live turns each edge into a small light show on one shared cycle: a comet
-       (halo, tail, head — plus a dimmer echo, half a travel window behind on long
-       edges and half a cycle behind on short ones) cascades downstream, leaves a
-       soft wake, and lands as a ripple on the target node. Short edges carry a
-       proportionally larger comet with a brightness boost so compact diagrams read
-       as alive as sprawling ones. Original line language and markers remain
-       static. Each edge's phase follows the authored step order — source-node
-       rank, or chronological order in sequence diagrams — so the whole diagram
-       ripples downstream instead of marching uniformly. Node entry is bounded to
-       one pass per document, then a soft node glow follows the authored step
-       order. */
+    /* Live plays one relay per cycle: a comet (halo, tail, head) leaves each
+       source when the signal reaches it, travels at one shared speed, leaves a
+       soft wake, and lands as a ripple while its target glows. Downstream edges
+       depart only after their source is reached, so the reader sees the path the
+       diagram describes rather than every edge shimmering at once. Sequence
+       messages relay in authored chronological order. Motion Governor plans the
+       timeline and its per-edge keyframes; this stylesheet owns appearance.
+       Original line language and markers remain static. Node entry is bounded to
+       one pass per document. */
     svg[data-animation="trace"] {
       --flow-cycle: 6.4s;
-      --flow-step-delay: 0.2s;
       --flow-halo-peak: 0.17;
       --flow-glow-peak: 0.5;
       --flow-tail-peak: 0.42;
       --flow-head-peak: 0.95;
-      --flow-wake-peak: 0.1;
+      --flow-wake-peak: 0.3;
       --flow-ripple-peak: 0.65;
-      --flow-ripple-echo-peak: 0.26;
     }
     .ambient-edge-flow {
       fill: none;
@@ -4755,69 +4750,91 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       display: none;
     }
     .ambient-flow-wake {
+      --flow-peak: var(--flow-wake-peak, 0.3);
       stroke-width: 3.2;
       stroke-dasharray: var(--flow-dasharray, none);
-      animation-name: archify-flow-wake;
     }
     .ambient-flow-halo {
+      --flow-peak: var(--flow-halo-peak, 0.17);
       stroke-width: 6;
       stroke-dasharray: var(--flow-dash, 12px) calc(var(--flow-len, 0px) - var(--flow-dash, 12px));
-      animation-name: archify-cascade-halo;
     }
     /* A wide blurred streak centered on the head: this is the bloom that makes
        the comet read as a traveling orb of light rather than a bright dash. */
     .ambient-flow-glow {
+      --flow-peak: var(--flow-glow-peak, 0.5);
       stroke-width: 9;
       stroke-dasharray: var(--flow-dash, 12px) calc(var(--flow-len, 0px) - var(--flow-dash, 12px));
       filter: blur(2.5px);
-      animation-name: archify-cascade-glow;
     }
     .ambient-flow-tail {
+      --flow-peak: var(--flow-tail-peak, 0.42);
       stroke-width: 2.4;
       stroke-dasharray: var(--flow-dasharray, var(--flow-dash, 20px) calc(var(--flow-len, 0px) - var(--flow-dash, 20px)));
-      animation-name: archify-cascade-tail;
     }
     .ambient-flow-head {
+      --flow-peak: var(--flow-head-peak, 0.95);
       stroke: color-mix(in srgb, var(--arrow-emphasis) 40%, white);
       stroke-width: 2.6;
       stroke-dasharray: var(--flow-dash, 6px) calc(var(--flow-len, 0px) - var(--flow-dash, 6px));
-      animation-name: archify-cascade-head;
     }
-    .ambient-flow-head.echo { --flow-echo-scale: 0.76; }
-    .ambient-flow-tail.echo { --flow-echo-scale: 0.53; }
     .ambient-flow-ripple {
+      --flow-peak: var(--flow-ripple-peak, 0.65);
       stroke: color-mix(in srgb, var(--arrow-emphasis) 55%, white);
       stroke-width: 2;
-      animation-name: archify-flow-ripple;
-    }
-    .ambient-flow-ripple-echo {
-      stroke-width: 1.2;
-      animation-name: archify-flow-ripple-echo;
     }
     html[data-ambient-motion="running"][data-motion="live"]:not([data-motion-owner]):not([data-embed]):not([data-share-playback]):not([data-document-hidden]) .ambient-edge-flow {
       display: inline;
+      animation-name: var(--flow-name, none);
       animation-duration: var(--flow-cycle, 6.4s);
       animation-timing-function: linear;
       animation-iteration-count: infinite;
       animation-delay: var(--flow-delay, 0s);
       /* Without backwards fill a delayed layer would sit at its natural opacity
-         (fully lit) until its phase arrives. */
+         (fully lit) until its departure arrives. */
       animation-fill-mode: backwards;
     }
+    /* Stream packets trail the comet head as smaller, dimmer beads. */
+    .ambient-flow-head.packet {
+      --flow-peak: calc(var(--flow-head-peak, 0.95) * 0.62);
+      stroke-width: 3.4;
+    }
+    /* Timeline and waterfall playhead: a crisp rule over a soft bloom. */
+    .ambient-flow-playhead {
+      --flow-peak: 0.9;
+      stroke: color-mix(in srgb, var(--arrow-emphasis) 55%, white);
+      stroke-width: 1.6;
+    }
+    .ambient-flow-playhead-glow {
+      --flow-peak: 0.32;
+      stroke-width: 10;
+      filter: blur(4px);
+    }
+    /* Waterfall spans fill in proportion to their measured time, then settle. */
+    .ambient-flow-fill {
+      --flow-peak: 0.5;
+      fill: color-mix(in srgb, var(--flow-fill, var(--arrow-emphasis)) 55%, white);
+      stroke: none;
+      transform-box: fill-box;
+      transform-origin: left center;
+    }
+    .ambient-flow-fill-failed { fill: var(--security-stroke); --flow-peak: 0.5; }
+    html[data-theme="light"] .ambient-flow-playhead { stroke: color-mix(in srgb, var(--arrow-emphasis) 70%, black); }
+    html[data-theme="light"] .ambient-flow-fill { --flow-peak: 0.42; fill: color-mix(in srgb, var(--flow-fill, var(--arrow-emphasis)) 70%, black); }
+    svg[data-preset="editorial"] .ambient-flow-fill { --flow-peak: 0.2; }
+    svg[data-preset="editorial"] .ambient-flow-playhead-glow { --flow-peak: 0.14; }
     /* Each decorative flow follows its owning edge through tree visibility. */
     .ambient-edge-flow[data-tree-hidden] { display: none !important; animation: none !important; }
-    svg[data-preset="signal-flow"] { --flow-cycle: 5.2s; --flow-step-delay: 0.18s; }
     svg[data-preset="blueprint"] .ambient-edge-flow { stroke-linecap: square; }
-    svg[data-preset="editorial"] { --flow-halo-peak: 0.07; --flow-glow-peak: 0.28; --flow-tail-peak: 0.2; --flow-head-peak: 0.7; --flow-wake-peak: 0.05; --flow-ripple-peak: 0.3; --flow-ripple-echo-peak: 0.12; }
-    /* On light canvases the cascade reads by saturation instead of bloom: the
-       head and inner ripple mix toward ink instead of white, and every layer's
-       peak rises so the wave survives the bright background. */
+    svg[data-preset="editorial"] { --flow-halo-peak: 0.07; --flow-glow-peak: 0.28; --flow-tail-peak: 0.2; --flow-head-peak: 0.7; --flow-wake-peak: 0.14; --flow-ripple-peak: 0.3; }
+    /* On light canvases the relay reads by saturation instead of bloom: the head
+       and ripple mix toward ink instead of white, and every layer's peak rises so
+       the wave survives the bright background. */
     html[data-theme="light"] svg[data-animation="trace"] {
       --flow-halo-peak: 0.22;
       --flow-glow-peak: 0.4;
       --flow-tail-peak: 0.5;
-      --flow-wake-peak: 0.13;
-      --flow-ripple-echo-peak: 0.3;
+      --flow-wake-peak: 0.34;
     }
     html[data-theme="light"] .ambient-flow-head {
       stroke: color-mix(in srgb, var(--arrow-emphasis) 55%, black);
@@ -4844,84 +4861,32 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       animation: archify-editorial-node-pulse 3.5s ease-in-out 1 calc(var(--step, 0) * 160ms),
         archify-node-enter 0.9s cubic-bezier(0.22, 1, 0.36, 1) backwards calc(var(--step, 0) * 160ms);
     }
-    /* Node glow follows each node's authored step on the shared cycle; it does
-       not track incoming edge arrivals. During the bounded entrance all three
-       animations run; the entrance pulse is listed after the repeating glow and
-       wins on filter until it completes. */
+    /* Each node glows in its planned windows: when the relay reaches it, while a
+       walk token rests on it, as a message lands, or as the playhead passes.
+       During the bounded entrance all three animations run; the entrance pulse is
+       listed after the repeating glow and wins on filter until it completes. */
     html[data-ambient-motion="running"][data-motion="live"]:not([data-motion-owner]):not([data-embed]):not([data-share-playback]):not([data-document-hidden]) svg[data-animation="trace"] [data-animate="node"] {
-      animation: archify-node-receive var(--flow-cycle, 6.4s) ease-in-out infinite calc(var(--step, 0) * var(--flow-step-delay, 0.2s));
+      animation: var(--flow-node-name, none) var(--flow-cycle, 6.4s) linear infinite;
     }
     html[data-ambient-motion="running"][data-motion="live"]:not([data-motion-owner]):not([data-embed]):not([data-share-playback]):not([data-document-hidden])[data-ambient-entry="running"] svg[data-animation="trace"] [data-animate="node"] {
-      animation: archify-node-receive var(--flow-cycle, 6.4s) ease-in-out infinite calc(var(--step, 0) * var(--flow-step-delay, 0.2s)),
+      animation: var(--flow-node-name, none) var(--flow-cycle, 6.4s) linear infinite,
         archify-node-pulse 3.6s ease-in-out 1 calc(var(--step, 0) * 160ms),
         archify-node-enter 0.9s cubic-bezier(0.22, 1, 0.36, 1) backwards calc(var(--step, 0) * 160ms);
     }
     html[data-ambient-motion="running"][data-motion="live"]:not([data-motion-owner]):not([data-embed]):not([data-share-playback]):not([data-document-hidden])[data-ambient-entry="running"] svg[data-preset="signal-flow"][data-animation="trace"] [data-animate="node"] {
-      animation: archify-node-receive var(--flow-cycle, 6.4s) ease-in-out infinite calc(var(--step, 0) * var(--flow-step-delay, 0.2s)),
+      animation: var(--flow-node-name, none) var(--flow-cycle, 6.4s) linear infinite,
         archify-node-pulse 3.1s ease-in-out 1 calc(var(--step, 0) * 160ms),
         archify-node-enter 0.9s cubic-bezier(0.22, 1, 0.36, 1) backwards calc(var(--step, 0) * 160ms);
     }
     html[data-ambient-motion="running"][data-motion="live"]:not([data-motion-owner]):not([data-embed]):not([data-share-playback]):not([data-document-hidden])[data-ambient-entry="running"] svg[data-preset="blueprint"][data-animation="trace"] [data-animate="node"] {
-      animation: archify-node-receive var(--flow-cycle, 6.4s) ease-in-out infinite calc(var(--step, 0) * var(--flow-step-delay, 0.2s)),
+      animation: var(--flow-node-name, none) var(--flow-cycle, 6.4s) linear infinite,
         archify-blueprint-node-pulse 3.8s ease-in-out 1 calc(var(--step, 0) * 160ms),
         archify-node-enter 0.9s cubic-bezier(0.22, 1, 0.36, 1) backwards calc(var(--step, 0) * 160ms);
     }
     html[data-ambient-motion="running"][data-motion="live"]:not([data-motion-owner]):not([data-embed]):not([data-share-playback]):not([data-document-hidden])[data-ambient-entry="running"] svg[data-preset="editorial"][data-animation="trace"] [data-animate="node"] {
-      animation: archify-node-receive var(--flow-cycle, 6.4s) ease-in-out infinite calc(var(--step, 0) * var(--flow-step-delay, 0.2s)),
+      animation: var(--flow-node-name, none) var(--flow-cycle, 6.4s) linear infinite,
         archify-editorial-node-pulse 3.5s ease-in-out 1 calc(var(--step, 0) * 160ms),
         archify-node-enter 0.9s cubic-bezier(0.22, 1, 0.36, 1) backwards calc(var(--step, 0) * 160ms);
-    }
-    @keyframes archify-flow-wake {
-      0% { opacity: 0; }
-      24% { opacity: calc(var(--flow-wake-peak, 0.1) * var(--flow-boost, 1)); }
-      62% { opacity: calc(var(--flow-wake-peak, 0.1) * var(--flow-boost, 1)); }
-      82%, 100% { opacity: 0; }
-    }
-    @keyframes archify-cascade-halo {
-      0% { stroke-dashoffset: calc(var(--flow-len, 0px) + var(--flow-shift, 3px)); opacity: 0; }
-      4% { opacity: calc(var(--flow-halo-peak, 0.17) * var(--flow-boost, 1)); }
-      15% { stroke-dashoffset: calc((var(--flow-len, 0px) + var(--flow-shift, 3px)) * 0.88); }
-      48% { stroke-dashoffset: calc((var(--flow-len, 0px) + var(--flow-shift, 3px)) * 0.22); }
-      62% { stroke-dashoffset: var(--flow-shift, 3px); opacity: calc(var(--flow-halo-peak, 0.17) * var(--flow-boost, 1)); }
-      68%, 100% { stroke-dashoffset: var(--flow-shift, 3px); opacity: 0; }
-    }
-    @keyframes archify-cascade-glow {
-      0% { stroke-dashoffset: calc(var(--flow-len, 0px) + var(--flow-shift, 3px)); opacity: 0; }
-      4% { opacity: calc(var(--flow-glow-peak, 0.5) * var(--flow-boost, 1)); }
-      15% { stroke-dashoffset: calc((var(--flow-len, 0px) + var(--flow-shift, 3px)) * 0.88); }
-      48% { stroke-dashoffset: calc((var(--flow-len, 0px) + var(--flow-shift, 3px)) * 0.22); }
-      62% { stroke-dashoffset: var(--flow-shift, 3px); opacity: calc(var(--flow-glow-peak, 0.5) * var(--flow-boost, 1)); }
-      68%, 100% { stroke-dashoffset: var(--flow-shift, 3px); opacity: 0; }
-    }
-    @keyframes archify-cascade-tail {
-      0% { stroke-dashoffset: calc(var(--flow-len, 0px) + var(--flow-shift, 20px)); opacity: 0; }
-      4% { opacity: calc(var(--flow-tail-peak, 0.42) * var(--flow-echo-scale, 1) * var(--flow-boost, 1)); }
-      15% { stroke-dashoffset: calc((var(--flow-len, 0px) + var(--flow-shift, 20px)) * 0.88); }
-      48% { stroke-dashoffset: calc((var(--flow-len, 0px) + var(--flow-shift, 20px)) * 0.22); }
-      62% { stroke-dashoffset: var(--flow-shift, 20px); opacity: calc(var(--flow-tail-peak, 0.42) * var(--flow-echo-scale, 1) * var(--flow-boost, 1)); }
-      68%, 100% { stroke-dashoffset: var(--flow-shift, 20px); opacity: 0; }
-    }
-    @keyframes archify-cascade-head {
-      0% { stroke-dashoffset: var(--flow-len, 0px); opacity: 0; }
-      4% { opacity: calc(var(--flow-head-peak, 0.95) * var(--flow-echo-scale, 1) * var(--flow-boost, 1)); }
-      15% { stroke-dashoffset: calc(var(--flow-len, 0px) * 0.88); }
-      48% { stroke-dashoffset: calc(var(--flow-len, 0px) * 0.22); }
-      62% { stroke-dashoffset: 0; opacity: calc(var(--flow-head-peak, 0.95) * var(--flow-echo-scale, 1) * var(--flow-boost, 1)); }
-      68%, 100% { stroke-dashoffset: 0; opacity: 0; }
-    }
-    @keyframes archify-flow-ripple {
-      0%, 60% { r: 2px; opacity: 0; }
-      63% { r: 2px; opacity: calc(var(--flow-ripple-peak, 0.65) * var(--flow-boost, 1)); }
-      78%, 100% { r: 20px; opacity: 0; }
-    }
-    @keyframes archify-flow-ripple-echo {
-      0%, 63% { r: 2px; opacity: 0; }
-      66% { r: 2px; opacity: calc(var(--flow-ripple-echo-peak, 0.26) * var(--flow-boost, 1)); }
-      84%, 100% { r: 30px; opacity: 0; }
-    }
-    @keyframes archify-node-receive {
-      0%, 100% { filter: var(--ambient-node-base-filter, none); }
-      5%, 12% { filter: var(--ambient-node-base-filter,) drop-shadow(0 0 9px var(--arrow-emphasis)); }
     }
     @keyframes archify-node-enter {
       from { opacity: 0; }
@@ -5193,10 +5158,24 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           </marker>
         </defs>
         <style>
-          svg[data-erd-ui="cards"] .er-table { fill: var(--mask); stroke: var(--lane-stroke); }
-          svg[data-erd-ui="cards"] .er-table-header { fill: var(--database-fill); stroke: none; }
-          svg[data-erd-ui="cards"] .er-row-rule { stroke: var(--lane-stroke); stroke-opacity: .55; }
-          svg[data-erd-ui="cards"] .er-type { fill: var(--text-muted); }
+          svg[data-erd-ui="cards"] .er-hue-database { --er-hue: var(--database-stroke); --er-wash: var(--database-fill); }
+          svg[data-erd-ui="cards"] .er-hue-frontend { --er-hue: var(--frontend-stroke); --er-wash: var(--frontend-fill); }
+          svg[data-erd-ui="cards"] .er-hue-backend { --er-hue: var(--backend-stroke); --er-wash: var(--backend-fill); }
+          svg[data-erd-ui="cards"] .er-hue-cloud { --er-hue: var(--cloud-stroke); --er-wash: var(--cloud-fill); }
+          svg[data-erd-ui="cards"] .er-hue-messagebus { --er-hue: var(--messagebus-stroke); --er-wash: var(--messagebus-fill); }
+          svg[data-erd-ui="cards"] .er-hue-security { --er-hue: var(--security-stroke); --er-wash: var(--security-fill); }
+          svg[data-erd-ui="cards"] .er-band { fill: color-mix(in srgb, var(--er-hue) 4%, transparent); stroke: color-mix(in srgb, var(--er-hue) 20%, transparent); stroke-dasharray: none; }
+          svg[data-erd-ui="cards"] .er-band-pill { fill: var(--er-wash); stroke: color-mix(in srgb, var(--er-hue) 30%, transparent); stroke-width: .8; }
+          svg[data-erd-ui="cards"] .er-band-label { fill: var(--er-hue); letter-spacing: .08em; text-transform: uppercase; }
+          svg[data-erd-ui="cards"] .er-table { fill: var(--mask); stroke: color-mix(in srgb, var(--er-hue) 34%, var(--lane-stroke)); }
+          svg[data-erd-ui="cards"] .er-table-header { fill: var(--er-wash); stroke: none; }
+          svg[data-erd-ui="cards"] .er-table-cap { stroke: var(--er-hue); pointer-events: none; }
+          svg[data-erd-ui="cards"] .er-header-rule { stroke: color-mix(in srgb, var(--er-hue) 30%, var(--lane-stroke)); }
+          svg[data-erd-ui="cards"] [class*="er-hue-"] .semantic-sigil { color: var(--er-hue); }
+          svg[data-erd-ui="cards"] .er-row-rule { stroke-opacity: 0; }
+          svg[data-erd-ui="cards"] .er-zebra { fill: color-mix(in srgb, var(--er-hue) 6%, transparent); }
+          svg[data-erd-ui="cards"] .er-name-pk { font-weight: 700; }
+          svg[data-erd-ui="cards"] .er-type { fill: var(--text-muted); opacity: .86; }
           svg[data-erd-ui="cards"] .er-key-badge { fill: var(--database-fill); stroke: none; }
           svg[data-erd-ui="cards"] .er-key-badge[data-er-badge="fk"] { fill: var(--messagebus-fill); }
           svg[data-erd-ui="cards"] .er-key-badge[data-er-badge="uk"] { fill: none; stroke: var(--lane-stroke); }
@@ -5231,21 +5210,29 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Domain bands (behind the routes so a channel is never washed out) -->
-        <g data-domain-band="accounts">
-          <rect x="20" y="22" width="274" height="586" rx="8" class="c-lane" stroke-width="1"/>
-          <text data-domain-label="" x="30" y="35" class="t-muted" font-size="9" font-weight="700">accounts</text>
+        <g data-domain-band="accounts" class="er-hue-database">
+          <rect x="20" y="22" width="274" height="586" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="28" y="15" width="64" height="15" rx="7.5" class="c-mask"/>
+          <rect x="28" y="15" width="64" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="35" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">accounts</text>
         </g>
-        <g data-domain-band="catalog">
-          <rect x="650" y="22" width="264" height="364" rx="8" class="c-lane" stroke-width="1"/>
-          <text data-domain-label="" x="660" y="35" class="t-muted" font-size="9" font-weight="700">catalog</text>
+        <g data-domain-band="catalog" class="er-hue-frontend">
+          <rect x="650" y="22" width="264" height="364" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="658" y="15" width="58" height="15" rx="7.5" class="c-mask"/>
+          <rect x="658" y="15" width="58" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="665" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">catalog</text>
         </g>
-        <g data-domain-band="billing">
-          <rect x="334" y="22" width="276" height="606" rx="8" class="c-lane" stroke-width="1"/>
-          <text data-domain-label="" x="344" y="35" class="t-muted" font-size="9" font-weight="700">billing</text>
+        <g data-domain-band="billing" class="er-hue-backend">
+          <rect x="334" y="22" width="276" height="606" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="342" y="15" width="58" height="15" rx="7.5" class="c-mask"/>
+          <rect x="342" y="15" width="58" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="349" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">billing</text>
         </g>
-        <g data-domain-band="payments">
-          <rect x="954" y="22" width="264" height="586" rx="8" class="c-lane" stroke-width="1"/>
-          <text data-domain-label="" x="964" y="35" class="t-muted" font-size="9" font-weight="700">payments</text>
+        <g data-domain-band="payments" class="er-hue-cloud">
+          <rect x="954" y="22" width="264" height="586" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="962" y="15" width="64" height="15" rx="7.5" class="c-mask"/>
+          <rect x="962" y="15" width="64" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="969" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">payments</text>
         </g>
 
         <!-- Bundled relationship trunks (under the branches: a bus runs close
@@ -5268,528 +5255,603 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <path data-edge-from="refund" data-edge-to="payment" data-edge-key="10" data-edge-id="refund_payment" data-er-ends="many one" data-composition-points="1086,464;1086,398" d="M 1086 464 L 1086 398" class="a-default" data-animate="edge" style="--step:10" stroke-width="1.5" marker-start="url(#er-many-start)" marker-end="url(#er-one-end)"/>
 
         <!-- Entities -->
-        <g id="node-tenant" data-node-id="tenant" data-node-label="tenant" tabindex="0" role="button" aria-label="Focus tenant, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="accounts" data-node-context="Entity">
+        <g id="node-tenant" data-node-id="tenant" data-node-label="tenant" tabindex="0" role="button" aria-label="Focus tenant, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="accounts" data-node-context="Entity" class="er-hue-database">
           <title>tenant · Entity · accounts</title>
-          <rect x="37" y="40" width="240" height="136" rx="5" class="c-mask"/>
-          <rect x="37" y="40" width="240" height="136" rx="5" class="c-database er-table" data-animate="node" style="--step:1" stroke-width="1.5"/>
-          <path class="er-table-header" d="M 42 40 H 272 Q 277 40 277 45 V 70 H 37 V 45 Q 37 40 42 40 Z"/>
+          <rect x="37" y="40" width="240" height="136" rx="8" class="c-mask"/>
+          <rect x="37" y="40" width="240" height="136" rx="8" class="c-database er-table" data-animate="node" style="--step:1" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 45 40 H 269 A 8 8 0 0 1 277 48 V 70 H 37 V 48 A 8 8 0 0 1 45 40 Z"/>
+          <path class="er-table-cap" d="M 49 41.4 H 265" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(45 47) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="157" y="59" class="t-primary" font-size="13" font-weight="700" text-anchor="middle">tenant</text>
-          <line x1="37" y1="70" x2="277" y2="70" class="c-grid" stroke-width="1"/>
+          <text data-node-label="" x="157" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">tenant</text>
+          <line x1="37" y1="70" x2="277" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
             <line x1="37" y1="70" x2="277" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
+
             <rect x="47" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="58" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="79" y="85" class="t-primary" font-size="11">id</text>
+            <text data-detail="context" x="79" y="85" class="t-primary er-name-pk" font-size="11">id</text>
             <text data-detail="context" x="265" y="85" class="er-type" font-size="10.5" text-anchor="end">uuid</text>
           </g>
           <g data-detail="context" data-er-row="1">
             <line x1="37" y1="90" x2="277" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="41" y="91" width="232" height="18" rx="4" class="er-zebra"/>
             <rect x="47" y="95" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="uk"/><text data-detail="context" x="58" y="105" class="t-muted" font-size="9" font-weight="600">UK</text>
             <text data-detail="context" x="79" y="105" class="t-primary" font-size="11">slug</text>
             <text data-detail="context" x="265" y="105" class="er-type" font-size="10.5" text-anchor="end">varchar(64)</text>
           </g>
           <g data-detail="context" data-er-row="2">
             <line x1="37" y1="110" x2="277" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="79" y="125" class="t-primary" font-size="11">name</text>
             <text data-detail="context" x="265" y="125" class="er-type" font-size="10.5" text-anchor="end">varchar(160)</text>
           </g>
           <g data-detail="context" data-er-row="3">
             <line x1="37" y1="130" x2="277" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="41" y="131" width="232" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="79" y="145" class="t-primary" font-size="11">status</text>
             <text data-detail="context" x="265" y="145" class="er-type" font-size="10.5" text-anchor="end">varchar(16)</text>
           </g>
           <g data-detail="context" data-er-row="4">
             <line x1="37" y1="150" x2="277" y2="150" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="79" y="165" class="t-primary" font-size="11">created_at</text>
             <text data-detail="context" x="265" y="165" class="er-type" font-size="10.5" text-anchor="end">timestamptz</text>
           </g>
         </g>
 
-        <g id="node-user_account" data-node-id="user_account" data-node-label="user_account" tabindex="0" role="button" aria-label="Focus user_account, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="accounts" data-node-context="Entity">
+        <g id="node-user_account" data-node-id="user_account" data-node-label="user_account" tabindex="0" role="button" aria-label="Focus user_account, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="accounts" data-node-context="Entity" class="er-hue-database">
           <title>user_account · Entity · accounts</title>
-          <rect x="37" y="242" width="240" height="156" rx="5" class="c-mask"/>
-          <rect x="37" y="242" width="240" height="156" rx="5" class="c-database er-table" data-animate="node" style="--step:2" stroke-width="1.5"/>
-          <path class="er-table-header" d="M 42 242 H 272 Q 277 242 277 247 V 272 H 37 V 247 Q 37 242 42 242 Z"/>
+          <rect x="37" y="242" width="240" height="156" rx="8" class="c-mask"/>
+          <rect x="37" y="242" width="240" height="156" rx="8" class="c-database er-table" data-animate="node" style="--step:2" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 45 242 H 269 A 8 8 0 0 1 277 250 V 272 H 37 V 250 A 8 8 0 0 1 45 242 Z"/>
+          <path class="er-table-cap" d="M 49 243.4 H 265" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(45 249) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="157" y="261" class="t-primary" font-size="13" font-weight="700" text-anchor="middle">user_account</text>
-          <line x1="37" y1="272" x2="277" y2="272" class="c-grid" stroke-width="1"/>
+          <text data-node-label="" x="157" y="261" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">user_account</text>
+          <line x1="37" y1="272" x2="277" y2="272" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
             <line x1="37" y1="272" x2="277" y2="272" class="c-grid er-row-rule" stroke-width="0.5"/>
+
             <rect x="47" y="277" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="58" y="287" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="79" y="287" class="t-primary" font-size="11">id</text>
+            <text data-detail="context" x="79" y="287" class="t-primary er-name-pk" font-size="11">id</text>
             <text data-detail="context" x="265" y="287" class="er-type" font-size="10.5" text-anchor="end">uuid</text>
           </g>
           <g data-detail="context" data-er-row="1">
             <line x1="37" y1="292" x2="277" y2="292" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="41" y="293" width="232" height="18" rx="4" class="er-zebra"/>
             <rect x="47" y="297" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="uk"/><text data-detail="context" x="58" y="307" class="t-muted" font-size="9" font-weight="600">UK</text>
             <text data-detail="context" x="79" y="307" class="t-primary" font-size="11">email</text>
             <text data-detail="context" x="265" y="307" class="er-type" font-size="10.5" text-anchor="end">varchar(255)</text>
           </g>
           <g data-detail="context" data-er-row="2">
             <line x1="37" y1="312" x2="277" y2="312" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="79" y="327" class="t-primary" font-size="11">display_name</text>
             <text data-detail="context" x="265" y="327" class="er-type" font-size="10.5" text-anchor="end">varchar(120)</text>
           </g>
           <g data-detail="context" data-er-row="3">
             <line x1="37" y1="332" x2="277" y2="332" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="41" y="333" width="232" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="79" y="347" class="t-primary" font-size="11">locale</text>
             <text data-detail="context" x="265" y="347" class="er-type" font-size="10.5" text-anchor="end">char(5)</text>
           </g>
           <g data-detail="context" data-er-row="4">
             <line x1="37" y1="352" x2="277" y2="352" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="79" y="367" class="t-primary" font-size="11">mfa_enabled</text>
             <text data-detail="context" x="265" y="367" class="er-type" font-size="10.5" text-anchor="end">boolean</text>
           </g>
           <g data-detail="context" data-er-row="5">
             <line x1="37" y1="372" x2="277" y2="372" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="41" y="373" width="232" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="79" y="387" class="t-primary" font-size="11">created_at</text>
             <text data-detail="context" x="265" y="387" class="er-type" font-size="10.5" text-anchor="end">timestamptz</text>
           </g>
         </g>
 
-        <g id="node-membership" data-node-id="membership" data-node-label="membership" tabindex="0" role="button" aria-label="Focus membership, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="accounts" data-node-context="Entity">
+        <g id="node-membership" data-node-id="membership" data-node-label="membership" tabindex="0" role="button" aria-label="Focus membership, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="accounts" data-node-context="Entity" class="er-hue-database">
           <title>membership · Entity · accounts</title>
-          <rect x="32" y="464" width="250" height="136" rx="5" class="c-mask"/>
-          <rect x="32" y="464" width="250" height="136" rx="5" class="c-database er-table" data-animate="node" style="--step:0" stroke-width="1.5"/>
-          <path class="er-table-header" d="M 37 464 H 277 Q 282 464 282 469 V 494 H 32 V 469 Q 32 464 37 464 Z"/>
+          <rect x="32" y="464" width="250" height="136" rx="8" class="c-mask"/>
+          <rect x="32" y="464" width="250" height="136" rx="8" class="c-database er-table" data-animate="node" style="--step:0" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 40 464 H 274 A 8 8 0 0 1 282 472 V 494 H 32 V 472 A 8 8 0 0 1 40 464 Z"/>
+          <path class="er-table-cap" d="M 44 465.4 H 270" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(40 471) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="157" y="483" class="t-primary" font-size="13" font-weight="700" text-anchor="middle">membership</text>
-          <line x1="32" y1="494" x2="282" y2="494" class="c-grid" stroke-width="1"/>
+          <text data-node-label="" x="157" y="483" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">membership</text>
+          <line x1="32" y1="494" x2="282" y2="494" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
             <line x1="32" y1="494" x2="282" y2="494" class="c-grid er-row-rule" stroke-width="0.5"/>
+
             <rect x="42" y="499" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="509" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="74" y="509" class="t-primary" font-size="11">id</text>
+            <text data-detail="context" x="74" y="509" class="t-primary er-name-pk" font-size="11">id</text>
             <text data-detail="context" x="270" y="509" class="er-type" font-size="10.5" text-anchor="end">bigint</text>
           </g>
           <g data-detail="context" data-er-row="1">
             <line x1="32" y1="514" x2="282" y2="514" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="515" width="242" height="18" rx="4" class="er-zebra"/>
             <rect x="42" y="519" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="53" y="529" class="t-messagebus" font-size="9" font-weight="600">FK</text>
             <text data-detail="context" x="74" y="529" class="t-primary" font-size="11">tenant_id</text>
             <text data-detail="context" x="270" y="529" class="er-type" font-size="10.5" text-anchor="end">uuid</text>
           </g>
           <g data-detail="context" data-er-row="2">
             <line x1="32" y1="534" x2="282" y2="534" class="c-grid er-row-rule" stroke-width="0.5"/>
+
             <rect x="42" y="539" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="53" y="549" class="t-messagebus" font-size="9" font-weight="600">FK</text>
             <text data-detail="context" x="74" y="549" class="t-primary" font-size="11">user_id</text>
             <text data-detail="context" x="270" y="549" class="er-type" font-size="10.5" text-anchor="end">uuid</text>
           </g>
           <g data-detail="context" data-er-row="3">
             <line x1="32" y1="554" x2="282" y2="554" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="36" y="555" width="242" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="74" y="569" class="t-primary" font-size="11">role</text>
             <text data-detail="context" x="270" y="569" class="er-type" font-size="10.5" text-anchor="end">varchar(24)</text>
           </g>
           <g data-detail="context" data-er-row="4">
             <line x1="32" y1="574" x2="282" y2="574" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="74" y="589" class="t-primary" font-size="11">joined_at</text>
             <text data-detail="context" x="270" y="589" class="er-type" font-size="10.5" text-anchor="end">timestamptz</text>
           </g>
         </g>
 
-        <g id="node-plan" data-node-id="plan" data-node-label="plan" tabindex="0" role="button" aria-label="Focus plan, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="catalog" data-node-context="Entity">
+        <g id="node-plan" data-node-id="plan" data-node-label="plan" tabindex="0" role="button" aria-label="Focus plan, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="catalog" data-node-context="Entity" class="er-hue-frontend">
           <title>plan · Entity · catalog</title>
-          <rect x="662" y="40" width="240" height="136" rx="5" class="c-mask"/>
-          <rect x="662" y="40" width="240" height="136" rx="5" class="c-database er-table" data-animate="node" style="--step:3" stroke-width="1.5"/>
-          <path class="er-table-header" d="M 667 40 H 897 Q 902 40 902 45 V 70 H 662 V 45 Q 662 40 667 40 Z"/>
+          <rect x="662" y="40" width="240" height="136" rx="8" class="c-mask"/>
+          <rect x="662" y="40" width="240" height="136" rx="8" class="c-database er-table" data-animate="node" style="--step:3" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 670 40 H 894 A 8 8 0 0 1 902 48 V 70 H 662 V 48 A 8 8 0 0 1 670 40 Z"/>
+          <path class="er-table-cap" d="M 674 41.4 H 890" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(670 47) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="782" y="59" class="t-primary" font-size="13" font-weight="700" text-anchor="middle">plan</text>
-          <line x1="662" y1="70" x2="902" y2="70" class="c-grid" stroke-width="1"/>
+          <text data-node-label="" x="782" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">plan</text>
+          <line x1="662" y1="70" x2="902" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
             <line x1="662" y1="70" x2="902" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
+
             <rect x="672" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="683" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="704" y="85" class="t-primary" font-size="11">id</text>
+            <text data-detail="context" x="704" y="85" class="t-primary er-name-pk" font-size="11">id</text>
             <text data-detail="context" x="890" y="85" class="er-type" font-size="10.5" text-anchor="end">varchar(32)</text>
           </g>
           <g data-detail="context" data-er-row="1">
             <line x1="662" y1="90" x2="902" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="666" y="91" width="232" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="704" y="105" class="t-primary" font-size="11">name</text>
             <text data-detail="context" x="890" y="105" class="er-type" font-size="10.5" text-anchor="end">varchar(80)</text>
           </g>
           <g data-detail="context" data-er-row="2">
             <line x1="662" y1="110" x2="902" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="704" y="125" class="t-primary" font-size="11">billing_interval</text>
             <text data-detail="context" x="890" y="125" class="er-type" font-size="10.5" text-anchor="end">varchar(16)</text>
           </g>
           <g data-detail="context" data-er-row="3">
             <line x1="662" y1="130" x2="902" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="666" y="131" width="232" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="704" y="145" class="t-primary" font-size="11">seat_based</text>
             <text data-detail="context" x="890" y="145" class="er-type" font-size="10.5" text-anchor="end">boolean</text>
           </g>
           <g data-detail="context" data-er-row="4">
             <line x1="662" y1="150" x2="902" y2="150" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="704" y="165" class="t-primary" font-size="11">active</text>
             <text data-detail="context" x="890" y="165" class="er-type" font-size="10.5" text-anchor="end">boolean</text>
           </g>
         </g>
 
-        <g id="node-price" data-node-id="price" data-node-label="price" tabindex="0" role="button" aria-label="Focus price, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="catalog" data-node-context="Entity">
+        <g id="node-price" data-node-id="price" data-node-label="price" tabindex="0" role="button" aria-label="Focus price, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="catalog" data-node-context="Entity" class="er-hue-frontend">
           <title>price · Entity · catalog</title>
-          <rect x="662" y="242" width="240" height="136" rx="5" class="c-mask"/>
-          <rect x="662" y="242" width="240" height="136" rx="5" class="c-database er-table" data-animate="node" style="--step:2" stroke-width="1.5"/>
-          <path class="er-table-header" d="M 667 242 H 897 Q 902 242 902 247 V 272 H 662 V 247 Q 662 242 667 242 Z"/>
+          <rect x="662" y="242" width="240" height="136" rx="8" class="c-mask"/>
+          <rect x="662" y="242" width="240" height="136" rx="8" class="c-database er-table" data-animate="node" style="--step:2" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 670 242 H 894 A 8 8 0 0 1 902 250 V 272 H 662 V 250 A 8 8 0 0 1 670 242 Z"/>
+          <path class="er-table-cap" d="M 674 243.4 H 890" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(670 249) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="782" y="261" class="t-primary" font-size="13" font-weight="700" text-anchor="middle">price</text>
-          <line x1="662" y1="272" x2="902" y2="272" class="c-grid" stroke-width="1"/>
+          <text data-node-label="" x="782" y="261" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">price</text>
+          <line x1="662" y1="272" x2="902" y2="272" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
             <line x1="662" y1="272" x2="902" y2="272" class="c-grid er-row-rule" stroke-width="0.5"/>
+
             <rect x="672" y="277" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="683" y="287" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="704" y="287" class="t-primary" font-size="11">id</text>
+            <text data-detail="context" x="704" y="287" class="t-primary er-name-pk" font-size="11">id</text>
             <text data-detail="context" x="890" y="287" class="er-type" font-size="10.5" text-anchor="end">bigint</text>
           </g>
           <g data-detail="context" data-er-row="1">
             <line x1="662" y1="292" x2="902" y2="292" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="666" y="293" width="232" height="18" rx="4" class="er-zebra"/>
             <rect x="672" y="297" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="683" y="307" class="t-messagebus" font-size="9" font-weight="600">FK</text>
             <text data-detail="context" x="704" y="307" class="t-primary" font-size="11">plan_id</text>
             <text data-detail="context" x="890" y="307" class="er-type" font-size="10.5" text-anchor="end">varchar(32)</text>
           </g>
           <g data-detail="context" data-er-row="2">
             <line x1="662" y1="312" x2="902" y2="312" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="704" y="327" class="t-primary" font-size="11">currency</text>
             <text data-detail="context" x="890" y="327" class="er-type" font-size="10.5" text-anchor="end">char(3)</text>
           </g>
           <g data-detail="context" data-er-row="3">
             <line x1="662" y1="332" x2="902" y2="332" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="666" y="333" width="232" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="704" y="347" class="t-primary" font-size="11">unit_amount</text>
             <text data-detail="context" x="890" y="347" class="er-type" font-size="10.5" text-anchor="end">numeric(12,2)</text>
           </g>
           <g data-detail="context" data-er-row="4">
             <line x1="662" y1="352" x2="902" y2="352" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="704" y="367" class="t-primary" font-size="11">effective_from</text>
             <text data-detail="context" x="890" y="367" class="er-type" font-size="10.5" text-anchor="end">timestamptz</text>
           </g>
         </g>
 
-        <g id="node-subscription" data-node-id="subscription" data-node-label="subscription" tabindex="0" role="button" aria-label="Focus subscription, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="billing" data-node-context="Entity">
+        <g id="node-subscription" data-node-id="subscription" data-node-label="subscription" tabindex="0" role="button" aria-label="Focus subscription, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="billing" data-node-context="Entity" class="er-hue-backend">
           <title>subscription · Entity · billing</title>
-          <rect x="352" y="40" width="240" height="176" rx="5" class="c-mask"/>
-          <rect x="352" y="40" width="240" height="176" rx="5" class="c-database er-table" data-animate="node" style="--step:3" stroke-width="1.5"/>
-          <path class="er-table-header" d="M 357 40 H 587 Q 592 40 592 45 V 70 H 352 V 45 Q 352 40 357 40 Z"/>
+          <rect x="352" y="40" width="240" height="176" rx="8" class="c-mask"/>
+          <rect x="352" y="40" width="240" height="176" rx="8" class="c-database er-table" data-animate="node" style="--step:3" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 360 40 H 584 A 8 8 0 0 1 592 48 V 70 H 352 V 48 A 8 8 0 0 1 360 40 Z"/>
+          <path class="er-table-cap" d="M 364 41.4 H 580" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(360 47) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="472" y="59" class="t-primary" font-size="13" font-weight="700" text-anchor="middle">subscription</text>
-          <line x1="352" y1="70" x2="592" y2="70" class="c-grid" stroke-width="1"/>
+          <text data-node-label="" x="472" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">subscription</text>
+          <line x1="352" y1="70" x2="592" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
             <line x1="352" y1="70" x2="592" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
+
             <rect x="362" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="373" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="394" y="85" class="t-primary" font-size="11">id</text>
+            <text data-detail="context" x="394" y="85" class="t-primary er-name-pk" font-size="11">id</text>
             <text data-detail="context" x="580" y="85" class="er-type" font-size="10.5" text-anchor="end">bigint</text>
           </g>
           <g data-detail="context" data-er-row="1">
             <line x1="352" y1="90" x2="592" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="356" y="91" width="232" height="18" rx="4" class="er-zebra"/>
             <rect x="362" y="95" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="373" y="105" class="t-messagebus" font-size="9" font-weight="600">FK</text>
             <text data-detail="context" x="394" y="105" class="t-primary" font-size="11">tenant_id</text>
             <text data-detail="context" x="580" y="105" class="er-type" font-size="10.5" text-anchor="end">uuid</text>
           </g>
           <g data-detail="context" data-er-row="2">
             <line x1="352" y1="110" x2="592" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
+
             <rect x="362" y="115" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="373" y="125" class="t-messagebus" font-size="9" font-weight="600">FK</text>
             <text data-detail="context" x="394" y="125" class="t-primary" font-size="11">price_id</text>
             <text data-detail="context" x="580" y="125" class="er-type" font-size="10.5" text-anchor="end">bigint</text>
           </g>
           <g data-detail="context" data-er-row="3">
             <line x1="352" y1="130" x2="592" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="356" y="131" width="232" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="394" y="145" class="t-primary" font-size="11">status</text>
             <text data-detail="context" x="580" y="145" class="er-type" font-size="10.5" text-anchor="end">varchar(16)</text>
           </g>
           <g data-detail="context" data-er-row="4">
             <line x1="352" y1="150" x2="592" y2="150" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="394" y="165" class="t-primary" font-size="11">seats</text>
             <text data-detail="context" x="580" y="165" class="er-type" font-size="10.5" text-anchor="end">int</text>
           </g>
           <g data-detail="context" data-er-row="5">
             <line x1="352" y1="170" x2="592" y2="170" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="356" y="171" width="232" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="394" y="185" class="t-primary" font-size="11">started_at</text>
             <text data-detail="context" x="580" y="185" class="er-type" font-size="10.5" text-anchor="end">timestamptz</text>
           </g>
           <g data-detail="context" data-er-row="6">
             <line x1="352" y1="190" x2="592" y2="190" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="394" y="205" class="t-primary" font-size="11">canceled_at</text>
             <text data-detail="context" x="580" y="205" class="er-type" font-size="10.5" text-anchor="end">timestamptz</text>
           </g>
         </g>
 
-        <g id="node-invoice" data-node-id="invoice" data-node-label="invoice" tabindex="0" role="button" aria-label="Focus invoice, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="billing" data-node-context="Entity">
+        <g id="node-invoice" data-node-id="invoice" data-node-label="invoice" tabindex="0" role="button" aria-label="Focus invoice, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="billing" data-node-context="Entity" class="er-hue-backend">
           <title>invoice · Entity · billing</title>
-          <rect x="346" y="242" width="252" height="196" rx="5" class="c-mask"/>
-          <rect x="346" y="242" width="252" height="196" rx="5" class="c-database er-table" data-animate="node" style="--step:5" stroke-width="1.5"/>
-          <path class="er-table-header" d="M 351 242 H 593 Q 598 242 598 247 V 272 H 346 V 247 Q 346 242 351 242 Z"/>
+          <rect x="346" y="242" width="252" height="196" rx="8" class="c-mask"/>
+          <rect x="346" y="242" width="252" height="196" rx="8" class="c-database er-table" data-animate="node" style="--step:5" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 354 242 H 590 A 8 8 0 0 1 598 250 V 272 H 346 V 250 A 8 8 0 0 1 354 242 Z"/>
+          <path class="er-table-cap" d="M 358 243.4 H 586" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(354 249) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="472" y="261" class="t-primary" font-size="13" font-weight="700" text-anchor="middle">invoice</text>
-          <line x1="346" y1="272" x2="598" y2="272" class="c-grid" stroke-width="1"/>
+          <text data-node-label="" x="472" y="261" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">invoice</text>
+          <line x1="346" y1="272" x2="598" y2="272" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
             <line x1="346" y1="272" x2="598" y2="272" class="c-grid er-row-rule" stroke-width="0.5"/>
+
             <rect x="356" y="277" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="367" y="287" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="388" y="287" class="t-primary" font-size="11">id</text>
+            <text data-detail="context" x="388" y="287" class="t-primary er-name-pk" font-size="11">id</text>
             <text data-detail="context" x="586" y="287" class="er-type" font-size="10.5" text-anchor="end">bigint</text>
           </g>
           <g data-detail="context" data-er-row="1">
             <line x1="346" y1="292" x2="598" y2="292" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="350" y="293" width="244" height="18" rx="4" class="er-zebra"/>
             <rect x="356" y="297" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="367" y="307" class="t-messagebus" font-size="9" font-weight="600">FK</text>
             <text data-detail="context" x="388" y="307" class="t-primary" font-size="11">subscription_id</text>
             <text data-detail="context" x="586" y="307" class="er-type" font-size="10.5" text-anchor="end">bigint</text>
           </g>
           <g data-detail="context" data-er-row="2">
             <line x1="346" y1="312" x2="598" y2="312" class="c-grid er-row-rule" stroke-width="0.5"/>
+
             <rect x="356" y="317" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="uk"/><text data-detail="context" x="367" y="327" class="t-muted" font-size="9" font-weight="600">UK</text>
             <text data-detail="context" x="388" y="327" class="t-primary" font-size="11">number</text>
             <text data-detail="context" x="586" y="327" class="er-type" font-size="10.5" text-anchor="end">varchar(32)</text>
           </g>
           <g data-detail="context" data-er-row="3">
             <line x1="346" y1="332" x2="598" y2="332" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="350" y="333" width="244" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="388" y="347" class="t-primary" font-size="11">status</text>
             <text data-detail="context" x="586" y="347" class="er-type" font-size="10.5" text-anchor="end">varchar(16)</text>
           </g>
           <g data-detail="context" data-er-row="4">
             <line x1="346" y1="352" x2="598" y2="352" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="388" y="367" class="t-primary" font-size="11">subtotal_amount</text>
             <text data-detail="context" x="586" y="367" class="er-type" font-size="10.5" text-anchor="end">numeric(12,2)</text>
           </g>
           <g data-detail="context" data-er-row="5">
             <line x1="346" y1="372" x2="598" y2="372" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="350" y="373" width="244" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="388" y="387" class="t-primary" font-size="11">tax_amount</text>
             <text data-detail="context" x="586" y="387" class="er-type" font-size="10.5" text-anchor="end">numeric(12,2)</text>
           </g>
           <g data-detail="context" data-er-row="6">
             <line x1="346" y1="392" x2="598" y2="392" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="388" y="407" class="t-primary" font-size="11">total_amount</text>
             <text data-detail="context" x="586" y="407" class="er-type" font-size="10.5" text-anchor="end">numeric(12,2)</text>
           </g>
           <g data-detail="context" data-er-row="7">
             <line x1="346" y1="412" x2="598" y2="412" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="350" y="413" width="244" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="388" y="427" class="t-primary" font-size="11">issued_at</text>
             <text data-detail="context" x="586" y="427" class="er-type" font-size="10.5" text-anchor="end">timestamptz</text>
           </g>
         </g>
 
-        <g id="node-invoice_line" data-node-id="invoice_line" data-node-label="invoice_line" tabindex="0" role="button" aria-label="Focus invoice_line, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="billing" data-node-context="Entity">
+        <g id="node-invoice_line" data-node-id="invoice_line" data-node-label="invoice_line" tabindex="0" role="button" aria-label="Focus invoice_line, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="billing" data-node-context="Entity" class="er-hue-backend">
           <title>invoice_line · Entity · billing</title>
-          <rect x="347" y="464" width="250" height="156" rx="5" class="c-mask"/>
-          <rect x="347" y="464" width="250" height="156" rx="5" class="c-database er-table" data-animate="node" style="--step:6" stroke-width="1.5"/>
-          <path class="er-table-header" d="M 352 464 H 592 Q 597 464 597 469 V 494 H 347 V 469 Q 347 464 352 464 Z"/>
+          <rect x="347" y="464" width="250" height="156" rx="8" class="c-mask"/>
+          <rect x="347" y="464" width="250" height="156" rx="8" class="c-database er-table" data-animate="node" style="--step:6" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 355 464 H 589 A 8 8 0 0 1 597 472 V 494 H 347 V 472 A 8 8 0 0 1 355 464 Z"/>
+          <path class="er-table-cap" d="M 359 465.4 H 585" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(355 471) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="472" y="483" class="t-primary" font-size="13" font-weight="700" text-anchor="middle">invoice_line</text>
-          <line x1="347" y1="494" x2="597" y2="494" class="c-grid" stroke-width="1"/>
+          <text data-node-label="" x="472" y="483" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">invoice_line</text>
+          <line x1="347" y1="494" x2="597" y2="494" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
             <line x1="347" y1="494" x2="597" y2="494" class="c-grid er-row-rule" stroke-width="0.5"/>
+
             <rect x="357" y="499" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="368" y="509" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="389" y="509" class="t-primary" font-size="11">id</text>
+            <text data-detail="context" x="389" y="509" class="t-primary er-name-pk" font-size="11">id</text>
             <text data-detail="context" x="585" y="509" class="er-type" font-size="10.5" text-anchor="end">bigint</text>
           </g>
           <g data-detail="context" data-er-row="1">
             <line x1="347" y1="514" x2="597" y2="514" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="351" y="515" width="242" height="18" rx="4" class="er-zebra"/>
             <rect x="357" y="519" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="368" y="529" class="t-messagebus" font-size="9" font-weight="600">FK</text>
             <text data-detail="context" x="389" y="529" class="t-primary" font-size="11">invoice_id</text>
             <text data-detail="context" x="585" y="529" class="er-type" font-size="10.5" text-anchor="end">bigint</text>
           </g>
           <g data-detail="context" data-er-row="2">
             <line x1="347" y1="534" x2="597" y2="534" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="389" y="549" class="t-primary" font-size="11">description</text>
             <text data-detail="context" x="585" y="549" class="er-type" font-size="10.5" text-anchor="end">varchar(200)</text>
           </g>
           <g data-detail="context" data-er-row="3">
             <line x1="347" y1="554" x2="597" y2="554" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="351" y="555" width="242" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="389" y="569" class="t-primary" font-size="11">quantity</text>
             <text data-detail="context" x="585" y="569" class="er-type" font-size="10.5" text-anchor="end">int</text>
           </g>
           <g data-detail="context" data-er-row="4">
             <line x1="347" y1="574" x2="597" y2="574" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="389" y="589" class="t-primary" font-size="11">unit_amount</text>
             <text data-detail="context" x="585" y="589" class="er-type" font-size="10.5" text-anchor="end">numeric(12,2)</text>
           </g>
           <g data-detail="context" data-er-row="5">
             <line x1="347" y1="594" x2="597" y2="594" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="351" y="595" width="242" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="389" y="609" class="t-primary" font-size="11">amount</text>
             <text data-detail="context" x="585" y="609" class="er-type" font-size="10.5" text-anchor="end">numeric(12,2)</text>
           </g>
         </g>
 
-        <g id="node-payment_method" data-node-id="payment_method" data-node-label="payment_method" tabindex="0" role="button" aria-label="Focus payment_method, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="payments" data-node-context="Entity">
+        <g id="node-payment_method" data-node-id="payment_method" data-node-label="payment_method" tabindex="0" role="button" aria-label="Focus payment_method, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="payments" data-node-context="Entity" class="er-hue-cloud">
           <title>payment_method · Entity · payments</title>
-          <rect x="966" y="40" width="240" height="156" rx="5" class="c-mask"/>
-          <rect x="966" y="40" width="240" height="156" rx="5" class="c-database er-table" data-animate="node" style="--step:7" stroke-width="1.5"/>
-          <path class="er-table-header" d="M 971 40 H 1201 Q 1206 40 1206 45 V 70 H 966 V 45 Q 966 40 971 40 Z"/>
+          <rect x="966" y="40" width="240" height="156" rx="8" class="c-mask"/>
+          <rect x="966" y="40" width="240" height="156" rx="8" class="c-database er-table" data-animate="node" style="--step:7" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 974 40 H 1198 A 8 8 0 0 1 1206 48 V 70 H 966 V 48 A 8 8 0 0 1 974 40 Z"/>
+          <path class="er-table-cap" d="M 978 41.4 H 1194" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(974 47) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="1086" y="59" class="t-primary" font-size="13" font-weight="700" text-anchor="middle">payment_method</text>
-          <line x1="966" y1="70" x2="1206" y2="70" class="c-grid" stroke-width="1"/>
+          <text data-node-label="" x="1086" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">payment_method</text>
+          <line x1="966" y1="70" x2="1206" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
             <line x1="966" y1="70" x2="1206" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
+
             <rect x="976" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="987" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="1008" y="85" class="t-primary" font-size="11">id</text>
+            <text data-detail="context" x="1008" y="85" class="t-primary er-name-pk" font-size="11">id</text>
             <text data-detail="context" x="1194" y="85" class="er-type" font-size="10.5" text-anchor="end">bigint</text>
           </g>
           <g data-detail="context" data-er-row="1">
             <line x1="966" y1="90" x2="1206" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="970" y="91" width="232" height="18" rx="4" class="er-zebra"/>
             <rect x="976" y="95" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="987" y="105" class="t-messagebus" font-size="9" font-weight="600">FK</text>
             <text data-detail="context" x="1008" y="105" class="t-primary" font-size="11">tenant_id</text>
             <text data-detail="context" x="1194" y="105" class="er-type" font-size="10.5" text-anchor="end">uuid</text>
           </g>
           <g data-detail="context" data-er-row="2">
             <line x1="966" y1="110" x2="1206" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="1008" y="125" class="t-primary" font-size="11">kind</text>
             <text data-detail="context" x="1194" y="125" class="er-type" font-size="10.5" text-anchor="end">varchar(16)</text>
           </g>
           <g data-detail="context" data-er-row="3">
             <line x1="966" y1="130" x2="1206" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="970" y="131" width="232" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="1008" y="145" class="t-primary" font-size="11">last4</text>
             <text data-detail="context" x="1194" y="145" class="er-type" font-size="10.5" text-anchor="end">char(4)</text>
           </g>
           <g data-detail="context" data-er-row="4">
             <line x1="966" y1="150" x2="1206" y2="150" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="1008" y="165" class="t-primary" font-size="11">expires_at</text>
             <text data-detail="context" x="1194" y="165" class="er-type" font-size="10.5" text-anchor="end">date</text>
           </g>
           <g data-detail="context" data-er-row="5">
             <line x1="966" y1="170" x2="1206" y2="170" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="970" y="171" width="232" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="1008" y="185" class="t-primary" font-size="11">is_default</text>
             <text data-detail="context" x="1194" y="185" class="er-type" font-size="10.5" text-anchor="end">boolean</text>
           </g>
         </g>
 
-        <g id="node-payment" data-node-id="payment" data-node-label="payment" tabindex="0" role="button" aria-label="Focus payment, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="payments" data-node-context="Entity">
+        <g id="node-payment" data-node-id="payment" data-node-label="payment" tabindex="0" role="button" aria-label="Focus payment, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="payments" data-node-context="Entity" class="er-hue-cloud">
           <title>payment · Entity · payments</title>
-          <rect x="966" y="242" width="240" height="156" rx="5" class="c-mask"/>
-          <rect x="966" y="242" width="240" height="156" rx="5" class="c-database er-table" data-animate="node" style="--step:8" stroke-width="1.5"/>
-          <path class="er-table-header" d="M 971 242 H 1201 Q 1206 242 1206 247 V 272 H 966 V 247 Q 966 242 971 242 Z"/>
+          <rect x="966" y="242" width="240" height="156" rx="8" class="c-mask"/>
+          <rect x="966" y="242" width="240" height="156" rx="8" class="c-database er-table" data-animate="node" style="--step:8" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 974 242 H 1198 A 8 8 0 0 1 1206 250 V 272 H 966 V 250 A 8 8 0 0 1 974 242 Z"/>
+          <path class="er-table-cap" d="M 978 243.4 H 1194" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(974 249) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="1086" y="261" class="t-primary" font-size="13" font-weight="700" text-anchor="middle">payment</text>
-          <line x1="966" y1="272" x2="1206" y2="272" class="c-grid" stroke-width="1"/>
+          <text data-node-label="" x="1086" y="261" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">payment</text>
+          <line x1="966" y1="272" x2="1206" y2="272" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
             <line x1="966" y1="272" x2="1206" y2="272" class="c-grid er-row-rule" stroke-width="0.5"/>
+
             <rect x="976" y="277" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="987" y="287" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="1008" y="287" class="t-primary" font-size="11">id</text>
+            <text data-detail="context" x="1008" y="287" class="t-primary er-name-pk" font-size="11">id</text>
             <text data-detail="context" x="1194" y="287" class="er-type" font-size="10.5" text-anchor="end">bigint</text>
           </g>
           <g data-detail="context" data-er-row="1">
             <line x1="966" y1="292" x2="1206" y2="292" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="970" y="293" width="232" height="18" rx="4" class="er-zebra"/>
             <rect x="976" y="297" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="987" y="307" class="t-messagebus" font-size="9" font-weight="600">FK</text>
             <text data-detail="context" x="1008" y="307" class="t-primary" font-size="11">invoice_id</text>
             <text data-detail="context" x="1194" y="307" class="er-type" font-size="10.5" text-anchor="end">bigint</text>
           </g>
           <g data-detail="context" data-er-row="2">
             <line x1="966" y1="312" x2="1206" y2="312" class="c-grid er-row-rule" stroke-width="0.5"/>
+
             <rect x="976" y="317" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="987" y="327" class="t-messagebus" font-size="9" font-weight="600">FK</text>
             <text data-detail="context" x="1008" y="327" class="t-primary" font-size="11">payment_method_id</text>
             <text data-detail="context" x="1194" y="327" class="er-type" font-size="10.5" text-anchor="end">bigint</text>
           </g>
           <g data-detail="context" data-er-row="3">
             <line x1="966" y1="332" x2="1206" y2="332" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="970" y="333" width="232" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="1008" y="347" class="t-primary" font-size="11">amount</text>
             <text data-detail="context" x="1194" y="347" class="er-type" font-size="10.5" text-anchor="end">numeric(12,2)</text>
           </g>
           <g data-detail="context" data-er-row="4">
             <line x1="966" y1="352" x2="1206" y2="352" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="1008" y="367" class="t-primary" font-size="11">status</text>
             <text data-detail="context" x="1194" y="367" class="er-type" font-size="10.5" text-anchor="end">varchar(16)</text>
           </g>
           <g data-detail="context" data-er-row="5">
             <line x1="966" y1="372" x2="1206" y2="372" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="970" y="373" width="232" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="1008" y="387" class="t-primary" font-size="11">captured_at</text>
             <text data-detail="context" x="1194" y="387" class="er-type" font-size="10.5" text-anchor="end">timestamptz</text>
           </g>
         </g>
 
-        <g id="node-refund" data-node-id="refund" data-node-label="refund" tabindex="0" role="button" aria-label="Focus refund, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="payments" data-node-context="Entity">
+        <g id="node-refund" data-node-id="refund" data-node-label="refund" tabindex="0" role="button" aria-label="Focus refund, Entity" aria-pressed="false" data-node-kind="database" data-node-tag="payments" data-node-context="Entity" class="er-hue-cloud">
           <title>refund · Entity · payments</title>
-          <rect x="966" y="464" width="240" height="136" rx="5" class="c-mask"/>
-          <rect x="966" y="464" width="240" height="136" rx="5" class="c-database er-table" data-animate="node" style="--step:10" stroke-width="1.5"/>
-          <path class="er-table-header" d="M 971 464 H 1201 Q 1206 464 1206 469 V 494 H 966 V 469 Q 966 464 971 464 Z"/>
+          <rect x="966" y="464" width="240" height="136" rx="8" class="c-mask"/>
+          <rect x="966" y="464" width="240" height="136" rx="8" class="c-database er-table" data-animate="node" style="--step:10" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 974 464 H 1198 A 8 8 0 0 1 1206 472 V 494 H 966 V 472 A 8 8 0 0 1 974 464 Z"/>
+          <path class="er-table-cap" d="M 978 465.4 H 1194" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(974 471) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="1086" y="483" class="t-primary" font-size="13" font-weight="700" text-anchor="middle">refund</text>
-          <line x1="966" y1="494" x2="1206" y2="494" class="c-grid" stroke-width="1"/>
+          <text data-node-label="" x="1086" y="483" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">refund</text>
+          <line x1="966" y1="494" x2="1206" y2="494" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
             <line x1="966" y1="494" x2="1206" y2="494" class="c-grid er-row-rule" stroke-width="0.5"/>
+
             <rect x="976" y="499" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="987" y="509" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="1008" y="509" class="t-primary" font-size="11">id</text>
+            <text data-detail="context" x="1008" y="509" class="t-primary er-name-pk" font-size="11">id</text>
             <text data-detail="context" x="1194" y="509" class="er-type" font-size="10.5" text-anchor="end">bigint</text>
           </g>
           <g data-detail="context" data-er-row="1">
             <line x1="966" y1="514" x2="1206" y2="514" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="970" y="515" width="232" height="18" rx="4" class="er-zebra"/>
             <rect x="976" y="519" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="987" y="529" class="t-messagebus" font-size="9" font-weight="600">FK</text>
             <text data-detail="context" x="1008" y="529" class="t-primary" font-size="11">payment_id</text>
             <text data-detail="context" x="1194" y="529" class="er-type" font-size="10.5" text-anchor="end">bigint</text>
           </g>
           <g data-detail="context" data-er-row="2">
             <line x1="966" y1="534" x2="1206" y2="534" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="1008" y="549" class="t-primary" font-size="11">amount</text>
             <text data-detail="context" x="1194" y="549" class="er-type" font-size="10.5" text-anchor="end">numeric(12,2)</text>
           </g>
           <g data-detail="context" data-er-row="3">
             <line x1="966" y1="554" x2="1206" y2="554" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+            <rect x="970" y="555" width="232" height="18" rx="4" class="er-zebra"/>
+
             <text data-detail="context" x="1008" y="569" class="t-primary" font-size="11">reason</text>
             <text data-detail="context" x="1194" y="569" class="er-type" font-size="10.5" text-anchor="end">varchar(120)</text>
           </g>
           <g data-detail="context" data-er-row="4">
             <line x1="966" y1="574" x2="1206" y2="574" class="c-grid er-row-rule" stroke-width="0.5"/>
-            
+
+
             <text data-detail="context" x="1008" y="589" class="t-primary" font-size="11">created_at</text>
             <text data-detail="context" x="1194" y="589" class="er-type" font-size="10.5" text-anchor="end">timestamptz</text>
           </g>
@@ -7922,36 +7984,321 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       // Runtime decoration carries geometry and tree visibility only. Keep each
       // flow beside its authored edge so transforms, clipping and crossover
       // paint order apply.
-      // Each edge carries a small light show: a comet (halo, tail, head)
-      // cascading downstream on one shared cycle, a lingering wake, and a
-      // ripple where the comet lands. Phases follow the authored step order:
-      // source-node rank where known, chronological message order in sequence
-      // diagrams.
-      function readSecondsVar(name, fallback) {
-        var value = '';
-        try { value = window.getComputedStyle(svg).getPropertyValue(name); } catch (_) {}
-        var seconds = parseFloat(value);
-        return Number.isFinite(seconds) && seconds > 0 ? seconds : fallback;
+      // Each renderer may declare a choreography that matches what its diagram
+      // means. Relay (the default) sends a comet from each source when the
+      // signal reaches it; stream adds a packet train for continuous data; walk
+      // moves one token along the main state path; sequence plays messages in
+      // authored order; sweep runs a playhead along a timeline; replay fills
+      // waterfall spans in proportion to their measured time. Motion Governor
+      // plans the timeline and per-element keyframes; viewer.css owns looks.
+      var SVG_NS = 'http://www.w3.org/2000/svg';
+      var choreography = svg ? (svg.getAttribute('data-motion-choreography') || 'relay') : 'relay';
+      var RELAY = {
+        speed: 280,
+        minTravel: 0.42,
+        maxTravel: 1.5,
+        handoff: 0.1,
+        dwell: 0.55,
+        maxSpan: 9,
+        land: 0.9,
+        rest: 1.4,
+        minCycle: 3.6
+      };
+      function stepOf(element, fallback) {
+        var step = parseFloat(element && element.style ? element.style.getPropertyValue('--step') : '');
+        return Number.isFinite(step) ? step : fallback;
       }
-      function nodeStep(from) {
-        // Authored IDs follow the schema's conservative identifier pattern, so
-        // direct selector interpolation stays safe here. The semantic wrapper
-        // groups the animated shape; its authored step ranks the node.
-        var node = from ? svg.querySelector('[data-node-id="' + from + '"]') : null;
-        var shape = node ? node.querySelector('[data-animate="node"]') : null;
-        return shape && shape.style ? shape.style.getPropertyValue('--step') : '';
+      function byStep(a, b) { return a.step - b.step || a.index - b.index; }
+      function addWindow(windows, id, start, end, strong) {
+        if (!id) return;
+        (windows[id] = windows[id] || []).push({ start: start, end: end, strong: !!strong });
       }
-      function edgePhase(shape, fallbackStep) {
-        // Sequence messages have no data-edge-from; their own authored step is
-        // already chronological, which is the right phase there.
-        var raw = nodeStep(shape.getAttribute('data-edge-from'));
-        if (raw === '' && shape.style) raw = shape.style.getPropertyValue('--step');
-        var step = parseFloat(raw);
-        return Number.isFinite(step) ? step : fallbackStep;
+      function planRelay(records, windows) {
+        var arrive = Object.create(null);
+        var seeded = Object.create(null);
+        var targets = Object.create(null);
+        records.forEach(function (record) { if (record.from !== record.to) targets[record.to] = true; });
+        function seed(id) {
+          if (arrive[id] !== undefined) return;
+          arrive[id] = 0;
+          seeded[id] = true;
+        }
+        function relax() {
+          // Earliest arrival over a few dozen edges; a scan per settle keeps
+          // cycles and fan-in deterministic without a priority queue.
+          var settled = Object.create(null);
+          for (;;) {
+            var next = null;
+            Object.keys(arrive).forEach(function (id) {
+              if (!settled[id] && (next === null || arrive[id] < arrive[next])) next = id;
+            });
+            if (next === null) return;
+            settled[next] = true;
+            var depart = arrive[next] + (seeded[next] ? 0 : RELAY.handoff);
+            records.forEach(function (record) {
+              if (record.from !== next) return;
+              var at = depart + record.travel;
+              if (arrive[record.to] === undefined || at < arrive[record.to]) arrive[record.to] = at;
+            });
+          }
+        }
+        records.forEach(function (record) { if (!targets[record.from]) seed(record.from); });
+        relax();
+        for (;;) {
+          // A closed cycle has no entry; start it at its earliest authored edge.
+          var orphan = records.filter(function (record) { return arrive[record.from] === undefined; }).sort(byStep)[0];
+          if (!orphan) break;
+          seed(orphan.from);
+          relax();
+        }
+        records.forEach(function (record) {
+          record.depart = arrive[record.from] + (seeded[record.from] ? 0 : RELAY.handoff);
+          record.active = true;
+        });
+        Object.keys(arrive).forEach(function (id) { addWindow(windows, id, arrive[id], arrive[id]); });
+      }
+      function planWalk(records, windows) {
+        // A state machine is in one state at a time: follow the first authored
+        // transition to an unvisited state and let the current state stay lit.
+        var targets = Object.create(null);
+        records.forEach(function (record) { if (record.from !== record.to) targets[record.to] = true; });
+        var ordered = records.slice().sort(byStep);
+        var start = (ordered.find(function (record) { return !targets[record.from]; }) || ordered[0]).from;
+        var visited = Object.create(null);
+        var current = start;
+        var clock = 0;
+        var enteredAt = 0;
+        visited[start] = true;
+        for (var hops = 0; hops < 16; hops += 1) {
+          var next = ordered.find(function (record) { return record.from === current && !visited[record.to]; });
+          if (!next) break;
+          next.active = true;
+          next.depart = clock + RELAY.dwell;
+          addWindow(windows, current, enteredAt, next.depart, true);
+          clock = next.depart + next.travel;
+          enteredAt = clock;
+          current = next.to;
+          visited[current] = true;
+        }
+        addWindow(windows, current, enteredAt, enteredAt + 1.2, true);
+      }
+      function planSequence(records, windows) {
+        var clock = 0;
+        records.slice().sort(byStep).forEach(function (record) {
+          record.active = true;
+          record.depart = clock;
+          clock += record.travel + RELAY.handoff;
+          addWindow(windows, record.from, record.depart, record.depart);
+          addWindow(windows, record.to, record.depart + record.travel, record.depart + record.travel);
+        });
+      }
+      function scalePlan(records, windows, span) {
+        var scale = span > RELAY.maxSpan ? RELAY.maxSpan / span : 1;
+        if (scale === 1) return span;
+        records.forEach(function (record) {
+          if (!record.active) return;
+          record.depart *= scale;
+          record.travel *= scale;
+        });
+        Object.keys(windows).forEach(function (id) {
+          windows[id].forEach(function (window) { window.start *= scale; window.end *= scale; });
+        });
+        return span * scale;
+      }
+      function nodeShapes() {
+        var shapes = Object.create(null);
+        Array.prototype.forEach.call(svg.querySelectorAll('[data-animate="node"]'), function (shape) {
+          var wrapper = shape.closest('[data-node-id]');
+          var id = wrapper ? wrapper.getAttribute('data-node-id') : '';
+          if (id) (shapes[id] = shapes[id] || []).push(shape);
+        });
+        return shapes;
+      }
+      function sceneBounds(elements) {
+        var box = null;
+        elements.forEach(function (element) {
+          var b = null;
+          try { b = element.getBBox(); } catch (_) {}
+          if (!b || !(b.width || b.height)) return;
+          if (!box) box = { x: b.x, y: b.y, right: b.x + b.width, bottom: b.y + b.height };
+          else {
+            box.x = Math.min(box.x, b.x); box.y = Math.min(box.y, b.y);
+            box.right = Math.max(box.right, b.x + b.width); box.bottom = Math.max(box.bottom, b.y + b.height);
+          }
+        });
+        return box;
+      }
+      function overlay(tag, cls, attrs, parent, before) {
+        var element = document.createElementNS(SVG_NS, tag);
+        Object.keys(attrs).forEach(function (name) { element.setAttribute(name, attrs[name]); });
+        element.setAttribute('class', 'ambient-edge-flow ' + cls);
+        element.setAttribute('data-ambient-flow-overlay', 'true');
+        element.setAttribute('aria-hidden', 'true');
+        parent.insertBefore(element, before || null);
+        return element;
+      }
+      // Timeline and waterfall share a playhead: a lit vertical rule and its
+      // bloom travel the time axis linearly, because time is the subject.
+      function addPlayhead(box, x0, x1, lead, sweep, extras) {
+        var anchor = svg.querySelector('[data-node-id]');
+        var parent = anchor ? anchor.parentNode : svg;
+        var attrs = { x1: x0.toFixed(1), x2: x0.toFixed(1), y1: (box.y - 10).toFixed(1), y2: (box.bottom + 10).toFixed(1) };
+        ['playhead-glow', 'playhead'].forEach(function (kind) {
+          var line = overlay('line', 'ambient-flow-' + kind, attrs, parent, anchor);
+          line.style.setProperty('--flow-name', 'archify-motion-playhead');
+          extras.push(line);
+        });
+        extras.playhead = { distance: x1 - x0, lead: lead, sweep: sweep };
+      }
+      function planSweep(windows, extras) {
+        var events = Array.prototype.filter.call(svg.querySelectorAll('[data-node-id][data-timeline-x]'), function (node) {
+          return Number.isFinite(parseFloat(node.getAttribute('data-timeline-x')));
+        });
+        if (!events.length) return 0;
+        var xs = events.map(function (node) { return parseFloat(node.getAttribute('data-timeline-x')); });
+        var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+        var lead = 0.35;
+        var sweep = Math.min(7, Math.max(3.2, events.length * 0.6));
+        events.forEach(function (node, index) {
+          var at = lead + (x1 > x0 ? (xs[index] - x0) / (x1 - x0) : 0) * sweep;
+          addWindow(windows, node.getAttribute('data-node-id'), at, at + 0.35, true);
+        });
+        var box = sceneBounds(Array.prototype.slice.call(svg.querySelectorAll('[data-timeline-lane]')));
+        if (box && x1 > x0) addPlayhead(box, x0, x1, lead, sweep, extras);
+        return lead + sweep + 0.6;
+      }
+      function planReplay(windows, extras) {
+        var spans = [];
+        Array.prototype.forEach.call(svg.querySelectorAll('[data-node-id][data-waterfall-start]'), function (node) {
+          var start = parseFloat(node.getAttribute('data-waterfall-start'));
+          var end = parseFloat(node.getAttribute('data-waterfall-end'));
+          var bar = node.querySelector('[data-animate="node"]');
+          if (!bar || !Number.isFinite(start) || !(end >= start)) return;
+          var width = parseFloat(bar.getAttribute('width'));
+          var x = parseFloat(bar.getAttribute('x'));
+          if (!(width > 0) || !Number.isFinite(x)) return;
+          spans.push({ node: node, bar: bar, start: start, end: end, x: x, width: width });
+        });
+        if (!spans.length) return 0;
+        var t0 = Math.min.apply(null, spans.map(function (span) { return span.start; }));
+        var t1 = Math.max.apply(null, spans.map(function (span) { return span.end; }));
+        if (!(t1 > t0)) return 0;
+        var ruler = spans.reduce(function (best, span) { return span.end - span.start > best.end - best.start ? span : best; });
+        var pxPerUnit = ruler.width / Math.max(ruler.end - ruler.start, 1e-9);
+        var x0 = ruler.x - (ruler.start - t0) * pxPerUnit;
+        var lead = 0.35;
+        var replay = Math.min(6, Math.max(3.4, spans.length * 0.45));
+        var at = function (t) { return lead + (t - t0) / (t1 - t0) * replay; };
+        var settle = lead + replay + 0.9;
+        spans.forEach(function (span) {
+          var fill = overlay('rect', 'ambient-flow-fill', {
+            x: span.bar.getAttribute('x'), y: span.bar.getAttribute('y'),
+            width: span.bar.getAttribute('width'), height: span.bar.getAttribute('height'),
+            rx: span.bar.getAttribute('rx') || '0'
+          }, span.bar.parentNode, span.bar.nextSibling);
+          var tone = /(?:^|\s)c-([a-z]+)(?:\s|$)/.exec(span.bar.getAttribute('class') || '');
+          if (tone) fill.style.setProperty('--flow-fill', 'var(--' + tone[1] + '-stroke)');
+          if (span.node.getAttribute('data-waterfall-status') && span.node.getAttribute('data-waterfall-status') !== 'ok') {
+            fill.classList.add('ambient-flow-fill-failed');
+          }
+          fill.timing = { start: at(span.start), end: Math.max(at(span.end), at(span.start) + 0.08), settle: settle };
+          extras.push(fill);
+          addWindow(windows, span.node.getAttribute('data-node-id'), fill.timing.end, fill.timing.end);
+        });
+        var box = sceneBounds(spans.map(function (span) { return span.bar; }));
+        if (box) addPlayhead(box, x0, x0 + (t1 - t0) * pxPerUnit, lead, replay, extras);
+        return settle;
+      }
+      function writeKeyframes(records, windows, extras, cycle) {
+        function at(seconds) {
+          return (Math.min(100, Math.max(0, seconds / cycle * 100))).toFixed(3) + '%';
+        }
+        var ease = 'animation-timing-function: cubic-bezier(0.45, 0.05, 0.35, 1);';
+        var rules = [
+          '@keyframes archify-relay-ripple {',
+          '  0% { r: 2px; opacity: var(--flow-peak, 0.6); }',
+          '  ' + at(0.75) + ', 100% { r: 20px; opacity: 0; }',
+          '}'
+        ];
+        records.forEach(function (record) {
+          if (!record.active) return;
+          var travel = record.travel;
+          rules.push(
+            '@keyframes archify-relay-comet-' + record.index + ' {',
+            '  0% { stroke-dashoffset: calc(var(--flow-len, 0px) + var(--flow-shift, 0px)); opacity: 0; ' + ease + ' }',
+            '  ' + at(Math.min(0.12, travel * 0.2)) + ' { opacity: var(--flow-peak, 0.9); }',
+            '  ' + at(travel) + ' { stroke-dashoffset: var(--flow-shift, 0px); opacity: var(--flow-peak, 0.9); }',
+            '  ' + at(travel + 0.16) + ', 100% { stroke-dashoffset: var(--flow-shift, 0px); opacity: 0; }',
+            '}',
+            // A solid wake draws the travelled path behind the head on the same
+            // easing; a dashed wake only brightens its authored segments.
+            '@keyframes archify-relay-wake-' + record.index + ' {',
+            record.dashed
+              ? '  0%, ' + at(travel * 0.3) + ' { opacity: 0; }'
+              : '  0% { stroke-dashoffset: var(--flow-len, 0px); opacity: var(--flow-peak, 0.3); ' + ease + ' }',
+            record.dashed
+              ? '  ' + at(travel) + ' { opacity: var(--flow-peak, 0.3); }'
+              : '  ' + at(travel) + ' { stroke-dashoffset: 0px; opacity: var(--flow-peak, 0.3); }',
+            '  ' + at(travel + 0.9) + ', 100% { stroke-dashoffset: 0px; opacity: 0; }',
+            '}'
+          );
+        });
+        var glow = function (strong) {
+          return 'filter: var(--ambient-node-base-filter,) drop-shadow(0 0 ' + (strong ? 14 : 10) + 'px var(--arrow-emphasis));';
+        };
+        var base = 'filter: var(--ambient-node-base-filter, none);';
+        Object.keys(windows).forEach(function (id, index) {
+          var merged = [];
+          windows[id].slice().sort(function (a, b) { return a.start - b.start; }).forEach(function (window) {
+            var peakEnd = Math.max(window.end, window.start + 0.42);
+            var last = merged[merged.length - 1];
+            if (last && window.start <= last.peakEnd + 0.78) {
+              last.peakEnd = Math.max(last.peakEnd, peakEnd);
+              last.strong = last.strong || window.strong;
+            } else merged.push({ start: window.start, peakEnd: peakEnd, strong: window.strong });
+          });
+          var frames = ['  0%, 100% { ' + base + ' }'];
+          merged.forEach(function (window) {
+            frames.push(
+              '  ' + at(window.start) + ' { ' + base + ' }',
+              '  ' + at(window.start + 0.12) + ', ' + at(window.peakEnd) + ' { ' + glow(window.strong) + ' }',
+              '  ' + at(window.peakEnd + 0.78) + ' { ' + base + ' }'
+            );
+          });
+          rules.push('@keyframes archify-relay-node-' + index + ' {', frames.join('\n'), '}');
+          windows[id].keyframes = 'archify-relay-node-' + index;
+        });
+        if (extras.playhead) {
+          var p = extras.playhead;
+          rules.push(
+            '@keyframes archify-motion-playhead {',
+            '  0% { transform: translateX(0px); opacity: 0; }',
+            '  ' + at(Math.max(0.05, p.lead - 0.2)) + ' { transform: translateX(0px); opacity: 0; }',
+            '  ' + at(p.lead) + ' { transform: translateX(0px); opacity: var(--flow-peak, 0.9); }',
+            '  ' + at(p.lead + p.sweep) + ' { transform: translateX(' + p.distance.toFixed(1) + 'px); opacity: var(--flow-peak, 0.9); }',
+            '  ' + at(p.lead + p.sweep + 0.45) + ', 100% { transform: translateX(' + p.distance.toFixed(1) + 'px); opacity: 0; }',
+            '}'
+          );
+        }
+        extras.forEach(function (element, index) {
+          if (!element.timing) return;
+          var t = element.timing;
+          rules.push(
+            '@keyframes archify-replay-fill-' + index + ' {',
+            '  0%, ' + at(t.start) + ' { transform: scaleX(0); opacity: var(--flow-peak, 0.4); }',
+            '  ' + at(t.end) + ', ' + at(t.settle) + ' { transform: scaleX(1); opacity: var(--flow-peak, 0.4); }',
+            '  ' + at(t.settle + 0.7) + ', 100% { transform: scaleX(1); opacity: 0; }',
+            '}'
+          );
+          element.style.setProperty('--flow-name', 'archify-replay-fill-' + index);
+        });
+        var style = document.createElement('style');
+        style.setAttribute('data-ambient-flow-keyframes', 'true');
+        style.textContent = rules.join('\n');
+        document.head.appendChild(style);
       }
       function createFlows() {
-        var stepDelay = readSecondsVar('--flow-step-delay', 0.2);
-        var cycle = readSecondsVar('--flow-cycle', 6.4);
+        var records = [];
         Array.prototype.forEach.call(svg.querySelectorAll('path[data-animate="edge"]'), function (shape, index) {
           var d = shape.getAttribute('data-motion-path') || shape.getAttribute('d');
           if (!d) return;
@@ -7966,7 +8313,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             }
           }
           function addPath(cls) {
-            var flow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            var flow = document.createElementNS(SVG_NS, 'path');
             flow.setAttribute('d', d);
             ['transform', 'mask', 'clip-path', 'vector-effect'].forEach(function (name) {
               if (shape.hasAttribute(name)) flow.setAttribute(name, shape.getAttribute(name));
@@ -7984,76 +8331,114 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             wake.remove();
             return;
           }
-          var glow = addPath('glow');
-          var halo = addPath('halo');
-          var tail = addPath('tail');
-          var head = addPath('head');
-          var end = null;
-          try { end = head.getPointAtLength(len); } catch (_) {}
-          // Dashed authored lines keep their dash language through the show:
+          var record = {
+            index: records.length,
+            len: len,
+            from: shape.getAttribute('data-edge-from') || shape.getAttribute('data-composition-edge-from') || '',
+            to: shape.getAttribute('data-edge-to') || shape.getAttribute('data-composition-edge-to') || '',
+            step: stepOf(shape, index),
+            travel: Math.min(RELAY.maxTravel, Math.max(RELAY.minTravel, len / RELAY.speed)),
+            depart: 0,
+            active: false,
+            layers: []
+          };
+          records.push(record);
+          // Dashed authored lines keep their dash language through the relay:
           // the wake brightens only the authored segments and never fills the
           // gaps back into a solid line.
           var authoredDash = '';
           try { authoredDash = window.getComputedStyle(shape).strokeDasharray; } catch (_) {}
-          if (authoredDash && authoredDash !== 'none') {
-            wake.style.setProperty('--flow-dasharray', authoredDash);
-          }
+          record.dashed = !!(authoredDash && authoredDash !== 'none');
+          wake.style.setProperty('--flow-dasharray', record.dashed ? authoredDash : len.toFixed(1) + ' ' + len.toFixed(1));
           // Absolute caps keep the comet a slim streak on long edges instead
           // of growing into a bright slab; the tail disintegrates into a
           // sparkle of fragments behind the head, and --flow-shift trails
-          // each layer behind the head tip by its own length. Short edges get
-          // a proportionally larger comet and a brightness boost so a compact
-          // diagram reads as alive as a sprawling one.
-          var headLen = Math.min(12, Math.max(5, len * 0.02));
-          var haloLen = Math.min(18, Math.max(10, len * 0.06));
-          var boost = len < 260 ? Math.min(1.7, 260 / Math.max(len, 90)) : 1;
+          // each layer behind the head tip by its own length.
+          var headLen = Math.min(14, Math.max(7, len * 0.03));
+          var haloLen = Math.min(22, Math.max(12, len * 0.07));
           var trail = len >= 120
             ? { pattern: '2.5 2 4 3 5.5 4.5 8 ' + (len - 30).toFixed(1), length: 30 }
             : (len >= 60
               ? { pattern: '3 3 7 ' + (len - 13).toFixed(1), length: 13 }
               : { pattern: '5 ' + Math.max(4, len - 5).toFixed(1), length: 5 });
-          var phase = edgePhase(shape, index) * stepDelay;
-          var configs = [
-            { flow: wake, dash: len, shift: 0, delay: phase },
-            { flow: glow, dash: haloLen, shift: (haloLen - headLen) / 2, delay: phase },
-            { flow: halo, dash: haloLen, shift: (haloLen - headLen) / 2, delay: phase },
-            { flow: tail, dash: trail.length, shift: trail.length - headLen, delay: phase, dasharray: trail.pattern },
-            { flow: head, dash: headLen, shift: 0, delay: phase },
-          ];
-          // Every edge earns a dimmer echo comet: half a travel window behind
-          // on long edges, half a cycle behind on short ones so compact
-          // diagrams never sit in a silent gap between passes.
-          var echoShift = len > 340 ? cycle * 0.31 : cycle * 0.5;
-          configs.push({ flow: addPath('tail echo'), dash: trail.length, shift: trail.length - headLen, delay: phase + echoShift, dasharray: trail.pattern, echo: true });
-          configs.push({ flow: addPath('head echo'), dash: headLen, shift: 0, delay: phase + echoShift, echo: true });
-          configs.forEach(function (cfg) {
-            cfg.flow.style.setProperty('--flow-len', len.toFixed(1) + 'px');
-            cfg.flow.style.setProperty('--flow-delay', cfg.delay.toFixed(3) + 's');
-            cfg.flow.style.setProperty('--flow-dash', cfg.dash.toFixed(1) + 'px');
-            cfg.flow.style.setProperty('--flow-shift', cfg.shift.toFixed(1) + 'px');
-            // Echoes stay background texture: they never inherit the boost.
-            if (!cfg.echo) cfg.flow.style.setProperty('--flow-boost', boost.toFixed(2));
-            if (cfg.dasharray) cfg.flow.style.setProperty('--flow-dasharray', cfg.dasharray);
-          });
-          // The sonar pair lands where the comet does; keep it out of the
-          // edge's mask so it can bloom over the node boundary.
-          if (end) {
-            ['ripple', 'ripple-echo'].forEach(function (kind) {
-              var ripple = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-              ripple.setAttribute('cx', end.x.toFixed(1));
-              ripple.setAttribute('cy', end.y.toFixed(1));
-              ripple.setAttribute('r', '2');
-              if (shape.hasAttribute('transform')) ripple.setAttribute('transform', shape.getAttribute('transform'));
-              ripple.setAttribute('class', 'ambient-edge-flow ambient-flow-' + kind);
-              tagOverlay(ripple);
-              ripple.style.setProperty('--flow-delay', phase.toFixed(3) + 's');
-              ripple.style.setProperty('--flow-boost', boost.toFixed(2));
-              shape.parentNode.insertBefore(ripple, anchor.nextSibling);
-              anchor = ripple;
+          record.layers.push(
+            { flow: wake, kind: 'wake', dash: len, shift: 0 },
+            { flow: addPath('glow'), kind: 'comet', dash: haloLen, shift: (haloLen - headLen) / 2 },
+            { flow: addPath('halo'), kind: 'comet', dash: haloLen, shift: (haloLen - headLen) / 2 },
+            { flow: addPath('tail'), kind: 'comet', dash: trail.length, shift: trail.length - headLen, dasharray: trail.pattern },
+            { flow: addPath('head'), kind: 'comet', dash: headLen, shift: 0 }
+          );
+          if (choreography === 'stream') {
+            // A packet train behind the comet reads as a continuous stream.
+            [1, 2, 3].forEach(function (order) {
+              record.layers.push({ flow: addPath('head packet'), kind: 'comet', dash: Math.max(4, headLen * 0.55), shift: 0, packet: order });
             });
           }
-          flowCount += 1;
+          // The ripple lands where the comet does; keep it out of the edge's
+          // mask so it can bloom over the node boundary.
+          var end = null;
+          try { end = wake.getPointAtLength(len); } catch (_) {}
+          if (end) {
+            var ripple = document.createElementNS(SVG_NS, 'circle');
+            ripple.setAttribute('cx', end.x.toFixed(1));
+            ripple.setAttribute('cy', end.y.toFixed(1));
+            ripple.setAttribute('r', '2');
+            if (shape.hasAttribute('transform')) ripple.setAttribute('transform', shape.getAttribute('transform'));
+            ripple.setAttribute('class', 'ambient-edge-flow ambient-flow-ripple');
+            tagOverlay(ripple);
+            shape.parentNode.insertBefore(ripple, anchor.nextSibling);
+            record.ripple = ripple;
+          }
         });
+        var windows = Object.create(null);
+        var extras = [];
+        var span = 0;
+        if (choreography === 'sweep') span = planSweep(windows, extras);
+        else if (choreography === 'replay') span = planReplay(windows, extras);
+        else if (records.length) {
+          var linked = records.filter(function (record) { return record.from && record.to; });
+          if (choreography === 'sequence' || linked.length < records.length) planSequence(records, windows);
+          else if (choreography === 'walk') planWalk(records, windows);
+          else planRelay(records, windows);
+          span = records.reduce(function (max, record) {
+            return record.active ? Math.max(max, record.depart + record.travel) : max;
+          }, 0);
+          span = scalePlan(records, windows, span);
+        }
+        records.forEach(function (record) {
+          if (record.active) return;
+          record.layers.forEach(function (layer) { layer.flow.remove(); });
+          if (record.ripple) record.ripple.remove();
+        });
+        var active = records.filter(function (record) { return record.active; });
+        if (!active.length && !extras.length) return;
+        var cycle = Math.max(RELAY.minCycle, span + RELAY.land + RELAY.rest);
+        writeKeyframes(active, windows, extras, cycle);
+        svg.style.setProperty('--flow-cycle', cycle.toFixed(3) + 's');
+        html.style.setProperty('--flow-cycle-chrome', cycle.toFixed(3) + 's');
+        active.forEach(function (record) {
+          var gap = Math.min(0.22, record.travel * 0.28);
+          record.layers.forEach(function (layer) {
+            var flow = layer.flow;
+            flow.style.setProperty('--flow-len', record.len.toFixed(1) + 'px');
+            flow.style.setProperty('--flow-delay', (record.depart + (layer.packet || 0) * gap).toFixed(3) + 's');
+            flow.style.setProperty('--flow-dash', layer.dash.toFixed(1) + 'px');
+            flow.style.setProperty('--flow-shift', layer.shift.toFixed(1) + 'px');
+            flow.style.setProperty('--flow-name', 'archify-relay-' + layer.kind + '-' + record.index);
+            if (layer.dasharray) flow.style.setProperty('--flow-dasharray', layer.dasharray);
+          });
+          if (record.ripple) {
+            record.ripple.style.setProperty('--flow-delay', (record.depart + record.travel).toFixed(3) + 's');
+            record.ripple.style.setProperty('--flow-name', 'archify-relay-ripple');
+          }
+        });
+        var shapes = nodeShapes();
+        Object.keys(windows).forEach(function (id) {
+          (shapes[id] || []).forEach(function (shape) {
+            shape.style.setProperty('--flow-node-name', windows[id].keyframes);
+          });
+        });
+        flowCount = active.length + extras.length;
       }
       function settleEntry() {
         entryPending.clear();

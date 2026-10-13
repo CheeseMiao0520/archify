@@ -1382,7 +1382,7 @@ function renderEntityColumnRows(entity) {
             ${keyGlyph}
             <text data-detail="context" x="${nameX}" y="${baseline}" class="t-primary${primary ? ' er-name-pk' : ''}" font-size="${nameFontSize}">${esc(attribute.name)}</text>
             ${type}
-          </g>`;
+          </g>`.replace(/[ \t]+$/gm, '');
   }).join('\n');
 }
 
