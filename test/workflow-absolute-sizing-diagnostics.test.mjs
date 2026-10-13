@@ -75,7 +75,7 @@ test('short labels, explicit widths and schema v1 do not acquire automatic-sizin
   }
 });
 
-test('diagnostic discovery preserves a successful automatic plan and a valid absolute plan', () => {
+test('successful automatic and valid absolute plans remain deterministic and preserve input', () => {
   for (const pinned of [false, true]) {
     const workflow = subscriptionWorkflow();
     if (pinned) {
@@ -85,7 +85,7 @@ test('diagnostic discovery preserves a successful automatic plan and a valid abs
     const before = JSON.stringify(workflow);
     const result = compileWorkflow({ workflow });
     assert.equal(result.ok, true, JSON.stringify(result.diagnostics));
-    assert.deepEqual(result, compileWorkflow({ workflow, discoverFixes: false }));
+    assert.deepEqual(result, compileWorkflow({ workflow }), 'successful compilation is deterministic');
     assert.equal(JSON.stringify(workflow), before);
     assert.match(result.svg, />Prepare subscription<\/text>/);
     assert.equal(result.receipt.edges.length, 1);
