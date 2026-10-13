@@ -1,0 +1,10 @@
+{
+  "templateVersion": 1,
+  "repository": "tt-a1i/archify",
+  "number": 914,
+  "author": "tt-a1i",
+  "title": "release: promote Archify 3.1.0 to stable main",
+  "mergedAt": "2026-10-13T16:49:49Z",
+  "mergeCommit": "e9c9c3801126a1de902ddf26d6c4d2381e3ea164",
+  "url": "https://github.com/tt-a1i/archify/pull/914"
+}
