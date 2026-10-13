@@ -32,7 +32,7 @@ const svgOf = (html) => html.match(/<svg\b[\s\S]*?<\/svg>/i)[0];
 
 function entityBoxes(html) {
   const boxes = new Map();
-  for (const match of svgOf(html).matchAll(/data-node-id="([a-z_]+)"[\s\S]{0,500}?<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)" rx="5" class="c-database(?: er-table)?"/g)) {
+  for (const match of svgOf(html).matchAll(/data-node-id="([a-z_]+)"[\s\S]{0,500}?<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)" rx="[\d.]+" class="c-database(?: er-table)?"/g)) {
     boxes.set(match[1], { x: +match[2], y: +match[3], width: +match[4], height: +match[5] });
   }
   return boxes;

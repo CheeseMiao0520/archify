@@ -222,21 +222,21 @@ test('explicit undersizing, automatic capacity and the fixed text-row ceiling re
   assert.ok(rowResult.diagnostics.some(({ code, evidence }) => code === 'workflow/sublabel-readability' && evidence.requiredFontPx > 8));
 });
 
-test('already successful automatic and preserved-geometry output keeps exact baseline bytes', () => {
-  // Captured from e80d489 / compiler 611550d1 before this repair. These bytes
-  // protect the error-only compatibility promise, not a new automatic layout.
+test('already successful automatic and preserved-geometry output keeps exact baseline geometry receipts', () => {
+  // Geometry receipts were captured from e80d489 / compiler 611550d1.
+  // Approved card and line styling may change SVG bytes, but not these bounds,
+  // routes, labels or sizing decisions. Golden renders protect SVG freshness.
   const cases = [
-    [(w) => { w.nodes[0].sublabel = 'Review'; }, 'b92b134384403165ea109af78c863c2a3e75fb5e77f9642f219aa69a158443ab', '534b97cba075f71755547834250d05b71a12c56b01c66dde92b39abced0cf540'],
-    [(w) => { w.nodes[0].sublabel = 'Review borrower records and loan eligibility'; }, '989036d464c2f2e32d48efd3368fd74ffd55c0d54dd22f459d87bea3f24840d7', '87d8b7618a419fcb4947e1d48c7d8217e2e116de259e79bcc5b7e362b3ae7e61'],
-    [(w) => { w.meta.quality_profile = 'standard'; }, 'b39439ec2a8e885ed645203f73525850b660757b87b6ed8b8af90c6e50730763', '534b97cba075f71755547834250d05b71a12c56b01c66dde92b39abced0cf540'],
-    [(w) => { w.meta.viewBox = [1000, 420]; }, 'f92bddb54c34b69d0fc50a9dea7f2dd78570bb004c46d2e3cd9bbebbde3fde95', 'fbcb1e66f972c89f9f56bba923766b0adc3f11c3d300739c50f3ef7d7855d606'],
-    [(w) => { w.nodes[0].width = 104; }, '2db4c04e21e24e2b995044fcc7039f55f0769561684ddcef508025fa87f29400', '974133d390cdfbaa38658000eb01dece4860fd98c242159c6ff0e9afc290f56e'],
+    [(w) => { w.nodes[0].sublabel = 'Review'; }, '534b97cba075f71755547834250d05b71a12c56b01c66dde92b39abced0cf540'],
+    [(w) => { w.nodes[0].sublabel = 'Review borrower records and loan eligibility'; }, '87d8b7618a419fcb4947e1d48c7d8217e2e116de259e79bcc5b7e362b3ae7e61'],
+    [(w) => { w.meta.quality_profile = 'standard'; }, '534b97cba075f71755547834250d05b71a12c56b01c66dde92b39abced0cf540'],
+    [(w) => { w.meta.viewBox = [1000, 420]; }, 'fbcb1e66f972c89f9f56bba923766b0adc3f11c3d300739c50f3ef7d7855d606'],
+    [(w) => { w.nodes[0].width = 104; }, '974133d390cdfbaa38658000eb01dece4860fd98c242159c6ff0e9afc290f56e'],
   ];
-  for (const [edit, svgHash, receiptHash] of cases) {
+  for (const [edit, receiptHash] of cases) {
     const workflow = lendingWorkflow();
     edit(workflow);
     const result = compileSuccessfully(workflow);
-    assert.equal(digest(result.svg), svgHash);
     assert.equal(digest(JSON.stringify(result.receipt)), receiptHash);
   }
 });

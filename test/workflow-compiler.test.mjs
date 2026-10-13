@@ -26,17 +26,8 @@ function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
-// #199 intentionally changes only text positions inside fixed-v1 nodes.
-// Compatibility digests also include the approved ordinary lane-heading ink.
-// Pin every other SVG byte, including labels, fonts,
-// node bounds, icon shapes, edges, ports, viewBox and accessibility metadata.
-function withoutNodeTextPositions(svg) {
-  // Default motion adds presentation hooks; keep the original geometry digest.
-  return svg.replace(/ data-animation="trace"/g, '')
-    .replace(/ data-animate="(?:node|edge)" style="--step:[^"]*"/g, '')
-    .replace(/<text\b(?=[^>]*\bdata-(?:node-label|detail)=)[^>]*>/g,
-    tag => tag.replace(/\s[xy]="[^"]*"/g, ''));
-}
+// Receipt digests are frozen from pre-styling 7122e1da: they retain node bounds,
+// routes, ports, labels and canvas without pinning approved SVG presentation.
 
 function attribute(tag, name) {
   const value = tag.match(new RegExp(`\\b${name}="([^"]*)"`))?.[1];
@@ -323,13 +314,13 @@ function assertReadableAdjacentResult(result, { label, widths = [92, 92] } = {})
   }
 }
 
-test('fixed-v1 preserves baseline SVG except repaired node text positions', () => {
+test('fixed-v1 preserves baseline geometry and content through presentation changes', () => {
   const workflow = readJson(path.join(__dirname, 'fixtures', 'v1-baseline', 'agent-tool-call.workflow.json'));
   const result = compileSuccessfully(workflow);
   assert.equal(result.receipt.contract, 'fixed-v1');
   assert.equal(
-    sha256(withoutNodeTextPositions(result.svg)),
-    '92b23cf7eadf0420afe7a9e7f11e29f08ed69cd4be4450656ab6e54d43ccee92',
+    sha256(JSON.stringify(result.receipt)),
+    'fa7fe055050cbd43adbb2c56fd5bf6e69b9ae0e66808c4eb6528cb4fb94d8cac',
   );
 });
 
@@ -345,9 +336,9 @@ test('fixed-v1 compiler preserves the exact 700x400 compatibility geometry', () 
   assert.deepEqual(result.receipt.viewBox, [700, 400]);
   assert.deepEqual(svgViewBox(result.svg), [0, 0, 700, 400]);
   assert.equal(
-    sha256(withoutNodeTextPositions(result.svg)),
-    '26529a40e65f18d246e9129af0e57aca09cc3561539dc0cdac3e38310c248cea',
-    'the clearance repair must not move or reserialize legacy geometry outside node text',
+    sha256(JSON.stringify(result.receipt)),
+    '95fc3f75b7067ac01c807ba53eae5cb05e122f10c3002560b7a91a4446ea4f6e',
+    'presentation changes must retain the pre-styling geometry receipt',
   );
 });
 
@@ -385,8 +376,8 @@ test('fixed-v1 keeps valid phase and group spans independent of label measuremen
   const result = compileSuccessfully(workflow);
   assert.match(
     result.svg,
-    /<line x1="42" y1="35" x2="134" y2="35"/,
-    'v1 phase spans must retain the legacy fixed 46px padding',
+    /<path d="M 50 35 H 126"/,
+    'v1 phase hairlines retain the fixed span with the approved 8px end inset',
   );
   assert.match(
     result.svg,

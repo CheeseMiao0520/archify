@@ -480,6 +480,7 @@ for (const [name, mutate, expectedSha256] of [
     assert.equal(render.status, 0, render.stderr);
     const svg = fs.readFileSync(output, 'utf8').match(/<svg\b[^]*?<\/svg>/)[0]
       .replace(/ data-animation="trace"/g, '')
+      .replace(/ data-motion-choreography="stream"/g, '')
       .replace(/ data-animate="(?:node|edge)" style="--step:[^"]*"/g, '');
     assert.equal(crypto.createHash('sha256').update(svg).digest('hex'), expectedSha256);
   });

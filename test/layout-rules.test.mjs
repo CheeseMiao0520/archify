@@ -802,7 +802,7 @@ test('workflow: same-lane offset auto edge stays orthogonal', () => {
   assert.equal(code, 0, stderr);
   const html = fs.readFileSync(outPath, 'utf8');
   assert.doesNotMatch(html, /M 236 105 L 284 133/);
-  assert.match(html, /M 236 105 L 260 105 L 260 133 L 284 133/);
+  assert.match(html, /data-composition-points="236,105;260,105;260,133;284,133"/);
 });
 
 test('workflow: automatic routing uses one bend and avoids every node border', () => {

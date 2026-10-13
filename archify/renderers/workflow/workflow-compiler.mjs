@@ -5428,13 +5428,25 @@ function renderNode(node) {
         </g>`;
 }
 
+// Rounded corners must leave every visible straight segment above the
+// artifact check's 8px floor, including short arrow attachment stubs.
+function roundedWorkflowPath(points) {
+  let radius = 8;
+  for (let index = 1; index < points.length; index += 1) {
+    const length = Math.hypot(points[index][0] - points[index - 1][0], points[index][1] - points[index - 1][1]);
+    const corners = (index > 1 ? 1 : 0) + (index < points.length - 1 ? 1 : 0);
+    if (corners) radius = Math.min(radius, Math.max(0, (length - 8) / corners));
+  }
+  return roundedPath(points, radius);
+}
+
 function renderEdgePath(edge, index) {
   const [cls, marker] = arrowClassMap[edge.variant || 'default'] || arrowClassMap.default;
   const routed = pathFor(edge);
   const strokeWidth = edge.width || (edge.variant === 'emphasis' ? 1.8 : 1.4);
   const routing = independentAutomaticRoute(edge) ? ' data-composition-routing="workflow-v2-auto"' : '';
   const role = workflow.schema_version === 2 ? ` data-edge-role="${esc(edge.role || '')}"` : '';
-  return `        <path ${focusEdgeAttrs(edge.from, edge.to, edge.label, index, edge.id)}${routing}${role} data-composition-points="${routePointsValue(routed.points)}" d="${roundedPath(routed.points, 8)}" class="${cls}"${animateAttr(workflow.meta, 'edge', edgeSteps.get(edge))} stroke-width="${strokeWidth}" marker-end="url(#${marker})"/>`;
+  return `        <path ${focusEdgeAttrs(edge.from, edge.to, edge.label, index, edge.id)}${routing}${role} data-composition-points="${routePointsValue(routed.points)}" d="${roundedWorkflowPath(routed.points)}" class="${cls}"${animateAttr(workflow.meta, 'edge', edgeSteps.get(edge))} stroke-width="${strokeWidth}" marker-end="url(#${marker})"/>`;
 }
 
 function renderEdgeLabel(edge, index) {

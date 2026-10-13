@@ -53,7 +53,7 @@ function attrs(tag) {
 function entityBoxes(html) {
   const svg = html.match(/<svg\b[\s\S]*?<\/svg>/gi)[0];
   const boxes = new Map();
-  for (const match of svg.matchAll(/data-node-id="([a-z_]+)"[\s\S]{0,500}?<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)" rx="5" class="c-database(?: er-table)?"/g)) {
+  for (const match of svg.matchAll(/data-node-id="([a-z_]+)"[\s\S]{0,500}?<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)" rx="[\d.]+" class="c-database(?: er-table)?"/g)) {
     boxes.set(match[1], { x: +match[2], y: +match[3], width: +match[4], height: +match[5] });
   }
   return boxes;
@@ -497,7 +497,7 @@ function attributeNameX(html, entityId, name) {
   const rest = html.slice(html.indexOf(`data-node-id="${entityId}"`) + 1);
   const next = rest.indexOf('data-node-id="');
   const group = next === -1 ? rest : rest.slice(0, next);
-  return +group.match(new RegExp(`<text data-detail="context" x="([\\d.]+)" y="[\\d.]+" class="t-primary" font-size="[\\d.]+">${name}</text>`))[1];
+  return +group.match(new RegExp(`<text data-detail="context" x="([\\d.]+)" y="[\\d.]+" class="t-primary(?: er-name-pk)?" font-size="[\\d.]+">${name}</text>`))[1];
 }
 
 test('a column that is both a primary and a foreign key draws both markers', () => {
@@ -789,7 +789,7 @@ test('an automatic canvas is sized so the default legend is always in the conten
 
   const kinds = [...html.matchAll(/<g data-legend-semantic-kind="([a-z]+)"/g)].map((match) => match[1]);
   assert.deepEqual(kinds.sort(), ['fk', 'many', 'one', 'optional', 'pk', 'uk'], 'every declared kind keeps its entry');
-  const boxes = [...html.matchAll(/<rect x="[\d.]+" y="([\d.]+)" width="[\d.]+" height="([\d.]+)" rx="5" class="c-database(?: er-table)?"/g)];
+  const boxes = [...html.matchAll(/<rect x="[\d.]+" y="([\d.]+)" width="[\d.]+" height="([\d.]+)" rx="[\d.]+" class="c-database(?: er-table)?"/g)];
   assert.ok(boxes.length >= 2, 'both tables are drawn');
   const contentBottom = Math.max(...boxes.map((match) => Number(match[1]) + Number(match[2])));
   const baselines = [...html.matchAll(/data-legend-baseline="([\d.]+)"/g)].map((match) => Number(match[1]));
