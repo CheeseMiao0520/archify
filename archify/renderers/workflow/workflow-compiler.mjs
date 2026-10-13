@@ -2,6 +2,7 @@ import { proposeWorkflowPlacement } from './workflow-placement-repair.mjs';
 import { createSpatialGrid } from '../shared/spatial-grid.mjs';
 import { shortestOrthogonalGridRoute } from '../shared/route-quality.mjs';
 import { esc, renderDefinitions, renderSemanticSigil, textUnits } from '../shared/utils.mjs';
+import { NODE_CARD_ATTR, nodeCardStyle } from '../shared/node-card-style.mjs';
 import {
   animateAttr,
   focusEdgeAttrs,
@@ -72,7 +73,8 @@ import {
   componentText,
   arrowClassMap,
   variantAccent,
-  edgeLabelAccent
+  edgeLabelAccent,
+  roundedPath
 } from '../shared/geometry.mjs';
 
 const LEGACY_COLUMN_CENTERS = Object.freeze([88, 220, 300, 430, 500, 625]);
@@ -5324,9 +5326,14 @@ function renderPhase(phase) {
   const span = phaseSpan(phase);
   const accent = variantAccent(phase.variant);
   const [lineClass] = arrowClassMap[phase.variant || 'default'] || arrowClassMap.default;
-  return `        <line x1="${span.x}" y1="35" x2="${span.x + span.width}" y2="35" class="${lineClass}" stroke-width="1.1"/>
-        <rect x="${span.x}" y="27" width="${span.width}" height="16" rx="4" class="c-mask"/>
-        <text x="${span.cx}" y="39" class="${accent}" font-size="8" font-weight="600" text-anchor="middle">${esc(phase.label)}</text>`;
+  // A hairline spans the phase's columns; only the label is masked, so the
+  // span itself stays visible.
+  const labelW = Math.min(span.width - 12, workflowLabelWidth(phase.label) + 10);
+  const x1 = span.x + 8;
+  const x2 = span.x + span.width - 8;
+  return `        <path d="M ${x1} 35 H ${x2}" class="${lineClass} phase-rule" stroke-width="1" stroke-linecap="round" fill="none"/>
+        <rect x="${span.cx - labelW / 2}" y="27" width="${labelW}" height="16" rx="8" class="c-mask phase-chip"/>
+        <text x="${span.cx}" y="38.5" class="${accent}" font-size="8" font-weight="600" text-anchor="middle" letter-spacing=".04em">${esc(phase.label)}</text>`;
 }
 
 function renderGroup(group, index) {
@@ -5414,9 +5421,9 @@ function renderNode(node) {
   const passport = { kind: node.type, sublabel: node.sublabel, tag: node.tag, context: nodeContext(node), ...brandMetadataFor(node) };
   return `        <g ${focusNodeAttrs(node.id, node.label, passport, workflow.meta.locale)}>
           ${focusNodeTitle(node.label, passport)}
-          <rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="6" class="c-mask"/>
-          <rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="6" class="${fill}"${animateAttr(workflow.meta, 'node', nodeStep(node))} stroke-width="1.5"/>
-          ${renderSemanticSigil(node.type, { icon: node.icon, x: node.x + 6, y: node.y + labelLayout.sigilY, size: labelLayout.sigilSize })}${brand ? `\n          ${brand}` : ''}
+          <rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="8" class="c-mask"/>
+          <rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="8" class="${fill}"${animateAttr(workflow.meta, 'node', nodeStep(node))} stroke-width="1.5"/>
+          ${renderSemanticSigil(node.type, { icon: node.icon, x: node.x + 6, y: node.y + labelLayout.sigilY, size: labelLayout.sigilSize, chip: true })}${brand ? `\n          ${brand}` : ''}
           <text data-node-label=""${hasSub ? ' data-detail-anchor=""' : ''} x="${node.x + labelLayout.x}" y="${node.y + labelLayout.ys[0]}" class="t-primary" font-size="${labelFontSize}" font-weight="600" text-anchor="middle">${esc(node.label)}</text>${sub}${tag}
         </g>`;
 }
@@ -5427,7 +5434,7 @@ function renderEdgePath(edge, index) {
   const strokeWidth = edge.width || (edge.variant === 'emphasis' ? 1.8 : 1.4);
   const routing = independentAutomaticRoute(edge) ? ' data-composition-routing="workflow-v2-auto"' : '';
   const role = workflow.schema_version === 2 ? ` data-edge-role="${esc(edge.role || '')}"` : '';
-  return `        <path ${focusEdgeAttrs(edge.from, edge.to, edge.label, index, edge.id)}${routing}${role} data-composition-points="${routePointsValue(routed.points)}" d="${routed.d}" class="${cls}"${animateAttr(workflow.meta, 'edge', edgeSteps.get(edge))} stroke-width="${strokeWidth}" marker-end="url(#${marker})"/>`;
+  return `        <path ${focusEdgeAttrs(edge.from, edge.to, edge.label, index, edge.id)}${routing}${role} data-composition-points="${routePointsValue(routed.points)}" d="${roundedPath(routed.points, 8)}" class="${cls}"${animateAttr(workflow.meta, 'edge', edgeSteps.get(edge))} stroke-width="${strokeWidth}" marker-end="url(#${marker})"/>`;
 }
 
 function renderEdgeLabel(edge, index) {
@@ -5466,9 +5473,10 @@ function renderSvg() {
     ? ' data-reader-fit="width-first"'
     : '';
   const contract = workflow.schema_version === 2 ? ' data-layout-contract="readable-v2"' : '';
-  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}"${readerFit}${contract} ${svgRootAttrs(workflow.meta, resolvedQualityProfile)}>
+  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}"${readerFit}${contract} ${svgRootAttrs(workflow.meta, resolvedQualityProfile)} ${NODE_CARD_ATTR}>
 ${svgAccessibleText(workflow.meta, 'workflow')}
 ${renderDefinitions()}
+${nodeCardStyle()}
 
         <!-- Background Grid -->
         <rect width="100%" height="100%" fill="url(#grid)" />

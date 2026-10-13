@@ -452,7 +452,7 @@ function renderEvent(card, order) {
   const passport = { kind: tone, sublabel: card.detail, context };
   const textX = card.left + card.padLeft;
   let y = card.top + 9 + 10;
-  const time = `<text x="${textX}" y="${y}" class="t-muted tl-time" font-size="${layout.timeFont}" font-weight="600">${esc(card.time)}</text>`;
+  const time = `<text x="${textX}" y="${y}" class="t-${tone} tl-time" font-size="${layout.timeFont}" font-weight="600">${esc(card.time)}</text>`;
   y += 2;
   const title = card.lines.map((line) => {
     y += layout.titleLine;
@@ -477,7 +477,7 @@ function legendSwatch(entry) {
 }
 
 function renderSvg() {
-  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}" ${svgRootAttrs(tl.meta)} data-timeline-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
+  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}" ${svgRootAttrs(tl.meta)} data-motion-choreography="sweep" data-timeline-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
 ${svgAccessibleText(tl.meta, 'timeline')}
 ${renderDefinitions(breaks.length ? `
           <pattern id="tl-break-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" class="tl-hatch" stroke-width="1"/></pattern>` : '')}
@@ -496,7 +496,9 @@ ${renderDefinitions(breaks.length ? `
           svg[data-timeline-ui] .tl-break-chip { fill: var(--mask); stroke: var(--lane-stroke); stroke-width: 1; }
           svg[data-timeline-ui] .tl-hatch { stroke: var(--lane-stroke); }
           svg[data-timeline-ui] .tl-break-zig { stroke: var(--text-dim); }
-${Object.values(KIND_TONE).map((tone) => `          svg[data-timeline-ui] .tl-accent-${tone} { stroke: var(--${tone}-stroke); }`).join('\n')}
+${Object.values(KIND_TONE).map((tone) => `          svg[data-timeline-ui] .tl-accent-${tone} { stroke: var(--${tone}-stroke); }
+          svg[data-timeline-ui] .tl-stem-${tone} { stroke: color-mix(in srgb, var(--${tone}-stroke) 45%, var(--lane-stroke)); }
+          svg[data-timeline-ui] .tl-pin-${tone} { fill: var(--${tone}-fill); stroke: color-mix(in srgb, var(--${tone}-stroke) 35%, transparent); stroke-width: 1; }`).join('\n')}
           svg[data-timeline-ui] .tl-tick, svg[data-timeline-ui] .tl-time { font-variant-numeric: tabular-nums; }
         </style>
 
@@ -513,11 +515,12 @@ ${renderAxis()}
 
         <!-- Stems sit behind every card, so a stacked card is never crossed by
              another event's connector -->
-${cards.map((card) => `        <line data-detail="context" data-timeline-stem="${esc(card.id)}" x1="${card.x}" y1="${card.lineY}" x2="${card.x}" y2="${card.side === 'above' ? card.top + card.height : card.top}" class="tl-stem" stroke-width="1"/>`).join('\n')}
+${cards.map((card) => `        <line data-detail="context" data-timeline-stem="${esc(card.id)}" x1="${card.x}" y1="${card.lineY}" x2="${card.x}" y2="${card.side === 'above' ? card.top + card.height : card.top}" class="tl-stem tl-stem-${KIND_TONE[kindOf(card)]}" stroke-width="1"/>`).join('\n')}
 
         <!-- One halo layer under every dot, so events seconds apart merge into
              one outlined capsule instead of cutting crescents into each other -->
 ${cards.map((card) => `        <circle data-detail="context" cx="${card.x}" cy="${card.lineY}" r="7.5" class="tl-halo"/>`).join('\n')}
+${cards.map((card) => `        <circle data-detail="context" cx="${card.x}" cy="${card.lineY}" r="6.5" class="tl-pin tl-pin-${KIND_TONE[kindOf(card)]}"/>`).join('\n')}
 
         <!-- Events in time order -->
 ${cards.map(renderEvent).join('\n')}

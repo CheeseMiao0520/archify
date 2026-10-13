@@ -119,6 +119,11 @@ function methodText(method) {
 // under-reserves space and a member is never clipped by its own box.
 const MEMBER_ADVANCE = layout.memberFont * nodeTextFit.widthFactor;
 const CONTINUATION_INDENT = 2;
+// The visibility chip is wider than the two-character `+ ` prefix the member
+// text is measured with; every box reserves the difference.
+const VIS_CHIP = 14;
+const VIS_GAP = 6;
+const VIS_EXTRA = Math.ceil(VIS_CHIP + VIS_GAP - 2 * MEMBER_ADVANCE);
 
 function nameWidth(type) {
   // Bold display text runs wider than the regular estimate.
@@ -204,12 +209,12 @@ function resolvedWidth(type) {
   if (Number.isFinite(type.width)) return type.width;
   const members = memberRows(type).flatMap((compartment) => compartment.rows)
     .reduce((max, row) => Math.max(max, textUnits(row.text) * MEMBER_ADVANCE), 0);
-  const wanted = Math.ceil(members + layout.padX * 2);
+  const wanted = Math.ceil(members + layout.padX * 2 + VIS_EXTRA);
   return Math.max(headerWidth(type), Math.min(grid.typeMaxW, Math.max(grid.typeW, wanted)));
 }
 
 function compartments(type) {
-  const available = type.width - layout.padX * 2;
+  const available = type.width - layout.padX * 2 - VIS_EXTRA;
   return memberRows(type).map((compartment) => ({
     ...compartment,
     rows: compartment.rows.map((row) => ({ ...row, lines: wrapMember(row.text, available) })),
@@ -839,28 +844,60 @@ function buildLayoutReport() {
 // A member reads like a signature in an editor: the visibility glyph and every
 // type annotation are quiet, so the names carry the row. Wrapping never splits
 // an annotation, so each line is coloured on its own.
+const VISIBILITY_CLASS = { '+': 'public', '#': 'protected', '~': 'package', '-': 'private' };
+
+function punctuated(text) {
+  return esc(text).replace(/[(),]/g, (mark) => `<tspan class="t-muted cl-punct">${mark}</tspan>`);
+}
+
 function memberSpans(text, first) {
   let out = '';
   let rest = text;
   // A continuation line with no annotation of its own is the rest of a type
-  // (`PaymentProcessor>`), so it is set quiet like the start of that type.
-  if (!first && !rest.includes(':') && !rest.startsWith(')')) return `<tspan class="t-muted">${esc(rest)}</tspan>`;
+  // (`PaymentProcessor>`), so it is set like the start of that type.
+  if (!first && !rest.includes(':') && !rest.startsWith(')')) return `<tspan class="t-muted cl-type-ref">${esc(rest)}</tspan>`;
   const glyph = first ? rest.match(/^([+#~-]) /) : null;
   if (glyph) {
-    out += `<tspan class="t-muted">${esc(glyph[1])}</tspan> `;
+    out += `<tspan class="t-muted cl-vis cl-vis-${VISIBILITY_CLASS[glyph[1]]}">${esc(glyph[1])}</tspan> `;
     rest = rest.slice(2);
   }
-  const annotation = /:\s*[^,()]+/g;
+  const annotation = /:(\s*)([^,()]+)/g;
   let last = 0;
   for (const match of rest.matchAll(annotation)) {
-    out += `${esc(rest.slice(last, match.index))}<tspan class="t-muted">${esc(match[0])}</tspan>`;
+    out += `${punctuated(rest.slice(last, match.index))}<tspan class="t-muted cl-punct">:</tspan>${esc(match[1])}<tspan class="t-muted cl-type-ref">${esc(match[2])}</tspan>`;
     last = match.index + match[0].length;
   }
-  return out + esc(rest.slice(last));
+  return out + punctuated(rest.slice(last));
+}
+
+// The visibility glyph is set as a chip in its own column, like a key badge in
+// an ERD; a one-line member puts its type in a right-aligned column so the
+// names and the types each read down one edge.
+function visibilityChip(glyph, x, baseline) {
+  const kind = VISIBILITY_CLASS[glyph];
+  return `<rect x="${x}" y="${baseline - 10.5}" width="${VIS_CHIP}" height="${VIS_CHIP}" rx="4" class="cl-vis-chip cl-vis-${kind}"/><text x="${x + VIS_CHIP / 2}" y="${baseline}" class="t-muted cl-vis cl-vis-${kind}" font-size="${layout.memberFont}" text-anchor="middle">${esc(glyph)}</text>`;
+}
+
+function memberColumns(member, kind) {
+  if (kind === 'attributes') return { left: punctuated(member.name), right: member.type };
+  const parameters = member.parameters
+    ? String(member.parameters).split(/(,\s*)/).map((part) => {
+      if (/^,\s*$/.test(part)) return `<tspan class="t-muted cl-punct">,</tspan> `;
+      const [name, ...annotation] = part.split(':');
+      return annotation.length
+        ? `<tspan class="cl-param">${esc(name)}</tspan><tspan class="t-muted cl-punct">:</tspan><tspan class="t-muted cl-type-ref">${esc(annotation.join(':'))}</tspan>`
+        : `<tspan class="cl-param">${esc(part)}</tspan>`;
+    }).join('')
+    : '';
+  return {
+    left: `${esc(member.name)}<tspan class="t-muted cl-punct">(</tspan>${parameters}<tspan class="t-muted cl-punct">)</tspan>`,
+    right: member.returns,
+  };
 }
 
 function renderMembers(type) {
   let top = type.y + headerHeight(type);
+  let stripe = 0;
   return compartments(type).map((compartment) => {
     const rule = `<line x1="${type.x}" y1="${top}" x2="${type.x + type.width}" y2="${top}" class="cl-rule" stroke-width="1"/>`;
     let line = 0;
@@ -869,11 +906,29 @@ function renderMembers(type) {
         member.static ? 'text-decoration: underline' : '',
         member.abstract ? 'font-style: italic' : '',
       ].filter(Boolean).join('; ');
+      const styleAttr = style ? ` style="${style}"` : '';
+      const rowTop = top + layout.compartmentPad + line * layout.rowH;
+      const zebra = stripe++ % 2
+        ? `<rect x="${type.x + 4}" y="${rowTop + 1}" width="${type.width - 8}" height="${lines.length * layout.rowH - 2}" rx="4" class="cl-zebra"/>`
+        : '';
+      const glyph = member.visibility ? VISIBILITY_GLYPH[member.visibility] : '';
+      const x0 = type.x + layout.padX;
+      const chip = glyph ? visibilityChip(glyph, x0, rowTop + layout.rowH - 5) : '';
+      const textX = glyph ? x0 + VIS_CHIP + VIS_GAP : x0;
+      if (lines.length === 1) {
+        const baseline = top + layout.compartmentPad + (line += 1) * layout.rowH - 5;
+        const { left, right } = memberColumns(member, compartment.kind);
+        const typeText = right
+          ? `<text data-detail="context" x="${type.x + type.width - layout.padX}" y="${baseline}" class="t-muted cl-member cl-type-ref" font-size="${layout.memberFont}" text-anchor="end"${styleAttr}>${esc(right)}</text>`
+          : '';
+        return [`${zebra}${chip}<text data-detail="context" data-class-member="${compartment.kind}" x="${textX}" y="${baseline}" class="t-primary cl-member" font-size="${layout.memberFont}"${styleAttr}>${left}</text>${typeText}`];
+      }
       return lines.map((entry, index) => {
         const baseline = top + layout.compartmentPad + (line += 1) * layout.rowH - 5;
-        const x = type.x + layout.padX + entry.indent * MEMBER_ADVANCE;
+        const text = index || !glyph ? entry.text : entry.text.slice(2);
+        const x = index || !glyph ? x0 + (glyph ? VIS_CHIP + VIS_GAP - 2 * MEMBER_ADVANCE : 0) + entry.indent * MEMBER_ADVANCE : textX;
         const continued = index ? ' data-class-continuation=""' : '';
-        return `<text data-detail="context" data-class-member="${compartment.kind}"${continued} x="${x}" y="${baseline}" class="t-primary cl-member" font-size="${layout.memberFont}"${style ? ` style="${style}"` : ''}>${memberSpans(entry.text, !index)}</text>`;
+        return `${index ? '' : `${zebra}${chip}`}<text data-detail="context" data-class-member="${compartment.kind}"${continued} x="${x}" y="${baseline}" class="t-primary cl-member" font-size="${layout.memberFont}"${styleAttr}>${memberSpans(text, !index)}</text>`;
       });
     });
     top += line * layout.rowH + layout.compartmentPad * 2;
@@ -895,16 +950,18 @@ function renderType(type) {
   const badgeX = type.x + layout.padX;
   const badgeY = type.y + (stereotype ? 14 : 9);
   const italic = type.kind === 'abstract' ? ' font-style="italic"' : '';
-  return `        <g ${focusNodeAttrs(type.id, type.label, passport, locale)} data-class-kind="${esc(type.kind)}">
+  const r = 8;
+  return `        <g ${focusNodeAttrs(type.id, type.label, passport, locale)} data-class-kind="${esc(type.kind)}" class="cl-hue-${tone}">
           ${focusNodeTitle(type.label, passport)}
-          <rect x="${type.x}" y="${type.y}" width="${type.width}" height="${type.height}" rx="6" class="c-mask"/>
-          <rect x="${type.x}" y="${type.y}" width="${type.width}" height="${type.height}" rx="6" class="c-${tone} cl-type"${animateAttr(cd.meta, 'node', typeSteps.get(type.id))} stroke-width="1.5"/>
-          <path class="cl-header c-${tone}" stroke="none" d="M ${type.x + 6} ${type.y} H ${type.x + type.width - 6} Q ${type.x + type.width} ${type.y} ${type.x + type.width} ${type.y + 6} V ${type.y + header} H ${type.x} V ${type.y + 6} Q ${type.x} ${type.y} ${type.x + 6} ${type.y} Z"/>
+          <rect x="${type.x}" y="${type.y}" width="${type.width}" height="${type.height}" rx="${r}" class="c-mask"/>
+          <rect x="${type.x}" y="${type.y}" width="${type.width}" height="${type.height}" rx="${r}" class="c-${tone} cl-type"${animateAttr(cd.meta, 'node', typeSteps.get(type.id))} stroke-width="1.2"/>
+          <path class="cl-header c-${tone}" stroke="none" d="M ${type.x + r} ${type.y} H ${type.x + type.width - r} A ${r} ${r} 0 0 1 ${type.x + type.width} ${type.y + r} V ${type.y + header} H ${type.x} V ${type.y + r} A ${r} ${r} 0 0 1 ${type.x + r} ${type.y} Z"/>
+          <path class="cl-cap" d="M ${type.x + 12} ${type.y + 1.4} H ${type.x + type.width - 12}" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <circle cx="${badgeX + BADGE_SIZE / 2}" cy="${badgeY + BADGE_SIZE / 2}" r="${BADGE_SIZE / 2}" class="c-${tone}" stroke-width="1.25"/>
-            <text x="${badgeX + BADGE_SIZE / 2}" y="${badgeY + BADGE_SIZE / 2 + 3.5}" class="t-${tone}" font-size="10" font-weight="700" text-anchor="middle">${esc(type.kind[0].toUpperCase())}</text>
+            <rect x="${badgeX}" y="${badgeY}" width="${BADGE_SIZE}" height="${BADGE_SIZE}" rx="${BADGE_SIZE * 0.3}" class="cl-badge-chip"/>
+            <text x="${badgeX + BADGE_SIZE / 2}" y="${badgeY + BADGE_SIZE / 2 + 3.5}" class="t-${tone} cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">${esc(type.kind[0].toUpperCase())}</text>
           </g>
-          ${stereotype ? `<text x="${cx}" y="${type.y + 16}" class="t-muted" font-size="${layout.stereotypeFont}" text-anchor="middle">${esc(stereotype)}</text>` : ''}
+          ${stereotype ? `<text x="${cx}" y="${type.y + 16}" class="t-muted cl-stereotype" font-size="${layout.stereotypeFont}" text-anchor="middle">${esc(stereotype)}</text>` : ''}
           <text data-node-label="" x="${cx}" y="${nameY}" class="t-primary" font-size="${layout.nameFont}" font-weight="700" text-anchor="middle"${italic}>${esc(type.label)}</text>
 ${renderMembers(type)}
         </g>`;
@@ -936,7 +993,7 @@ function renderRelationshipLabel(relationship, index) {
   const [lx, ly] = relationshipLabelPoint(relationship);
   const box = relationshipLabelBox(relationship);
   return `        <g data-detail="context" ${focusEdgeAttrs(relationship.from, relationship.to, relationship.label, index, relationship.id)} data-class-relationship="${relationship.kind}">
-          <rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="3" class="c-mask"/>
+          <rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="${box.height / 2}" class="c-mask cl-label-box"/>
           <text x="${lx}" y="${ly}" class="t-muted" font-size="${RELATIONSHIP_LABEL_FONT}" text-anchor="middle">${esc(relationship.label)}</text>
         </g>`;
 }
@@ -975,9 +1032,22 @@ function renderSvg() {
 ${svgAccessibleText(cd.meta, 'class')}
 ${renderDefinitions(renderMarkerDefs())}
         <style>
-          svg[data-class-ui] .cl-type { fill: var(--mask); }
+          svg[data-class-ui] .cl-zebra { fill: color-mix(in srgb, var(--cl-hue) 6%, transparent); }
+          svg[data-class-ui] .cl-param { fill: color-mix(in srgb, var(--text) 72%, var(--text-muted)); }
+${[...new Set(Object.values(KIND_TONE))].map((tone) => `          svg[data-class-ui] .cl-hue-${tone} { --cl-hue: var(--${tone}-stroke); }`).join('\n')}
+          svg[data-class-ui] .cl-type { fill: var(--mask); stroke: color-mix(in srgb, var(--cl-hue) 46%, var(--lane-stroke)); }
+          svg[data-class-ui] [data-class-kind="abstract"] .cl-type { stroke-dasharray: 5 3; stroke: color-mix(in srgb, var(--cl-hue) 64%, var(--lane-stroke)); }
           svg[data-class-ui] .cl-header { stroke: none; }
-          svg[data-class-ui] .cl-rule { stroke: var(--lane-stroke); }
+          svg[data-class-ui] .cl-cap { stroke: var(--cl-hue); pointer-events: none; }
+          svg[data-class-ui] .cl-badge-chip { fill: var(--cl-hue); }
+          svg[data-class-ui] .cl-badge-letter { fill: var(--mask); }
+          svg[data-class-ui] .cl-stereotype { fill: var(--text-muted); letter-spacing: .04em; }
+          svg[data-class-ui] .cl-rule { stroke: color-mix(in srgb, var(--cl-hue) 22%, var(--lane-stroke)); }
+          svg[data-class-ui] .cl-vis { font-weight: 700; }
+          svg[data-class-ui] .cl-vis-chip { fill: color-mix(in srgb, var(--text) 6%, transparent); }
+          svg[data-class-ui] .cl-type-ref { fill: var(--text-muted); }
+          svg[data-class-ui] .cl-punct { fill: var(--text-muted); opacity: .8; }
+          svg[data-class-ui] .cl-label-box { stroke: var(--lane-stroke); stroke-width: .8; }
           svg[data-class-ui] .cl-member { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Noto Sans Mono CJK SC', 'PingFang SC', 'Microsoft YaHei', monospace; }
           svg[data-class-ui] .cl-dashed { stroke-dasharray: 6 4; }
           svg[data-class-ui] .cl-marker { stroke: var(--arrow); }

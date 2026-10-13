@@ -45,7 +45,7 @@ const layout = {
   sublabelFont: 11,
   sublabelLine: 14,
   rootLabelFont: 14.5,
-  toggleR: 9,
+  toggleR: 7.5,
 };
 
 // ---- Structure -----------------------------------------------------------------
@@ -405,14 +405,29 @@ function treeAttrs(id) {
   return ancestors.length ? ` data-tree-ancestors="${esc(ancestors.join(' '))}"` : '';
 }
 
+// Each top-level branch owns one hue that its whole subtree inherits, so a
+// reader can tell which capability a deep leaf belongs to without tracing
+// lines. Hue is paint only: role (root, branch, leaf) stays in the passport.
+const SUBTREE_HUES = ['backend', 'database', 'cloud', 'frontend', 'messagebus', 'external'];
+const hueOf = new Map();
+childrenOf.get(authoredRoot.id).forEach((id, index) => {
+  const hue = SUBTREE_HUES[index % SUBTREE_HUES.length];
+  (function paint(current) {
+    hueOf.set(current, hue);
+    for (const child of childrenOf.get(current)) paint(child);
+  }(id));
+});
+const hueClass = (id) => (hueOf.has(id) ? `tree-hue-${hueOf.get(id)}` : 'tree-hue-root');
+
 function renderNode(node) {
   const leaf = !childrenOf.get(node.id).length;
   const tone = node.isRoot ? 'frontend' : leaf ? 'external' : 'backend';
+  const role = node.isRoot ? 'tree-root' : leaf ? 'tree-leaf' : 'tree-branch';
   const context = i18nText(locale, node.isRoot ? 'node.context.tree.root' : childrenOf.get(node.id).length ? 'node.context.tree.branch' : 'node.context.tree.leaf');
   const passport = { kind: tone, sublabel: node.sublabel, context };
   // A stacked list reads left-aligned, like a directory listing; a node in a
   // row is centred under its link.
-  const cx = node.stacked ? node.x + layout.padX : node.x + node.width / 2;
+  const cx = node.stacked ? node.x + layout.padX + 2 : node.x + node.width / 2;
   const anchor = node.stacked ? 'start' : 'middle';
   let y = node.y + node.evidenceHeader + (node.height - node.evidenceHeader - node.contentHeight) / 2;
   const label = node.labelLines.map((line) => {
@@ -427,15 +442,24 @@ function renderNode(node) {
   // A collapsed branch shows a stacked card behind it, so the hidden subtree
   // stays visible as "there is more here" even before the badge is read.
   const stack = childrenOf.get(node.id).length
-    ? `<rect data-tree-stack="" x="${node.x + 5}" y="${node.y + 5}" width="${node.width}" height="${node.height}" rx="8" class="tree-stack-${tone}" stroke-width="1.2"/>`
+    ? `<rect data-tree-stack="" x="${node.x + 5}" y="${node.y + 5}" width="${node.width}" height="${node.height}" rx="10" class="tree-stack-${tone}" stroke-width="1.2"/>`
     : '';
-  return `        <g ${focusNodeAttrs(node.id, node.label, passport, locale)} data-tree-depth="${node.depth}"${treeAttrs(node.id)}>
+  // A listed entry carries its subtree hue as a spine; every other node shows
+  // it where its link lands, as a socket on the edge it is entered from.
+  const accent = leaf && node.stacked
+    ? `<path class="tree-accent" d="M ${node.x + 4.5} ${node.y + 9} V ${node.y + node.height - 9}" stroke-width="3" stroke-linecap="round" fill="none"/>`
+    : '';
+  const [sx, sy] = node.stacked || !down ? [node.x, node.y + node.height / 2] : [node.x + node.width / 2, node.y];
+  const socket = node.isRoot ? '' : `<circle cx="${sx}" cy="${sy}" r="2.6" class="tree-socket" stroke-width="1.4"/>`;
+  return `        <g ${focusNodeAttrs(node.id, node.label, passport, locale)} data-tree-depth="${node.depth}"${treeAttrs(node.id)} class="${hueClass(node.id)}">
           ${focusNodeTitle(node.label, passport)}
           ${stack}
-          <rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="8" class="c-mask"/>
-          <rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="8" class="c-${tone}${leaf ? ' tree-leaf' : ''}"${animateAttr(tree.meta, 'node', node.depth)} stroke-width="${node.isRoot ? 1.8 : 1.3}"/>
-          <text data-node-label="" x="${cx}" class="t-primary" font-size="${node.labelFont}" font-weight="${node.isRoot ? 750 : leaf ? 600 : 700}" text-anchor="${anchor}">${label}</text>
-          ${sublabel ? `<text data-detail="context" x="${cx}" class="t-muted" font-size="${layout.sublabelFont}" text-anchor="${anchor}">${sublabel}</text>` : ''}
+          <rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="10" class="c-mask"/>
+          <rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="10" class="c-${tone} ${role}"${animateAttr(tree.meta, 'node', node.depth)} stroke-width="${node.isRoot ? 0 : leaf ? 1 : 1.2}"/>
+          ${accent}
+          ${socket}
+          <text data-node-label="" x="${cx}" class="t-primary tree-label" font-size="${node.labelFont}" font-weight="${node.isRoot ? 750 : leaf ? 560 : 700}" text-anchor="${anchor}">${label}</text>
+          ${sublabel ? `<text data-detail="context" x="${cx}" class="t-muted tree-sublabel" font-size="${layout.sublabelFont}" text-anchor="${anchor}">${sublabel}</text>` : ''}
         </g>`;
 }
 
@@ -449,11 +473,12 @@ function renderToggle(node) {
   const collapse = i18nText(locale, 'tree.toggle.collapse', { label: node.label, count: hidden });
   const expand = i18nText(locale, 'tree.toggle.expand', { label: node.label, count: hidden });
   const r = layout.toggleR;
-  return `        <g data-tree-toggle="${esc(node.id)}" data-tree-count="${hidden}"${treeAttrs(node.id)}${node.collapsed ? ' data-tree-initially-collapsed=""' : ''} data-tree-label-collapse="${esc(collapse)}" data-tree-label-expand="${esc(expand)}" role="button" tabindex="0" aria-expanded="true" aria-label="${esc(collapse)}">
-          <circle cx="${cx}" cy="${cy}" r="${r + 6}" class="tree-toggle-hit"/>
-          <circle cx="${cx}" cy="${cy}" r="${r}" class="tree-toggle-disc" stroke-width="1.4"/>
-          <path class="tree-toggle-glyph" d="M ${cx - 4} ${cy} H ${cx + 4}" stroke-width="1.6" stroke-linecap="round"/>
-          <path class="tree-toggle-glyph tree-toggle-plus" d="M ${cx} ${cy - 4} V ${cy + 4}" stroke-width="1.6" stroke-linecap="round"/>
+  const arm = r * 0.42;
+  return `        <g data-tree-toggle="${esc(node.id)}" data-tree-count="${hidden}"${treeAttrs(node.id)}${node.collapsed ? ' data-tree-initially-collapsed=""' : ''} data-tree-label-collapse="${esc(collapse)}" data-tree-label-expand="${esc(expand)}" role="button" tabindex="0" aria-expanded="true" aria-label="${esc(collapse)}" class="${hueClass(node.id)}">
+          <circle cx="${cx}" cy="${cy}" r="${r + 7}" class="tree-toggle-hit"/>
+          <circle cx="${cx}" cy="${cy}" r="${r}" class="tree-toggle-disc" stroke-width="1.2"/>
+          <path class="tree-toggle-glyph" d="M ${cx - arm} ${cy} H ${cx + arm}" stroke-width="1.5" stroke-linecap="round"/>
+          <path class="tree-toggle-glyph tree-toggle-plus" d="M ${cx} ${cy - arm} V ${cy + arm}" stroke-width="1.5" stroke-linecap="round"/>
           <g class="tree-toggle-count">
             <rect x="${cx + r + 3}" y="${cy - 7.5}" width="${String(hidden).length * 6.2 + 11}" height="15" rx="7.5" class="tree-count-pill"/>
             <text x="${cx + r + 3 + (String(hidden).length * 6.2 + 11) / 2}" y="${cy + 3.6}" class="t-primary" font-size="10" font-weight="700" text-anchor="middle">${hidden}</text>
@@ -462,7 +487,11 @@ function renderToggle(node) {
 }
 
 function renderEdge(edge) {
-  return `        <path ${focusEdgeAttrs(edge.from, edge.to, undefined, edge.index)}${treeAttrs(edge.to)} data-composition-points="${routePointsValue(edge.points)}" d="${roundedPath(edge.points, 8)}" class="a-default tree-edge"${animateAttr(tree.meta, 'edge', placed.get(edge.to).depth)} stroke-width="1.5"/>`;
+  // Links out of the root share one trunk, so they stay neutral; inside a
+  // subtree every link shares its branch's hue.
+  const hued = edge.from !== authoredRoot.id;
+  const d = roundedPath(edge.points, 10);
+  return `        <path ${focusEdgeAttrs(edge.from, edge.to, undefined, edge.index)}${treeAttrs(edge.to)} data-composition-points="${routePointsValue(edge.points)}" d="${d}" class="a-default tree-edge${hued ? ` tree-edge-hued ${hueClass(edge.to)}` : ' tree-edge-trunk'}"${animateAttr(tree.meta, 'edge', placed.get(edge.to).depth)} stroke-width="${hued ? 1.5 : 1.8}"/>`;
 }
 
 function renderSvg() {
@@ -472,23 +501,37 @@ function renderSvg() {
 ${svgAccessibleText(tree.meta, 'tree')}
 ${renderDefinitions()}
         <style>
+${['root', ...SUBTREE_HUES].map((hue) => hue === 'root'
+    ? '          svg[data-tree-ui] .tree-hue-root { --tree-hue: var(--text-muted); --tree-wash: transparent; }'
+    : `          svg[data-tree-ui] .tree-hue-${hue} { --tree-hue: var(--${hue}-stroke); --tree-wash: var(--${hue}-fill); }`).join('\n')}
           svg[data-tree-ui] .tree-edge { stroke-linejoin: round; stroke-linecap: round; }
-          svg[data-tree-ui] .tree-leaf { fill: var(--mask); stroke: var(--lane-stroke); }
-          svg[data-tree-ui] [data-tree-stack] { display: none; fill: var(--mask); }
-          svg[data-tree-ui] .tree-stack-frontend { stroke: var(--frontend-stroke); }
-          svg[data-tree-ui] .tree-stack-backend { stroke: var(--backend-stroke); }
+          svg[data-tree-ui] .tree-edge-trunk { stroke: color-mix(in srgb, var(--text) 18%, var(--arrow)); }
+          svg[data-tree-ui] .tree-edge-hued { stroke: color-mix(in srgb, var(--tree-hue) 42%, var(--arrow)); }
+          svg[data-tree-ui] .tree-root { fill: var(--text); stroke: none; }
+          svg[data-tree-ui] [data-tree-depth="0"] .tree-label { fill: var(--mask); }
+          svg[data-tree-ui] [data-tree-depth="0"] .tree-sublabel { fill: var(--mask); opacity: 0.68; }
+          svg[data-tree-ui] .tree-branch { fill: var(--tree-wash); stroke: color-mix(in srgb, var(--tree-hue) 48%, var(--lane-stroke)); }
+          svg[data-tree-ui] .tree-leaf { fill: var(--mask); stroke: color-mix(in srgb, var(--tree-hue) 22%, var(--lane-stroke)); }
+          svg[data-tree-ui] .tree-socket { fill: var(--mask); stroke: var(--tree-hue); pointer-events: none; }
+          svg[data-tree-ui] .tree-accent { stroke: var(--tree-hue); pointer-events: none; }
+          svg[data-tree-ui] [data-tree-stack] { display: none; fill: var(--mask); stroke: color-mix(in srgb, var(--tree-hue) 70%, var(--lane-stroke)); }
           svg[data-tree-ui] [data-tree-collapsed] [data-tree-stack] { display: inline; }
           svg[data-tree-ui] [data-tree-hidden] { display: none; }
           svg[data-tree-ui] .tree-toggle-hit { fill: transparent; }
-          svg[data-tree-ui] .tree-toggle-disc { fill: var(--mask); stroke: var(--arrow); }
-          svg[data-tree-ui] .tree-toggle-glyph { stroke: var(--text); fill: none; }
+          svg[data-tree-ui] .tree-toggle-disc { fill: var(--mask); stroke: color-mix(in srgb, var(--tree-hue) 55%, var(--lane-stroke)); transition: stroke 0.15s ease, fill 0.15s ease; }
+          svg[data-tree-ui] .tree-toggle-glyph { stroke: var(--text-muted); fill: none; transition: stroke 0.15s ease; }
           svg[data-tree-ui] .tree-toggle-count { display: none; }
-          svg[data-tree-ui] .tree-count-pill { fill: var(--mask); stroke: var(--arrow); stroke-width: 1; }
+          svg[data-tree-ui] .tree-count-pill { fill: var(--tree-hue); stroke: none; }
+          svg[data-tree-ui] .tree-toggle-count text { fill: var(--mask); }
           svg[data-tree-ui] [data-tree-toggle] { cursor: pointer; outline: none; }
           svg[data-tree-ui] [data-tree-toggle][aria-expanded="true"] .tree-toggle-plus { display: none; }
           svg[data-tree-ui] [data-tree-toggle][aria-expanded="false"] .tree-toggle-count { display: inline; }
+          svg[data-tree-ui] [data-tree-toggle][aria-expanded="false"] .tree-toggle-disc { fill: var(--tree-hue); stroke: var(--tree-hue); }
+          svg[data-tree-ui] [data-tree-toggle][aria-expanded="false"] .tree-toggle-glyph { stroke: var(--mask); }
           svg[data-tree-ui] [data-tree-toggle]:hover .tree-toggle-disc,
-          svg[data-tree-ui] [data-tree-toggle]:focus-visible .tree-toggle-disc { stroke: var(--arrow-emphasis); stroke-width: 2.4; }
+          svg[data-tree-ui] [data-tree-toggle]:focus-visible .tree-toggle-disc { stroke: var(--tree-hue); stroke-width: 2; }
+          svg[data-tree-ui] [data-tree-toggle]:hover .tree-toggle-glyph,
+          svg[data-tree-ui] [data-tree-toggle]:focus-visible .tree-toggle-glyph { stroke: var(--text); }
           svg[data-tree-ui] [data-tree-expand-all] { cursor: pointer; outline: none; }
           svg[data-tree-ui] [data-tree-expand-all] rect { fill: var(--mask); stroke: var(--lane-stroke); }
           svg[data-tree-ui] [data-tree-expand-all]:is(:hover, :focus-visible) rect { stroke: var(--arrow-emphasis); stroke-width: 2; }
