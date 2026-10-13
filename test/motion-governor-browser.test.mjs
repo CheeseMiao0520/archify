@@ -161,9 +161,8 @@ test('Motion Governor preserves mode, ownership, continuous Live flow and real c
           security:Array.from(svg.querySelectorAll('.a-security'), e=>getComputedStyle(e).strokeDasharray)};
       })()`);
       if(mode==='class') assert.ok(contract.reverse>0, 'Class bus exercises reversed visual paths.');
-      assert.equal(contract.paths, contract.edges * 7,
-        'Each edge carries wake, glow, halo, tail and head, plus an echo pair.');
-      assert.equal(contract.circles, contract.edges * 2, 'Each edge carries a sonar ripple pair.');
+      assert.equal(contract.paths, contract.edges * 5, 'Each edge carries wake, glow, halo, tail and head.');
+      assert.equal(contract.circles, contract.edges, 'Each edge carries one landing ripple.');
       assert.equal(contract.valid, true);
       assert.ok(contract.originalAnimations.every(name=>name==='none'));
       assert.ok(contract.security.every(dash=>dash==='5px, 5px'));
@@ -181,9 +180,8 @@ test('Motion Governor preserves mode, ownership, continuous Live flow and real c
           layers:Array.from(document.querySelectorAll('path[data-animate="edge"]')).every(e=>{
             const overlays=[];
             for(let s=e.nextElementSibling;s&&s.hasAttribute('data-ambient-flow-overlay');s=s.nextElementSibling) overlays.push(s);
-            const kinds=overlays.map(o=>o.localName==='circle'?(o.classList.contains('ambient-flow-ripple-echo')?'ripple-echo':'ripple'):(o.classList.contains('echo')?'echo':['wake','glow','halo','tail','head'].find(c=>o.classList.contains('ambient-flow-'+c))));
-            const core=kinds.slice(0,5).join(','), rest=kinds.slice(5).join(',');
-            return core==='wake,glow,halo,tail,head'&&rest==='echo,echo,ripple,ripple-echo'&&
+            const kinds=overlays.map(o=>o.localName==='circle'?'ripple':['wake','glow','halo','tail','head'].find(c=>o.classList.contains('ambient-flow-'+c)));
+            return kinds.join(',')==='wake,glow,halo,tail,head,ripple'&&
               overlays.every(o=>o.style.getPropertyValue('--flow-delay')!=='');
           }),
           nodeAnims:Array.from(document.querySelectorAll('[data-animate="node"]'), e=>e.getAnimations().map(a=>a.animationName))})`);
@@ -194,7 +192,7 @@ test('Motion Governor preserves mode, ownership, continuous Live flow and real c
         })()`);
         assert.ok(cycle.iterations >= 1, 'comet layers keep cycling'); assert.equal(cycle.active, true);
         assert.equal(cycle.layers, true, 'every edge keeps its trace, wake, comet layers and landing ripple beside it');
-        assert.ok(cycle.nodeAnims.length > 0 && cycle.nodeAnims.every(names => names.length === 1 && names[0] === 'archify-node-receive'),
+        assert.ok(cycle.nodeAnims.length > 0 && cycle.nodeAnims.every(names => names.length === 1 && names[0] === 'archify-relay-node'),
           'after the bounded entrance, nodes keep only the receive glow: ' + JSON.stringify(cycle.nodeAnims));
         assert.ok(Number.isFinite(movement.before) && Number.isFinite(movement.after) && movement.after < movement.before,
           'comet head travels forward: ' + JSON.stringify(movement));
@@ -226,36 +224,41 @@ test('Motion Governor preserves mode, ownership, continuous Live flow and real c
     assert.equal(await run(`document.querySelectorAll('[data-ambient-flow-overlay]').length`), 0);
   });
 
-  await t.test('echo comets stay dimmer than their main comets across presets and themes', async () => {
-    for (const theme of ['dark', 'light']) {
-      await load('architecture', { theme });
-      await run(`Archify.motionGovernor.resume()`);
-      for (const preset of ['classic', 'editorial']) {
-        const peaks = await run(`(() => {
-          const svg=document.querySelector('.diagram-container > svg');
-          document.documentElement.setAttribute('data-preset', ${JSON.stringify(preset)});
-          svg.setAttribute('data-preset', ${JSON.stringify(preset)});
-          const echoes=Array.from(svg.querySelectorAll('.ambient-flow-head.echo, .ambient-flow-tail.echo'));
-          return echoes.map(echo=>{
-            const kind=echo.classList.contains('ambient-flow-head')?'head':'tail';
-            let main=echo.previousElementSibling;
-            while(main&&(!main.classList.contains('ambient-flow-'+kind)||main.classList.contains('echo'))) main=main.previousElementSibling;
-            function peak(flow) {
-              const animation=flow.getAnimations()[0];
-              animation.pause();
-              const timing=animation.effect.getTiming();
-              animation.currentTime=timing.delay+timing.duration*0.04;
-              return Number(getComputedStyle(flow).opacity);
-            }
-            return {kind,main:peak(main),echo:peak(echo)};
-          });
-        })()`);
-        assert.ok(peaks.length > 0, 'Architecture fixture must exercise echo comets.');
-        for (const peak of peaks) {
-          assert.ok(peak.echo > 0 && peak.echo < peak.main,
-            `${preset}/${theme} ${peak.kind} echo must remain visible and dimmer: ${JSON.stringify(peak)}`);
+  await t.test('Live relays each comet from its source after the signal reaches it', async () => {
+    await load('architecture');
+    await run(`Archify.motionGovernor.resume()`);
+    const relay = await run(`(() => {
+      const svg=document.querySelector('.diagram-container > svg');
+      const seconds=(element,name)=>parseFloat(element.style.getPropertyValue(name));
+      const edges=Array.from(svg.querySelectorAll('path[data-animate="edge"]')).map(edge=>{
+        let head=null, ripple=null;
+        for(let s=edge.nextElementSibling;s&&s.hasAttribute('data-ambient-flow-overlay');s=s.nextElementSibling){
+          if(s.classList.contains('ambient-flow-head')) head=s;
+          if(s.classList.contains('ambient-flow-ripple')) ripple=s;
         }
-      }
+        return {from:edge.getAttribute('data-edge-from'),to:edge.getAttribute('data-edge-to'),
+          depart:seconds(head,'--flow-delay'),land:seconds(ripple,'--flow-delay')};
+      });
+      const arrive={};
+      svg.querySelectorAll('[data-node-id]').forEach(node=>{
+        const shape=node.querySelector('[data-animate="node"]');
+        if(shape&&shape.style.getPropertyValue('--flow-arrive')) arrive[node.getAttribute('data-node-id')]=seconds(shape,'--flow-arrive');
+      });
+      return {edges,arrive,cycle:parseFloat(svg.style.getPropertyValue('--flow-cycle'))};
+    })()`);
+    const linked = relay.edges.filter(edge => edge.from && edge.to);
+    assert.ok(linked.length > 2, 'Architecture fixture exercises a multi-step relay.');
+    for (const edge of linked) {
+      assert.ok(edge.land > edge.depart, `${edge.from}->${edge.to} lands after it departs`);
+      assert.ok(edge.land < relay.cycle, `${edge.from}->${edge.to} lands within one cycle`);
+      const incoming = linked.filter(other => other.to === edge.from && other.from !== edge.from);
+      if (!incoming.length) assert.equal(edge.depart, 0, `${edge.from} is a source and departs first`);
+      else assert.ok(edge.depart >= Math.min(...incoming.map(other => other.land)) - 0.001,
+        `${edge.from}->${edge.to} departs only after the signal reaches ${edge.from}`);
+    }
+    for (const [id, at] of Object.entries(relay.arrive)) {
+      const incoming = linked.filter(edge => edge.to === id && edge.from !== id);
+      if (incoming.length) assert.ok(Math.abs(at - Math.min(...incoming.map(edge => edge.land))) < 0.002, `${id} glows when its first comet lands`);
     }
   });
 
@@ -273,13 +276,13 @@ test('Motion Governor preserves mode, ownership, continuous Live flow and real c
           Archify.motionGovernor.pause();
           const baseline=getComputedStyle(node).filter;
           Archify.motionGovernor.resume();
-          const animation=node.getAnimations().find(a=>a.animationName==='archify-node-receive');
+          const animation=node.getAnimations().find(a=>a.animationName==='archify-relay-node');
           animation.pause();
           const timing=animation.effect.getTiming();
           animation.currentTime=timing.delay;
           // Chrome pads interpolated filter lists with transparent identity shadows.
           const neutral=getComputedStyle(node).filter.replaceAll('drop-shadow(rgba(0, 0, 0, 0) 0px 0px 0px)', '').trim() || 'none';
-          animation.currentTime=timing.delay+timing.duration*0.08;
+          animation.currentTime=timing.delay+250;
           const peak=getComputedStyle(node).filter;
           return {baseline,neutral,peak};
         })()`);
@@ -329,9 +332,9 @@ test('Motion Governor preserves mode, ownership, continuous Live flow and real c
       await load(mode);
       await run(`Archify.motionGovernor.resume()`);
       await run(`motionWait(()=>document.documentElement.getAttribute('data-ambient-entry')==='settled')`);
-      await run(`motionWait(()=>Array.from(document.querySelectorAll('[data-animate="node"]')).every(e=>e.getAnimations().some(a=>a.animationName==='archify-node-receive')))`);
+      await run(`motionWait(()=>Array.from(document.querySelectorAll('[data-animate="node"]')).every(e=>e.getAnimations().some(a=>a.animationName==='archify-relay-node')))`);
       const nodeState=()=>run(`Array.from(document.querySelectorAll('[data-animate="node"]'),e=>({animations:e.getAnimations().map(a=>a.animationName),filter:getComputedStyle(e).filter,opacity:getComputedStyle(e).opacity}))`);
-      assert.ok((await nodeState()).every(n=>n.animations.includes('archify-node-receive')));
+      assert.ok((await nodeState()).every(n=>n.animations.includes('archify-relay-node')));
       await send('Emulation.setEmulatedMedia', {media:'print'});
       await run(`Archify.motionGovernor.pause()`);
       const staticPrint=await nodeState();
@@ -340,7 +343,7 @@ test('Motion Governor preserves mode, ownership, continuous Live flow and real c
       assert.deepEqual(await nodeState(), staticPrint, mode + ': printed Live nodes retain Still print styling and no animations');
       assert.equal((await snapshot(mode + '-settled-print')).mode, 'live');
       await media(false);
-      await run(`motionWait(()=>Array.from(document.querySelectorAll('[data-animate="node"]')).every(e=>e.getAnimations().some(a=>a.animationName==='archify-node-receive'&&a.playState==='running')))`);
+      await run(`motionWait(()=>Array.from(document.querySelectorAll('[data-animate="node"]')).every(e=>e.getAnimations().some(a=>a.animationName==='archify-relay-node'&&a.playState==='running')))`);
       assert.equal((await snapshot(mode + '-settled-screen-return')).mode, 'live');
     }
   });

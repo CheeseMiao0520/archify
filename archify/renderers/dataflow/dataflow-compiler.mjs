@@ -1549,7 +1549,7 @@ ${edge}
       // ratio, so without intrinsic-height the desktop Reader can neither narrow
       // nor scroll it and every default dataflow fails the browser gate.
       const readerFit = dataflow.meta?.viewBox ? '' : ' data-reader-fit="intrinsic-height"';
-      return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}"${readerFit} ${svgRootAttrs(dataflow.meta)}>
+      return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}"${readerFit} ${svgRootAttrs(dataflow.meta)} data-motion-choreography="stream">
 ${svgAccessibleText(dataflow.meta, 'dataflow')}
 ${renderDefinitions()}
 

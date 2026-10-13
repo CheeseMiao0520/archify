@@ -184,55 +184,20 @@ test('semantic SVG identity is deterministic for unchanged input', () => {
   assert.deepEqual(hooks(first), hooks(second));
 });
 
-test('Live cascade ships layered comet choreography instead of marching dashes', () => {
+test('Live relay ships comet layers whose timing the Motion Governor plans', () => {
   const html = render('architecture', CASES.architecture);
-  assert.match(html, /@keyframes archify-flow-wake/);
-  assert.match(html, /@keyframes archify-cascade-halo/);
-  assert.match(html, /@keyframes archify-cascade-glow/);
-  assert.match(html, /@keyframes archify-cascade-tail/);
-  assert.match(html, /@keyframes archify-cascade-head/);
-  assert.match(html, /@keyframes archify-flow-ripple/);
-  assert.match(html, /@keyframes archify-flow-ripple-echo/);
-  assert.match(html, /@keyframes archify-node-receive/);
+  for (const layer of ['wake', 'glow', 'halo', 'tail', 'head', 'ripple']) {
+    assert.match(html, new RegExp(`\\.ambient-flow-${layer} \\{`));
+  }
   assert.match(html, /@keyframes archify-node-enter/);
-  assert.match(html, /\.ambient-flow-wake \{/);
-  assert.match(html, /\.ambient-flow-halo \{/);
-  assert.match(html, /\.ambient-flow-glow \{/);
-  assert.match(html, /\.ambient-flow-tail \{/);
-  assert.match(html, /\.ambient-flow-head \{/);
-  assert.match(html, /\.ambient-flow-ripple \{/);
-  assert.match(html, /\.ambient-flow-ripple-echo \{/);
   assert.match(html, /--flow-cycle: 6\.4s/);
-  assert.match(html, /--flow-step-delay: 0\.2s/);
-  assert.match(html, /--flow-glow-peak: 0\.5/);
-  assert.match(html, /--flow-wake-peak: 0\.1/);
-  assert.match(html, /--flow-ripple-peak: 0\.65/);
-  assert.match(html, /--flow-ripple-echo-peak: 0\.26/);
-  // On light canvases the cascade reads by saturation: ink-mixed head and
-  // ripple with raised peaks.
   assert.match(html, /html\[data-theme="light"\] svg\[data-animation="trace"\] \{/);
-  assert.match(html, /--flow-tail-peak: 0\.5/);
   assert.match(html, /html\[data-theme="light"\] \.ambient-flow-head \{/);
-  assert.match(html, /html\[data-theme="light"\] \.ambient-flow-ripple \{/);
-  // The Governor derives each edge's phase from the authored step order, eases
-  // the comet's velocity, disintegrates its tail into sparkle fragments with
-  // absolute caps, wraps the head in a blurred glow orb, boosts compact edges,
-  // gives every edge an echo comet, and lands a sonar pair where the comet
-  // arrives. The cascade starts playing immediately — no load-time trace
-  // layer doubles the authored edge.
-  assert.match(html, /addPath\('wake'\)/);
-  assert.match(html, /addPath\('glow'\)/);
-  assert.match(html, /addPath\('tail echo'\)/);
-  assert.match(html, /getPointAtLength/);
-  assert.match(html, /'ripple', 'ripple-echo'/);
-  assert.match(html, /'2\.5 2 4 3 5\.5 4\.5 8 ' \+ \(len - 30\)\.toFixed\(1\)/);
-  assert.match(html, /cfg\.flow\.style\.setProperty\('--flow-dasharray', cfg\.dasharray\)/);
-  assert.match(html, /event\.animationName && !\/node-pulse\/\.test\(event\.animationName\)/);
-  // Dashed authored lines keep their dash language through the wake.
-  assert.match(html, /wake\.style\.setProperty\('--flow-dasharray', authoredDash\)/);
-  assert.match(html, /nodeStep\(shape\.getAttribute\('data-edge-from'\)\)/);
-  assert.match(html, /readSecondsVar\('--flow-step-delay', 0\.2\)/);
-  assert.match(html, /\) \* 0\.88\)/);
+  // Per-edge keyframes come from the planned relay; no fixed shared-cycle
+  // cascade, echo comet or load-time trace layer remains.
+  assert.match(html, /function planRelay\(records\)/);
+  assert.match(html, /animation-name: var\(--flow-name, none\)/);
+  assert.doesNotMatch(html, /archify-cascade-|archify-flow-ripple-echo|tail echo|--flow-step-delay/);
   assert.doesNotMatch(html, /archify-ambient-flow|--ambient-flow-duration/);
   assert.doesNotMatch(html, /ambient-flow-trace|archify-trace-in|archify-trace-fade/);
 });
