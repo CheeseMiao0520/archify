@@ -100,15 +100,14 @@ export const SEMANTIC_SIGIL_FOOTPRINT = SEMANTIC_SIGIL_INSET + SEMANTIC_SIGIL_SI
 // so labels never sit under the badge.
 export const SOURCE_BADGE_FOOTPRINT = 38;
 
-export function renderSemanticSigil(kind, { x, y, size = SEMANTIC_SIGIL_SIZE, icon, chip = false } = {}) {
+export function renderSemanticSigil(kind, { x, y, size = SEMANTIC_SIGIL_SIZE, icon } = {}) {
   if (icon === 'none') return '';
   const selected = icon ?? kind;
   const normalized = Object.hasOwn(SIGIL_SHAPE, selected) ? selected : 'neutral';
   const tone = SIGIL_TONE[kind] || 'external';
   const scale = size / 16;
-  const plate = chip ? '<rect class="sigil-chip" x="-2.5" y="-2.5" width="21" height="21" rx="5.5"/>\n            ' : '';
   return `<g aria-hidden="true" data-semantic-sigil="${esc(normalized)}" class="semantic-sigil s-${tone}" transform="translate(${x} ${y}) scale(${scale})">
-            ${plate}${SIGIL_SHAPE[normalized]}
+            ${SIGIL_SHAPE[normalized]}
           </g>`;
 }
 

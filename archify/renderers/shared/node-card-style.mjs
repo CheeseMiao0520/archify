@@ -1,6 +1,6 @@
 // Shared card styling for the architecture and workflow renderers. Every
-// preset gets the cleaner cards, sigil plates and label chips; blueprint keeps
-// its drafting dash patterns and square corners.
+// preset gets the cleaner cards and label chips; blueprint keeps its drafting
+// dash patterns and square corners.
 const TONES = ['frontend', 'backend', 'database', 'cloud', 'security', 'messagebus', 'external'];
 
 export const NODE_CARD_ATTR = 'data-node-ui=""';
@@ -17,9 +17,6 @@ export function nodeCardStyle() {
   return `        <style>
           ${all} ${node} { stroke-width: 1.25px; }
 ${TONES.map((tone) => `          ${dark} ${node}.c-${tone} { fill: color-mix(in srgb, var(--${tone}-stroke) 13%, var(--mask)); stroke: color-mix(in srgb, var(--${tone}-stroke) 72%, var(--mask)); }`).join('\n')}
-          ${all} .semantic-sigil { opacity: 1; }
-          ${all} .sigil-chip { fill: currentColor; fill-opacity: .14; stroke: none; }
-          ${blueprint} .sigil-chip { rx: 2px; }
           ${solid} .c-region { fill: color-mix(in srgb, var(--cloud-stroke) 3%, transparent); stroke: color-mix(in srgb, var(--cloud-stroke) 42%, var(--lane-stroke)); stroke-dasharray: none; }
           ${all} .c-security-group { stroke: color-mix(in srgb, var(--security-stroke) 58%, var(--lane-stroke)); }
           ${solid} .c-security-group { stroke-dasharray: 4 3; }

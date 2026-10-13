@@ -5423,7 +5423,7 @@ function renderNode(node) {
           ${focusNodeTitle(node.label, passport)}
           <rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="8" class="c-mask"/>
           <rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="8" class="${fill}"${animateAttr(workflow.meta, 'node', nodeStep(node))} stroke-width="1.5"/>
-          ${renderSemanticSigil(node.type, { icon: node.icon, x: node.x + 6, y: node.y + labelLayout.sigilY, size: labelLayout.sigilSize, chip: true })}${brand ? `\n          ${brand}` : ''}
+          ${renderSemanticSigil(node.type, { icon: node.icon, x: node.x + 6, y: node.y + labelLayout.sigilY, size: labelLayout.sigilSize })}${brand ? `\n          ${brand}` : ''}
           <text data-node-label=""${hasSub ? ' data-detail-anchor=""' : ''} x="${node.x + labelLayout.x}" y="${node.y + labelLayout.ys[0]}" class="t-primary" font-size="${labelFontSize}" font-weight="600" text-anchor="middle">${esc(node.label)}</text>${sub}${tag}
         </g>`;
 }
