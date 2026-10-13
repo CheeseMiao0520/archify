@@ -59,8 +59,14 @@ test('native copy links preserve a host page and opaque reader state without cha
       text = document.querySelector('textarea[readonly]')?.value ?? null;
       return ${JSON.stringify(fallback)};
     };
-    try { return { copied: await (${action}), text, clipboardCalls,
-      residual: document.querySelectorAll('textarea[readonly]').length }; }
+    try {
+      const copied = await (${action});
+      // Observe transient feedback before another CDP round trip can outlive it.
+      const button = document.getElementById(${JSON.stringify(action.startsWith('Archify.focus.') ? 'btn-focus-copy' : action.startsWith('Archify.routeProbe.') ? 'route-probe-copy' : 'semantic-lens-copy')});
+      return { copied, text, clipboardCalls,
+        residual: document.querySelectorAll('textarea[readonly]').length,
+        feedback: { text: button.textContent, accessible: button.getAttribute('aria-label') } };
+    }
     finally { document.execCommand = original;
       if (descriptor) Object.defineProperty(navigator, 'clipboard', descriptor);
       else delete navigator.clipboard; }
@@ -113,12 +119,7 @@ test('native copy links preserve a host page and opaque reader state without cha
       assert.equal(result.text, null);
       assert.equal(result.clipboardCalls, 0);
       assert.equal(result.residual, 0);
-      const button = action.startsWith('Archify.focus.') ? 'btn-focus-copy'
-        : action.startsWith('Archify.routeProbe.') ? 'route-probe-copy' : 'semantic-lens-copy';
-      const feedback = await run(`(() => {
-        const button = document.getElementById(${JSON.stringify(button)});
-        return { text: button.textContent, accessible: button.getAttribute('aria-label') };
-      })()`);
+      const feedback = result.feedback;
       assert.match(feedback.text, /copy failed/i, `${action} must explain rejected addresses`);
       assert.match(feedback.accessible, /(?:could not copy|copy failed)/i,
         `${action} must announce rejected addresses`);
