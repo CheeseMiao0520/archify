@@ -556,15 +556,49 @@ function moveCeiling(reached, entry) {
   const below = asArray(sequence.messages)
     .filter((message, index) => !moved.has(index) && typeof message.y === 'number' && message.y > entry.message.y)
     .map((message) => message.y);
-  return below.length ? Math.min(...below) - 1 : Infinity;
+  // Rows may be fractional while the scan steps in whole pixels: ceil the bound
+  // so a valid integer slot just below a fractional row survives (ceil(m) - 1 is
+  // still strictly below m, and identical to m - 1 for integer rows).
+  return below.length ? Math.ceil(Math.min(...below)) - 1 : Infinity;
+}
+
+// Whether a fully assigned joint or single move keeps the implicit legend budget
+// on an authored showcase canvas: content pushed into the legend band leaves a
+// repair that fails on apply (layout/constraint offers no fix), so withhold it
+// instead. Call with every moved message already placed; the caller restores
+// positions afterwards. Mirrors the layout/constraint predicate exactly.
+function assignedLegendBudgetHolds() {
+  if (sequence.meta?.quality_profile !== 'showcase' || sequence.meta?.legend !== undefined) return true;
+  // An automatic canvas regrows around the moved content (its height already
+  // reserves the legend), so only an authored viewBox can strand the legend.
+  if (!sequence.meta?.viewBox) return true;
+  const bottom = Math.max(0, ...asArray(sequence.messages).map((message) => (message.note
+    ? noteLayout(message)?.bottom ?? message.y + 22
+    : message.y + 6)));
+  const entries = legendEntries();
+  if (!entries.length) return true;
+  const height = Math.ceil(bottom + LEGEND_CONTENT_GAP + LEGEND_BLOCK_HEIGHT
+    + legendFootprint(entries, { width: viewBox[0] - 80 }).extraHeight);
+  // legendLayout() closes over the pre-move content bottom, so re-anchor its
+  // title floor to the simulated bottom: otherwise the fit check would read
+  // stale rows and approve content standing in the legend band.
+  const simulated = { ...legendLayout(), minTitleY: Math.max(layout.lifelineTop, bottom + LEGEND_CONTENT_GAP) };
+  return height <= viewBox[1] || measureLegend(entries, simulated);
 }
 
 // The single-message case keeps the one-slot spirit: prefer requiredY, then
 // step past a segment edge or another near miss, never past the next message.
 function noteSingleAdjustment(blocker, requiredY) {
   const ceiling = Math.min(moveCeiling([blocker], blocker), requiredY + 600);
+  const previousY = blocker.message.y;
   for (let y = requiredY; y <= ceiling; y += 1) {
-    if (messageFitsAt(blocker.index, y)) return [{ index: blocker.index, y }];
+    if (!messageFitsAt(blocker.index, y)) continue;
+    blocker.message.y = y;
+    noteLayouts.delete(blocker.message);
+    const holds = assignedLegendBudgetHolds();
+    blocker.message.y = previousY;
+    noteLayouts.delete(blocker.message);
+    if (holds) return [{ index: blocker.index, y }];
   }
   return [];
 }
@@ -607,6 +641,7 @@ function noteOverlapAdjustment(reached, requiredY) {
       place(entry, chosen);
       assigned.push(chosen);
     }
+    if (!assignedLegendBudgetHolds()) return [];
   } finally {
     reached.forEach((entry, index) => place(entry, previousY[index]));
   }

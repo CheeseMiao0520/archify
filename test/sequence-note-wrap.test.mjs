@@ -724,3 +724,43 @@ test('the ordered adjustment is advertised as one atomic repair', (t) => {
   assert.ok(diagnostic.supportedFixes.length > 1);
   assert.match(diagnostic.message, /one atomic adjustment, apply them all before revalidating/);
 });
+// A joint move that would push content into the implicit legend band on an
+// authored canvas is withheld: the follow-up layout/constraint offers no fix,
+// so advertising the move strands the repair loop.
+test('the ordered adjustment withholds a move that strands the implicit legend', (t) => {
+  const spec = {
+    ...sequence({
+      participants: ['client', 'api'],
+      messages: [
+        { from: 'client', to: 'api', y: 300, label: 'owner', note: Array(60).fill('word').join(' ') },
+        { from: 'client', to: 'api', y: 330, label: 'first blocker' },
+        { from: 'client', to: 'api', y: 366, label: 'second blocker' },
+      ],
+    }),
+    meta: { title: 'Note wrap', output: 'note.html', quality_profile: 'showcase', column_fit: 'spread', viewBox: [560, 520] },
+  };
+  const diagnostic = failure(t, spec, 'sequence/note-overlap');
+  assert.equal(diagnostic.evidence.reached.length, 2);
+  assert.deepEqual(diagnostic.supportedFixes, [], 'the move fails on apply with an unfixable legend diagnostic');
+});
+
+// Rows may be fractional while the scan steps in whole pixels: the ceiling
+// keeps the last integer slot below a fractional row instead of discarding it.
+test('the ordered adjustment keeps the last integer slot below fractional rows', (t) => {
+  const spec = {
+    ...sequence({
+      participants: ['client', 'api', 'db'],
+      messages: [
+        { from: 'client', to: 'api', y: 300, label: 'owner', note: Array(60).fill('word').join(' ') },
+        { from: 'client', to: 'api', y: 330, label: 'blocker' },
+        { from: 'api', to: 'db', y: 443.5, label: 'disjoint' },
+      ],
+    }),
+    meta: { title: 'Note wrap', output: 'note.html', quality_profile: 'showcase', column_fit: 'spread' },
+  };
+  const diagnostic = failure(t, spec, 'sequence/note-overlap');
+  assert.equal(diagnostic.evidence.requiredY, 443);
+  assert.deepEqual(diagnostic.supportedFixes, ['set /messages/1/y to 443']);
+  const repaired = run(t, 'validate', applyFix(spec, diagnostic.supportedFixes[0])).result;
+  assert.equal(repaired.status, 0, repaired.stdout);
+});
