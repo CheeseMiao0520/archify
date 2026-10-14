@@ -19,6 +19,10 @@ export function detect(root, config) {
   return listFiles(root, config).some((f) => SOURCE_EXT.test(f));
 }
 
+export function countSources(root, config) {
+  return listFiles(root, config).filter((f) => SOURCE_EXT.test(f)).length;
+}
+
 const COMPILER_OPTIONS = {
   allowJs: true,
   module: ts.ModuleKind.NodeNext,

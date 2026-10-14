@@ -22,6 +22,10 @@ export function detect(root, config) {
   return listFiles(root, config).some((f) => PY_EXT.test(f));
 }
 
+export function countSources(root, config) {
+  return listFiles(root, config).filter((f) => PY_EXT.test(f)).length;
+}
+
 export function runPython(request, candidates = CANDIDATES, spawn = spawnSync) {
   const input = JSON.stringify(request);
   const attempts = [];

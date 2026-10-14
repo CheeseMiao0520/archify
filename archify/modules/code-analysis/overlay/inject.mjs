@@ -25,8 +25,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fail } from '../extract/shared/diagnostics.mjs';
 import { sourceChanges } from './source-changes.mjs';
+import { buildOverview } from './overview.mjs';
 
-export function buildOverlay({ ir, graph, html, map, facts = null, findings = [], sourceRoot = null }) {
+export function buildOverlay({ ir, graph, html, map, facts = null, findings = [], sourceRoot = null, run = {} }) {
   if (!html.includes('data-node-id=') || !html.includes('class="toolbar"')) {
     fail('overlay/not-archify-html', 'The HTML does not look like an Archify architecture artifact.', {
       evidence: { hasNodes: html.includes('data-node-id='), hasToolbar: html.includes('class="toolbar"') },
@@ -91,13 +92,14 @@ export function buildOverlay({ ir, graph, html, map, facts = null, findings = []
     edges,
     unmapped,
     findings: listed,
+    overview: buildOverview({ findings: listed, graph, facts, unmapped, run }),
     snippets: sourceRoot ? collectSnippets(findings, sourceRoot, components, facts) : {},
   };
 
   const injection = `\n<!-- bauify overlay: authored diagram untouched; analysis layer below -->\n<script type="application/json" id="bauify-analysis">${JSON.stringify(payload).replace(/<\//g, '<\\/')}</script>\n<style id="bauify-style">${CSS}</style>\n<script id="bauify-script">${JS}</script>\n`;
   const idx = html.lastIndexOf('</body>');
   const out = idx === -1 ? html + injection : html.slice(0, idx) + injection + html.slice(idx);
-  return { html: out, mapped: components.filter((c) => c.modules.length).length, components: components.length, edges: edges.length, unmapped: unmapped.length, snippets: Object.keys(payload.snippets).length };
+  return { html: out, overview: payload.overview, mapped: components.filter((c) => c.modules.length).length, components: components.length, edges: edges.length, unmapped: unmapped.length, snippets: Object.keys(payload.snippets).length };
 }
 
 // Modules a finding is about: named directly, or owning one of its files.

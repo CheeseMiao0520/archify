@@ -144,10 +144,15 @@ test('analysis: the delivered page is read, never rewritten; the analysis page a
   const receipt = analyzeRepository({ root: fixture, ir: irPath, html: delivered, out: path.join(out, 'analysis'), language: 'py', map: mapPath });
   assert.equal(receipt.status, 'ok');
   assert.equal(fs.readFileSync(delivered, 'utf8'), before, 'the delivered artifact is untouched');
-  for (const f of ['raw-facts.json', 'module-graph.json', 'findings.json', 'repo.analysis.html']) assert.ok(fs.existsSync(path.join(out, 'analysis', f)), f);
+  for (const f of ['raw-facts.json', 'module-graph.json', 'findings.json', 'overview.json', 'repo.analysis.html']) assert.ok(fs.existsSync(path.join(out, 'analysis', f)), f);
   assert.equal(receipt.overlay.components, 2);
   assert.equal(receipt.overlay.mapped, 2);
   const html = fs.readFileSync(path.join(out, 'analysis', 'repo.analysis.html'), 'utf8');
+  const overview = JSON.parse(fs.readFileSync(path.join(out, 'analysis', 'overview.json'), 'utf8'));
+  assert.deepEqual(payloadOf(html).overview, overview, 'the page and the written overview are the same data');
+  assert.equal(overview.coverage.language, 'py');
+  assert.deepEqual(overview.coverage.rules.run, JSON.parse(fs.readFileSync(path.join(out, 'analysis', 'findings.json'), 'utf8')).rules);
+  assert.equal(receipt.overlay.verdict, overview.verdict);
   assert.ok(html.startsWith(before.slice(0, before.indexOf('</body>'))), 'the analysis page is the delivered page plus the appended layer');
   assert.ok(html.includes('id="bauify-analysis"'));
   const clash = path.join(out, 'repo.analysis.html'); fs.copyFileSync(delivered, clash);
