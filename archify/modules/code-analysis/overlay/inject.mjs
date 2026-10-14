@@ -6,7 +6,11 @@
 // status ring around its box: pulsing red for supplied error findings,
 // amber when a rule warns (eager cycle, hub), blue when only informational facts exist
 // (lazy/runtime or package-level cycle), green when nothing fired, grey when no code maps to it.
-// A legend next to the hint spells out the danger level behind each colour.
+// The left column opens on a project overview (verdict, up to three findings
+// to look at first, every finding by rule, coverage, and the colour key);
+// opening a finding there shows it in the detail panel and dims the
+// components it does not involve. Clicking a component replaces the overview
+// with that component's panel, which links back to it.
 // Clicking a component opens a panel with the indicators, the mapped modules,
 // every file with its LOC and import counts, and the module edges with
 // file:line evidence. Clicking an indicator opens a second panel with the
@@ -315,9 +319,8 @@ html[data-bauify="on"] .guided-views, html[data-bauify="on"] [class*="story"], h
 }
 @media (prefers-reduced-motion: reduce) { #bauify-layer rect.red { animation: none; opacity: .9; filter: blur(4px) drop-shadow(0 0 10px #FB7185); } }
 #bauify-legend { display: grid; gap: 3px; margin-top: 4px; font-size: 11px; }
-#bauify-legend span { white-space: nowrap; }
-#bauify-hint .k { color: var(--text-muted, #94a3b8); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
-#bauify-legend i, #bauify-detail h3 i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+#bauify-legend span { white-space: normal; }
+#bauify-legend i, #bauify-detail h3 i, #bauify-overview h3 i, #bauify-overview summary i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
 #bauify-legend b { color: var(--text, #f8fafc); font-weight: 600; margin-right: 4px; }
 .bauify-red { background: #FB7185; } .bauify-amber { background: #FBBF24; } .bauify-blue { background: #60A5FA; } .bauify-green { background: #34D399; } .bauify-grey { background: #64748B; } .bauify-neutral { background: #64748B; }
 #bauify-detail { position: fixed; left: 412px; top: 76px; width: 420px; max-height: calc(100vh - 100px); overflow: auto; z-index: 60; background: linear-gradient(var(--panel, #0f172a), var(--panel, #0f172a)), var(--bg, #0b1220); color: var(--text, #f8fafc); border: 1px solid var(--panel-border, #1e293b); border-radius: 12px; padding: 14px 16px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; box-shadow: 0 18px 48px rgba(0,0,0,.3); }
@@ -347,7 +350,7 @@ html[data-bauify="on"] .guided-views, html[data-bauify="on"] [class*="story"], h
 #bauify-panel .ind .detail { color: var(--text-muted, #94a3b8); font-size: 11px; }
 #bauify-panel h3 .badge { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: #0b1220; }
 #bauify-panel h3 .badge.red { background: #FB7185; } #bauify-panel h3 .badge.amber { background: #FBBF24; } #bauify-panel h3 .badge.blue { background: #60A5FA; } #bauify-panel h3 .badge.green { background: #34D399; } #bauify-panel h3 .badge.grey { background: #94a3b8; }
-#bauify-panel { position: fixed; left: 16px; top: 76px; width: 380px; max-height: calc(100vh - 100px); overflow: auto; z-index: 60; background: linear-gradient(var(--panel, #0f172a), var(--panel, #0f172a)), var(--bg, #0b1220); color: var(--text, #f8fafc); border: 1px solid var(--panel-border, #1e293b); border-radius: 12px; padding: 14px 16px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; box-shadow: 0 18px 48px rgba(0,0,0,.3); }
+#bauify-panel { position: fixed; left: 16px; top: 76px; width: min(380px, calc(100vw - 32px)); box-sizing: border-box; max-height: calc(100vh - 100px); overflow: auto; z-index: 60; background: linear-gradient(var(--panel, #0f172a), var(--panel, #0f172a)), var(--bg, #0b1220); color: var(--text, #f8fafc); border: 1px solid var(--panel-border, #1e293b); border-radius: 12px; padding: 14px 16px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; box-shadow: 0 18px 48px rgba(0,0,0,.3); }
 #bauify-panel[hidden] { display: none; }
 #bauify-panel h3 { margin: 0 0 2px; font-size: 14px; }
 #bauify-panel .k, #bauify-detail .k { color: var(--text-muted, #94a3b8); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; margin-top: 12px; }
@@ -369,8 +372,35 @@ html[data-bauify="on"] .guided-views, html[data-bauify="on"] [class*="story"], h
 #bauify-panel .finding.warning, #bauify-detail .finding.warning { border-left-color: #FBBF24; background: color-mix(in srgb, #FBBF24 10%, transparent); }
 #bauify-panel .finding.info, #bauify-detail .finding.info { border-left-color: #60A5FA; background: color-mix(in srgb, #60A5FA 8%, transparent); }
 #bauify-panel .finding code, #bauify-detail .finding code { font-size: 10px; color: var(--text-muted, #94a3b8); }
-#bauify-hint { position: fixed; left: 16px; top: 76px; max-width: 820px; z-index: 59; padding: 8px 12px; border-radius: 8px; background: linear-gradient(var(--panel, #0f172a), var(--panel, #0f172a)), var(--bg, #0b1220); color: var(--text-muted, #94a3b8); border: 1px solid var(--panel-border, #1e293b); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
-#bauify-hint[hidden] { display: none; }
+#bauify-overview { position: fixed; left: 16px; top: 76px; width: min(380px, calc(100vw - 32px)); box-sizing: border-box; max-height: calc(100vh - 100px); overflow: auto; z-index: 60; background: linear-gradient(var(--panel, #0f172a), var(--panel, #0f172a)), var(--bg, #0b1220); color: var(--text, #f8fafc); border: 1px solid var(--panel-border, #1e293b); border-radius: 12px; padding: 14px 16px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; box-shadow: 0 18px 48px rgba(0,0,0,.3); }
+#bauify-overview[hidden] { display: none; }
+#bauify-overview h3 { margin: 4px 0 2px; font-size: 14px; }
+#bauify-overview .k { color: var(--text-muted, #94a3b8); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; margin-top: 12px; }
+#bauify-overview .ov-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+#bauify-overview .ov-head .k { margin-top: 0; }
+#bauify-overview .ov-toggle { flex: none; width: 22px; height: 22px; padding: 0; border: 1px solid var(--panel-border, #1e293b); border-radius: 6px; background: none; color: var(--text-muted, #94a3b8); font: inherit; line-height: 1; cursor: pointer; }
+#bauify-overview .ev { color: var(--text-muted, #94a3b8); font-size: 11px; }
+#bauify-overview details { margin-top: 6px; }
+#bauify-overview summary { cursor: pointer; color: var(--text-muted, #94a3b8); font-size: 11px; }
+#bauify-overview .cov div { margin-top: 2px; }
+#bauify-overview.collapsed { width: auto; max-width: min(380px, calc(100vw - 32px)); padding: 8px 12px; }
+#bauify-overview.collapsed > :not(.ov-head):not(h3) { display: none; }
+#bauify-overview.collapsed h3 { cursor: pointer; margin-bottom: 0; }
+.bauify-item { display: block; width: 100%; box-sizing: border-box; text-align: left; margin: 6px 0 0; padding: 6px 8px; border: 0; border-left: 2px solid #60A5FA; border-radius: 0 6px 6px 0; background: color-mix(in srgb, #60A5FA 8%, transparent); color: var(--text, #f8fafc); font: inherit; font-size: 12px; cursor: pointer; }
+.bauify-item.amber { border-left-color: #FBBF24; background: color-mix(in srgb, #FBBF24 10%, transparent); }
+.bauify-item.red { border-left-color: #FB7185; background: color-mix(in srgb, #FB7185 8%, transparent); }
+.bauify-item:hover, .bauify-item.active { outline: 1px solid var(--backend-stroke, #34D399); }
+.bauify-item .n { display: inline-block; min-width: 16px; color: var(--text-muted, #94a3b8); }
+.bauify-item em { color: var(--text-muted, #94a3b8); font-style: normal; font-size: 11px; }
+.bauify-item .what, .bauify-item .where { display: block; color: var(--text-muted, #94a3b8); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#bauify-panel .back { display: block; margin: 0 0 6px; padding: 0; border: 0; background: none; color: var(--backend-stroke, #34D399); font: inherit; font-size: 11px; cursor: pointer; }
+#bauify-panel .back:hover { text-decoration: underline; }
+/* Opening a finding from the overview dims everything it does not involve. */
+html[data-bauify-focus="on"] g[data-node-id]:not(.bauify-focus) { opacity: .35; }
+html[data-bauify-focus="on"] #bauify-layer rect:not(.focus) { opacity: .12; animation: none; }
+/* Narrow screens: deeper panels cover the shallower ones instead of colliding. */
+@media (max-width: 1180px) { #bauify-detail { left: 16px; width: min(420px, calc(100vw - 32px)); box-sizing: border-box; z-index: 61; } }
+@media (max-width: 860px) { #bauify-code { left: 16px; right: 16px; width: auto; z-index: 62; } }
 #bauify-detail a { color: var(--backend-stroke, #34D399); text-decoration: none; } #bauify-detail a:hover { text-decoration: underline; }
 #bauify-detail table { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 11px; } #bauify-detail td { padding: 2px 4px 2px 0; border-top: 1px solid var(--panel-border, #1e293b); vertical-align: top; } #bauify-detail td.n { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-muted, #94a3b8); white-space: nowrap; } #bauify-detail td.p { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #bauify-detail .ref { display: block; width: 100%; text-align: left; margin: 2px 0; padding: 4px 6px; border: 1px solid var(--panel-border, #1e293b); border-radius: 6px; background: none; color: var(--text, #f8fafc); font: inherit; font-size: 11px; cursor: pointer; }
@@ -428,9 +458,16 @@ const JS = `
   document.body.appendChild(panel);
 
   var layer = null;
-  var hint = document.createElement('div');
-  hint.id = 'bauify-hint'; hint.hidden = true;
-  document.body.appendChild(hint);
+  // The left column's home: the project overview. A component panel replaces it; "Overview" brings it back.
+  var overview = document.createElement('aside');
+  overview.id = 'bauify-overview'; overview.hidden = true; overview.setAttribute('aria-label', 'Code analysis overview');
+  document.body.appendChild(overview);
+  var overviewCollapsed = false;
+  var findingById = {}; (data.findings || []).forEach(function (f) { findingById[f.id] = f; });
+  var entryById = {}; ((data.overview && data.overview.findings) || []).forEach(function (e) { entryById[e.id] = e; });
+  var moduleInfo = {};
+  data.components.forEach(function (c) { c.modules.forEach(function (m) { moduleInfo[m.id] = m; }); });
+  (data.unmapped || []).forEach(function (m) { if (!moduleInfo[m.id]) moduleInfo[m.id] = { id: m.id, label: m.label, path: m.label, files: m.files, loc: m.loc, fanIn: m.fanIn, fanOut: m.fanOut }; });
   var detail = document.createElement('aside');
   detail.id = 'bauify-detail'; detail.hidden = true; detail.setAttribute('aria-label', 'Bauify finding details');
   document.body.appendChild(detail);
@@ -469,7 +506,7 @@ const JS = `
       ring.setAttribute('x', b.x - pad); ring.setAttribute('y', b.y - pad);
       ring.setAttribute('width', b.w + pad * 2); ring.setAttribute('height', b.h + pad * 2);
       ring.setAttribute('rx', 14); ring.setAttribute('ry', 14);
-      ring.setAttribute('class', c.indicators.status);
+      ring.setAttribute('class', c.indicators.status + (focused.indexOf(c.id) !== -1 ? ' focus' : ''));
       var title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
       title.textContent = c.label + ': ' + c.indicators.items.map(function (i) { return i.label + ' — ' + i.value; }).join('; ');
       ring.appendChild(title);
@@ -477,11 +514,23 @@ const JS = `
     });
     svg.appendChild(layer);
   }
+  var focused = [];
+  function setFocus(ids) {
+    focused = ids || [];
+    svg.querySelectorAll('g[data-node-id]').forEach(function (g) { g.classList.toggle('bauify-focus', focused.indexOf(g.getAttribute('data-node-id')) !== -1); });
+    if (focused.length) root.setAttribute('data-bauify-focus', 'on'); else root.removeAttribute('data-bauify-focus');
+    if (layer) drawLayer();
+  }
+  function showOverview() {
+    panel.hidden = true; detail.hidden = true; codePane.hidden = true; setFocus([]);
+    overview.querySelectorAll('.bauify-item.active').forEach(function (x) { x.classList.remove('active'); });
+    overview.hidden = false;
+  }
   function esc(s) { return String(s).replace(/[&<>"']/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]; }); }
   function show(id) {
     var c = byId[id]; if (!c) return;
-    hint.hidden = true;
-    var h = '<button class="close" aria-label="Close">×</button>';
+    overview.hidden = true; setFocus([]);
+    var h = '<button class="close" aria-label="Close">×</button><button type="button" class="back">← Overview</button>';
     h += '<div class="k">Bauify · code analysis</div><h3>' + esc(c.label) + '<span class="badge ' + c.indicators.status + '">' + c.indicators.status + ' · ' + LEVELS[c.indicators.status].name + '</span></h3>';
     h += '<div class="ev">' + esc(LEVELS[c.indicators.status].text) + '</div>';
     if (c.indicators.items.length) {
@@ -525,7 +574,8 @@ const JS = `
     panel.innerHTML = h;
     panel.hidden = false;
     detail.hidden = true; codePane.hidden = true;
-    panel.querySelector('.close').addEventListener('click', function () { panel.hidden = true; detail.hidden = true; codePane.hidden = true; hint.hidden = false; });
+    panel.querySelector('.close').addEventListener('click', showOverview);
+    panel.querySelector('.back').addEventListener('click', showOverview);
     panel.querySelectorAll('.ind.link').forEach(function (el) {
       var open = function () { panel.querySelectorAll('.ind.active').forEach(function (x) { x.classList.remove('active'); }); el.classList.add('active'); showDetail(c, el.getAttribute('data-ind')); };
       el.addEventListener('click', open);
@@ -627,12 +677,132 @@ const JS = `
     detail.hidden = false;
     codePane.hidden = true;
     detail.querySelector('.close').addEventListener('click', function () { detail.hidden = true; codePane.hidden = true; panel.querySelectorAll('.ind.active').forEach(function (x) { x.classList.remove('active'); }); });
+    wireRefs();
+  }
+  function wireRefs() {
     detail.querySelectorAll('.ref').forEach(function (el) {
       el.addEventListener('click', function () {
         detail.querySelectorAll('.ref.active').forEach(function (x) { x.classList.remove('active'); }); el.classList.add('active');
         showCode(el.getAttribute('data-file'), parseInt(el.getAttribute('data-line'), 10), el.getAttribute('data-why'), el.getAttribute('data-tone'));
       });
     });
+  }
+  // --- overview: project-level reading, built from data.overview ------------
+  var VERDICT = {
+    attention: { tone: 'amber', text: 'Needs attention' },
+    'signals-only': { tone: 'blue', text: 'Signals only' },
+    'none-found': { tone: 'green', text: 'No findings within the checks that ran' }
+  };
+  var GROUPS = { 'coupling/import-cycle': 'Import cycles', 'coupling/cycle': 'Module cycles', 'coupling/hub': 'Hub modules' };
+  var LANGS = { py: 'Python', ts: 'JS/TS' };
+  function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+  function toneOf(severity) { return severity === 'error' ? 'red' : severity === 'warning' ? 'amber' : 'blue'; }
+  function modLabel(id) { return moduleInfo[id] ? moduleInfo[id].label : id; }
+  function findingTitle(f) {
+    var s = f.subject || {};
+    if (f.code === 'coupling/import-cycle' && s.files) return 'Import cycle · ' + plural(s.files.length, 'file');
+    if (f.code === 'coupling/cycle' && s.modules) return 'Module cycle · ' + plural(s.modules.length, 'module');
+    if (f.code === 'coupling/hub' && s.module) return 'Hub module · ' + modLabel(s.module);
+    return f.code;
+  }
+  function findingWhat(f) {
+    var s = f.subject || {};
+    if (s.files) return s.files.slice(0, 3).map(short).join(' ↔ ') + (s.files.length > 3 ? ' …' : '');
+    if (s.modules) return s.modules.slice(0, 4).map(modLabel).join(' ↔ ') + (s.modules.length > 4 ? ' …' : '');
+    if (f.code === 'coupling/hub' && f.evidence) return 'depended on by ' + f.evidence.fanIn + ' · depends on ' + f.evidence.fanOut;
+    return f.message;
+  }
+  function findingWhere(f) {
+    var ids = f.componentIds || [];
+    var where = ids.length ? ids.map(function (id) { return byId[id] ? byId[id].label : id; }).join(', ') : 'not on this diagram';
+    var e = entryById[f.id];
+    return where + (e && e.relatedIds.length ? ' · +' + e.relatedIds.length + ' related' : '');
+  }
+  function findingRow(id, n) {
+    var f = findingById[id]; if (!f) return '';
+    return '<button type="button" class="bauify-item ' + toneOf(f.severity) + '" data-finding="' + esc(id) + '">' + (n ? '<span class="n">' + n + '</span>' : '') +
+      '<b>' + esc(findingTitle(f)) + '</b> <em>' + esc(f.severity) + '</em><span class="what">' + esc(findingWhat(f)) + '</span><span class="where">' + esc(findingWhere(f)) + '</span></button>';
+  }
+  function coverageHtml(c) {
+    if (!c) return '';
+    var lines = [];
+    var files = c.files || {};
+    lines.push((LANGS[c.language] || c.language || 'Unknown language') + (files.analyzed !== null && files.analyzed !== undefined ? ' · ' + plural(files.analyzed, 'file') + ' analyzed' : '') +
+      (files.excludedByRole ? ' · ' + files.excludedByRole + ' ' + (files.excludedRoles || []).join('/') + ' files left out' : ''));
+    (c.otherLanguages || []).forEach(function (x) { lines.push('Not analyzed: ' + plural(x.files, (LANGS[x.adapter] || x.adapter) + ' file') + ' (one language per run)'); });
+    var pe = files.parseErrors || [];
+    if (pe.length) lines.push(plural(pe.length, 'file') + ' could not be parsed: ' + pe.slice(0, 3).join(', ') + (pe.length > 3 ? ' …' : ''));
+    var u = c.unresolved || {}, unresolved = (u.unknown || 0) + (u.opaque || 0);
+    if (unresolved) lines.push(plural(unresolved, 'import') + ' could not be resolved');
+    if ((c.unmappedModules || []).length) lines.push(plural(c.unmappedModules.length, 'module') + ' not on this diagram');
+    var run = (c.rules && c.rules.run) || [], off = (c.rules && c.rules.suppressed) || [];
+    lines.push('Checked: ' + (run.length ? run.map(function (r) { return (GROUPS[r] || r).toLowerCase(); }).join(', ') : 'nothing') + (off.length ? ' · switched off: ' + off.join(', ') : ''));
+    var missing = [['complexity/', 'complexity'], ['redundancy/', 'duplication'], ['architecture/', 'architecture boundaries']].filter(function (d) { return !run.some(function (r) { return r.indexOf(d[0]) === 0; }); }).map(function (d) { return d[1]; });
+    if (missing.length) lines.push('Not checked: ' + missing.join(', '));
+    return '<div class="k">Coverage</div><div class="ev cov">' + lines.map(function (l) { return '<div>' + esc(l) + '</div>'; }).join('') + '</div>';
+  }
+  function renderOverview() {
+    var o = data.overview;
+    if (!o) { overview.innerHTML = '<div class="k">Code analysis</div>' + legend(); return; }
+    var v = VERDICT[o.verdict] || VERDICT['none-found'];
+    var counts = plural(o.counts.findings, 'finding') + (o.counts.findings ? ' · ' + ['error', 'warning', 'info'].filter(function (k) { return o.counts[k]; }).map(function (k) { return o.counts[k] + ' ' + k; }).join(' · ') : '') +
+      (o.counts.offDiagram ? ' · ' + o.counts.offDiagram + ' not on this diagram' : '');
+    var h = '<div class="ov-head"><div class="k">Code analysis · overview</div><button type="button" class="ov-toggle" aria-expanded="' + (overviewCollapsed ? 'false' : 'true') + '" aria-label="' + (overviewCollapsed ? 'Expand' : 'Collapse') + ' overview">' + (overviewCollapsed ? '+' : '–') + '</button></div>';
+    h += '<h3 title="' + (overviewCollapsed ? 'Expand overview' : '') + '"><i class="bauify-' + v.tone + '"></i>' + esc(v.text) + (overviewCollapsed && o.priorities.length ? ' · ' + o.priorities.length : '') + '</h3>';
+    h += '<div class="ev">' + esc(counts) + '</div>';
+    if (o.priorities.length) {
+      h += '<div class="k">Look at first</div>';
+      o.priorities.forEach(function (id, i) { h += findingRow(id, i + 1); });
+    } else h += '<div class="ev" style="margin-top:8px">No rule fired. This covers only the checks listed under Coverage; it is not a quality guarantee.</div>';
+    if (o.groups.length) {
+      h += '<div class="k">All findings · click a component on the diagram for its own view</div>';
+      o.groups.forEach(function (g) {
+        h += '<details><summary><i class="bauify-' + toneOf(g.severity) + '"></i>' + esc(GROUPS[g.code] || g.code) + ' · ' + g.count + '</summary>' + g.ids.map(function (id) { return findingRow(id); }).join('') + '</details>';
+      });
+    }
+    h += coverageHtml(o.coverage);
+    h += '<details><summary>Colour key</summary>' + legend() + '</details>';
+    overview.innerHTML = h;
+    overview.classList.toggle('collapsed', overviewCollapsed);
+    var toggle = function () { overviewCollapsed = !overviewCollapsed; renderOverview(); };
+    overview.querySelector('.ov-toggle').addEventListener('click', toggle);
+    overview.querySelector('h3').addEventListener('click', function () { if (overviewCollapsed) toggle(); });
+    overview.querySelectorAll('[data-finding]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        overview.querySelectorAll('.bauify-item.active').forEach(function (x) { x.classList.remove('active'); });
+        overview.querySelectorAll('[data-finding="' + el.getAttribute('data-finding') + '"]').forEach(function (x) { x.classList.add('active'); });
+        showFinding(el.getAttribute('data-finding'));
+      });
+    });
+  }
+  // One finding opened from the overview. It may span several components or none,
+  // so the diagram helpers get a stand-in component holding everything it touches.
+  function findingScope(f) {
+    var comps = (f.componentIds || []).map(function (id) { return byId[id]; }).filter(Boolean);
+    var mods = comps.flatMap(function (c) { return c.modules; });
+    (f.moduleIds || []).forEach(function (id) { if (moduleInfo[id] && !mods.some(function (m) { return m.id === id; })) mods.push(moduleInfo[id]); });
+    return { label: comps.map(function (c) { return c.label; }).join(', ') || 'not on this diagram', modules: mods, fileList: comps.flatMap(function (c) { return c.fileList || []; }), incoming: [], outgoing: [], findings: [f] };
+  }
+  function showFinding(id) {
+    var f = findingById[id]; if (!f) return;
+    var e = entryById[id];
+    var tone = toneOf(f.severity), lvl = LEVELS[tone];
+    var scope = findingScope(f);
+    setFocus(f.componentIds || []);
+    var h = '<button class="close" aria-label="Close">×</button>';
+    h += '<div class="k">' + esc(GROUPS[f.code] || f.code) + ' · ' + esc(scope.label) + '</div><h3><i class="bauify-' + tone + '"></i>' + esc(findingTitle(f)) + '</h3>';
+    h += '<div class="level"><b>' + esc(lvl.name) + '</b> — ' + esc(findingWhat(f)) + '<br>' + esc(lvl.text) + '</div>';
+    var pic = f.code === 'coupling/import-cycle' || f.code === 'coupling/cycle' ? cycleDiagram(scope, [f]) : f.code === 'coupling/hub' ? hubDiagram(scope, [f]) : '';
+    if (pic) h += '<div class="k">Diagram details</div>' + pic;
+    h += '<div class="k">Finding</div>' + findingCard(f);
+    if (e && e.relatedIds.length) h += '<div class="k">Same structure, also reported as</div>' + e.relatedIds.map(function (r) { return findingRow(r); }).join('');
+    detail.innerHTML = h;
+    detail.hidden = false;
+    codePane.hidden = true;
+    detail.scrollTop = 0;
+    detail.querySelector('.close').addEventListener('click', function () { detail.hidden = true; codePane.hidden = true; setFocus([]); overview.querySelectorAll('.bauify-item.active').forEach(function (x) { x.classList.remove('active'); }); });
+    detail.querySelectorAll('[data-finding]').forEach(function (el) { el.addEventListener('click', function () { showFinding(el.getAttribute('data-finding')); }); });
+    wireRefs();
   }
   // Source links: GitHub-style blob/tree URLs from the origin + revision the facts were taken at.
   function repoBase() {
@@ -791,9 +961,9 @@ const JS = `
     if (on) {
       data.components.forEach(function (c) { var g = svg.querySelector('g[data-node-id="' + c.id + '"]'); if (g) g.classList.toggle('bauify-mapped', c.modules.length > 0); });
       drawLayer();
-      hint.innerHTML = '<div class="k">Hint</div>' + legend();
-      hint.hidden = false;
-    } else { if (layer) layer.remove(); layer = null; panel.hidden = true; detail.hidden = true; codePane.hidden = true; hint.hidden = true; svg.querySelectorAll('.bauify-mapped').forEach(function (g) { g.classList.remove('bauify-mapped'); }); }
+      renderOverview();
+      showOverview();
+    } else { setFocus([]); if (layer) layer.remove(); layer = null; panel.hidden = true; detail.hidden = true; codePane.hidden = true; overview.hidden = true; svg.querySelectorAll('.bauify-mapped').forEach(function (g) { g.classList.remove('bauify-mapped'); }); }
   }
   btn.addEventListener('click', function () { setOn(root.getAttribute('data-bauify') !== 'on'); });
   document.addEventListener('keydown', function (e) { if (e.key === 'c' || e.key === 'C') { if (['INPUT', 'TEXTAREA'].indexOf((e.target && e.target.tagName) || '') === -1) btn.click(); } });

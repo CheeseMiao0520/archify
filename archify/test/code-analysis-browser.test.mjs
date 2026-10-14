@@ -68,6 +68,31 @@ test('Code Analysis refuses changed IR and preserves captured source in the curr
   await load();
   await run("document.getElementById('code-analysis-start').click()");
   await wait("document.documentElement.getAttribute('data-bauify') === 'on'");
+  // The left column opens on the project overview, not on a component.
+  assert.equal(await run("document.getElementById('bauify-overview').hidden"), false);
+  assert.equal(await run("document.getElementById('bauify-panel').hidden"), true);
+  assert.match(await run("document.querySelector('#bauify-overview h3').textContent"), /Needs attention/);
+  assert.match(await run("document.getElementById('bauify-overview').textContent"), /Checked: import cycles, module cycles, hub modules/);
+  // a.mjs <-> b.mjs is both a file cycle and a module cycle: one structure, one priority slot.
+  assert.equal(await run("document.querySelectorAll('#bauify-overview .bauify-item .n').length"), 1);
+  await run("document.querySelector('#bauify-overview .bauify-item').click()");
+  assert.equal(await run("document.getElementById('bauify-detail').hidden"), false);
+  assert.match(await run("document.querySelector('#bauify-detail h3').textContent"), /Import cycle · 2 files/);
+  assert.match(await run("document.getElementById('bauify-detail').textContent"), /Same structure, also reported as/);
+  assert.equal(await run("document.querySelector('g[data-node-id=app]').classList.contains('bauify-focus')"), true);
+  if (process.env.ARCHIFY_ANALYSIS_OVERVIEW_SCREENSHOT) {
+    const shot = await send('Page.captureScreenshot', { format: 'png' });
+    fs.writeFileSync(process.env.ARCHIFY_ANALYSIS_OVERVIEW_SCREENSHOT, Buffer.from(shot.data, 'base64'));
+  }
+  // Narrow window: the detail panel covers the overview instead of colliding with it.
+  await send('Emulation.setDeviceMetricsOverride', { width: 1100, height: 900, deviceScaleFactor: 1, mobile: false });
+  assert.equal(await run("Math.round(document.getElementById('bauify-detail').getBoundingClientRect().left)"), 16);
+  await send('Emulation.setDeviceMetricsOverride', { width: 1600, height: 1000, deviceScaleFactor: 1, mobile: false });
+  await run("document.querySelector('#bauify-detail .close').click()");
+  assert.equal(await run("document.documentElement.hasAttribute('data-bauify-focus')"), false);
+  await run("document.querySelector('#bauify-overview .ov-toggle').click()");
+  assert.equal(await run("document.getElementById('bauify-overview').classList.contains('collapsed')"), true);
+  await run("document.querySelector('#bauify-overview .ov-toggle').click()");
   fs.writeFileSync(path.join(root, 'a.mjs'), '// edited after extraction\n');
   await run("document.querySelector('g[data-node-id=app]').dispatchEvent(new MouseEvent('click', { bubbles: true }))");
   assert.match(await run("document.getElementById('bauify-panel').textContent"), /Working tree/);
@@ -84,6 +109,12 @@ test('Code Analysis refuses changed IR and preserves captured source in the curr
     const shot = await send('Page.captureScreenshot', { format: 'png' });
     fs.writeFileSync(process.env.ARCHIFY_ANALYSIS_SCREENSHOT, Buffer.from(shot.data, 'base64'));
   }
+  assert.equal(await run("document.getElementById('bauify-overview').hidden"), true, 'a component panel replaces the overview');
+  await run("document.querySelector('#bauify-panel .back').click()");
+  assert.equal(await run("document.getElementById('bauify-overview').hidden"), false);
+  assert.equal(await run("document.getElementById('bauify-panel').hidden"), true);
+  assert.equal(await run("document.getElementById('bauify-code').hidden"), true);
   await run("document.getElementById('btn-bauify').click()");
   assert.equal(await run("document.documentElement.getAttribute('data-bauify')"), 'off');
+  assert.equal(await run("document.getElementById('bauify-overview').hidden"), true);
 });
