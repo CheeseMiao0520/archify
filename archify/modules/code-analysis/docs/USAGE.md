@@ -11,8 +11,9 @@ Use the project's architecture JSON prepared with Archify as `architecture.json`
 
 1. Open the **Archify** URL printed in the terminal to view the architecture diagram.
 2. Click **Code Analysis** in the upper-right corner to start analysis.
-3. Click a module to inspect Findings. Click a source link to view code and scroll through its context in the right panel.
-4. Click **Code Analysis** again to return to the architecture view.
+3. Read the project overview, then choose a finding or a component. The same reading column shows the selected page; Back returns to the previous page. View diagram folds the column, and Show analysis restores it.
+4. Click a source link for a short captured excerpt. Show full file expands it, and Show excerpt returns to the short view. References without a line show a file preview, not a finding location.
+5. Click **Code Analysis** again to return to the architecture view.
 
 Keep the terminal running. After changing source code, stop the server with `Ctrl+C`, restart it, open the new URL, and click **Code Analysis** again.
 

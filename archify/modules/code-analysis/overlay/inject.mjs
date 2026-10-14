@@ -8,16 +8,16 @@
 // (lazy/runtime or package-level cycle), green when nothing fired, grey when no code maps to it.
 // The left column opens on a project overview (verdict, up to three findings
 // to look at first, every finding by rule, coverage, and the colour key);
-// opening a finding there shows it in the detail panel and dims the
+// opening a finding there switches the shared reading column and dims the
 // components it does not involve. Clicking a component replaces the overview
 // with that component's panel, which links back to it.
 // Clicking a component opens a panel with the indicators, the mapped modules,
 // every file with its LOC and import counts, and the module edges with
-// file:line evidence. Clicking an indicator opens a second panel with the
+// file:line evidence. Clicking an indicator switches to a problem page with the
 // findings behind it and a small diagram Bauify draws to explain them (the
 // cycle ring, the hub star, the in/out bars). Every file:line a finding
 // cites is a button; with --source the lines around it are embedded and open
-// in a third panel with the line highlighted. No import lines are drawn on
+// in the same reading column with the line highlighted. No import lines are drawn on
 // the authored diagram itself.
 // The whole Bauify dataset (module graph plus per-file facts) is embedded in
 // the page so future findings can attach to a file without re-running.
@@ -77,7 +77,7 @@ export function buildOverlay({ ir, graph, html, map, facts = null, findings = []
     edgeMap.set(key, { from: c.id, to: o.component, weight: o.weight, evidence: o.evidence });
   }
   const edges = [...edgeMap.values()].sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : a.to < b.to ? -1 : 1));
-  const unmapped = graph.modules.filter((m) => !claimed.has(m.id)).map((m) => ({ id: m.id, label: m.label, files: m.files, loc: m.loc, fanIn: m.fanIn, fanOut: m.fanOut }));
+  const unmapped = graph.modules.filter((m) => !claimed.has(m.id)).map((m) => ({ id: m.id, label: m.label, files: m.files, loc: m.loc, fanIn: m.fanIn, fanOut: m.fanOut, fileList: (fileIndex.get(m.id) || []).map((f) => ({ ...f, module: m.id })) }));
   const fileModule = new Map([...fileIndex].flatMap(([id, list]) => list.map((f) => [f.path, id])));
   const listed = findings.map((f) => ({
     ...f,
@@ -97,7 +97,7 @@ export function buildOverlay({ ir, graph, html, map, facts = null, findings = []
     unmapped,
     findings: listed,
     overview: buildOverview({ findings: listed, graph, facts, unmapped, run }),
-    snippets: sourceRoot ? collectSnippets(findings, sourceRoot, components, facts) : {},
+    snippets: sourceRoot ? collectSnippets(findings, sourceRoot, components.concat(unmapped.filter((m) => listed.some((f) => (f.moduleIds || []).includes(m.id)))), facts) : {},
   };
 
   const injection = `\n<!-- bauify overlay: authored diagram untouched; analysis layer below -->\n<script type="application/json" id="bauify-analysis">${JSON.stringify(payload).replace(/<\//g, '<\\/')}</script>\n<style id="bauify-style">${CSS}</style>\n<script id="bauify-script">${JS}</script>\n`;
@@ -400,7 +400,6 @@ html[data-bauify-focus="on"] g[data-node-id]:not(.bauify-focus) { opacity: .35; 
 html[data-bauify-focus="on"] #bauify-layer rect:not(.focus) { opacity: .12; animation: none; }
 /* Narrow screens: deeper panels cover the shallower ones instead of colliding. */
 @media (max-width: 1180px) { #bauify-detail { left: 16px; width: min(420px, calc(100vw - 32px)); box-sizing: border-box; z-index: 61; } }
-@media (max-width: 860px) { #bauify-code { left: 16px; right: 16px; width: auto; z-index: 62; } }
 #bauify-detail a { color: var(--backend-stroke, #34D399); text-decoration: none; } #bauify-detail a:hover { text-decoration: underline; }
 #bauify-detail table { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 11px; } #bauify-detail td { padding: 2px 4px 2px 0; border-top: 1px solid var(--panel-border, #1e293b); vertical-align: top; } #bauify-detail td.n { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-muted, #94a3b8); white-space: nowrap; } #bauify-detail td.p { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #bauify-detail .ref { display: block; width: 100%; text-align: left; margin: 2px 0; padding: 4px 6px; border: 1px solid var(--panel-border, #1e293b); border-radius: 6px; background: none; color: var(--text, #f8fafc); font: inherit; font-size: 11px; cursor: pointer; }
@@ -422,7 +421,26 @@ html[data-bauify-focus="on"] #bauify-layer rect:not(.focus) { opacity: .12; anim
 #bauify-code .grip:active { cursor: grabbing; }
 #bauify-code .grip .k { margin-top: 0; }
 #bauify-code .grip .k::before { content: '⋮⋮ '; letter-spacing: -2px; }
+/* Keep responsive overrides after the base source-panel rule. Below the
+   three-column budget, source takes the foreground instead of a 300px sliver. */
+@media (max-width: 1180px) { #bauify-code { left: 16px; right: 16px; width: auto; z-index: 62; } }
 #bauify-code pre .ln { display: block; white-space: pre; padding: 0 10px; }
+#bauify-code pre.excerpt .ln { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Reading UI uses proportional text; source and numeric evidence keep monospace. */
+#bauify-overview, #bauify-panel, #bauify-detail, #bauify-code { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 14px; line-height: 1.55; }
+#bauify-overview h3, #bauify-panel h3, #bauify-detail h3 { font-size: 18px; line-height: 1.35; margin-top: 8px; }
+#bauify-overview .k, #bauify-panel .k, #bauify-detail .k, #bauify-code .k { font-size: 11px; letter-spacing: .04em; }
+#bauify-overview .ev, #bauify-panel .ev, #bauify-detail .ev, #bauify-detail .caption, #bauify-detail .level, #bauify-code .why, #bauify-code .diff-legend { font-size: 13px; }
+#bauify-overview summary, #bauify-panel summary, #bauify-detail summary { font-size: 13px; cursor: pointer; }
+.bauify-item { padding: 10px 12px; margin-top: 10px; }
+.bauify-item b { font-size: 14px; }
+.bauify-item .what, .bauify-item .where { font-size: 13px; }
+.bauify-item .what { white-space: normal; overflow: visible; text-overflow: clip; }
+#bauify-detail { left: 16px; width: min(420px, calc(100vw - 32px)); box-sizing: border-box; }
+#bauify-code { left: 16px; right: auto; width: min(600px, calc(100vw - 32px)); }
+#bauify-code pre, #bauify-code h3, .source-file, #bauify-detail td.n { font-family: ui-monospace, Menlo, Consolas, monospace; }
+[data-bauify-source="on"] #bauify-detail, [data-bauify-source="on"] #bauify-panel, [data-bauify-source="on"] #bauify-overview { display: none; }
+#bauify-detail .back { border: 0; padding: 0; background: none; color: var(--backend-stroke, #159f88); cursor: pointer; font: inherit; }
 #bauify-code pre .ln.diff-added { border-left: 3px solid #34d399; padding-left: 7px; }
 #bauify-code pre .ln.diff-modified { border-left: 3px solid #fbbf24; padding-left: 7px; }
 #bauify-code pre .diff-deleted { display: block; color: #fb7185; padding: 0 10px; font-style: normal; font-size: 11px; }
@@ -436,6 +454,35 @@ html[data-bauify-focus="on"] #bauify-layer rect:not(.focus) { opacity: .12; anim
 #bauify-code pre .ln.hit.red { background: color-mix(in srgb, #FB7185 18%, transparent); box-shadow: inset 3px 0 0 #FB7185; }
 #bauify-code pre .gap { display: block; padding: 2px 10px; color: var(--text-muted, #94a3b8); font-size: 10px; }
 #bauify-detail .fixes { margin-top: 4px; } #bauify-detail .fixes div { white-space: normal; }
+/* One reading column owns the layout; the four pages retain their scroll state. */
+#bauify-reader { position: fixed; left: 16px; top: var(--bauify-reader-top, 76px); bottom: 16px; width: 420px; z-index: 62; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--panel-border, #1e293b); border-radius: 12px; background: linear-gradient(var(--panel, #0f172a), var(--panel, #0f172a)), var(--bg, #0b1220); color: var(--text, #f8fafc); font: 14px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+#bauify-reader[hidden] { display: none; }
+#bauify-reader > .reader-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--panel-border, #1e293b); }
+#bauify-reader .reader-path { font-size: 12px; color: var(--text-muted, #94a3b8); }
+#bauify-reader .reader-nav button, #bauify-reader .locate { border: 1px solid var(--panel-border, #1e293b); border-radius: 6px; padding: 4px 8px; background: none; color: var(--text, #f8fafc); cursor: pointer; font: inherit; font-size: 12px; }
+#bauify-reader .back { border: 0; padding: 0; background: none; color: var(--backend-stroke, #159f88); cursor: pointer; font: inherit; }
+#bauify-reader > #bauify-overview, #bauify-reader > #bauify-panel, #bauify-reader > #bauify-detail, #bauify-reader > #bauify-code { position: static; width: 100%; max-width: none; max-height: none; min-height: 0; flex: 1; overflow: auto; box-sizing: border-box; border: 0; border-radius: 0; box-shadow: none; padding: 16px; background: none; }
+#bauify-reader.collapsed { bottom: auto; width: auto; max-width: calc(100vw - 32px); }
+#bauify-reader.collapsed > section { display: none; }
+#bauify-reader.collapsed > .reader-nav { border-bottom: 0; }
+#bauify-code .grip { position: static; cursor: default; margin: 0 0 12px; padding: 0 0 12px; border-bottom-style: solid; }
+#bauify-code .grip .k::before { content: none; }
+#bauify-code pre { max-height: none; }
+#bauify-reader .technical { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--panel-border, #1e293b); }
+#bauify-reader .technical summary { color: var(--text-muted, #94a3b8); }
+#bauify-reader .next-step { margin: 12px 0; padding: 12px; background: color-mix(in srgb, var(--backend-stroke, #34D399) 7%, transparent); border-radius: 8px; }
+#bauify-reader .next-step p { margin: 4px 0; }
+#bauify-reader .verdict-note { margin: 8px 0 16px; }
+html[data-bauify="on"] .cards, html[data-bauify="on"] .guided-views { display: none; }
+@media (min-width: 1001px) {
+  html[data-bauify="on"] .container { width: 100%; max-width: none; }
+  html[data-bauify="on"] .diagram-container { margin-top: 24px; }
+  html[data-bauify="on"]:not([data-bauify-reader-collapsed]) .diagram-container,
+  html[data-bauify="on"]:not([data-bauify-reader-collapsed]) .cards { margin-left: 444px; }
+  html[data-bauify="on"] .guided-views { display: none; }
+}
+@media (max-width: 1000px) { #bauify-reader { width: calc(100vw - 32px); } }
+@media print { #bauify-reader { display: none; } }
 `;
 
 const JS = `
@@ -453,27 +500,52 @@ const JS = `
   btn.title = 'Show or hide the code analysis layer (C)'; btn.textContent = 'Code Analysis';
   if (!externalToggle) toolbar.appendChild(btn);
 
-  var panel = document.createElement('aside');
+  var reader = document.createElement('aside');
+  reader.id = 'bauify-reader'; reader.hidden = true; reader.setAttribute('aria-label', 'Code analysis reader');
+  reader.innerHTML = '<nav class="reader-nav" aria-label="Analysis navigation"><span class="reader-path">Analysis / Overview</span><button type="button" class="reader-toggle" aria-expanded="true">View diagram</button></nav>';
+  document.body.appendChild(reader);
+  var readerCollapsed = false;
+  function setReaderCollapsed(collapsed) {
+    var changed = readerCollapsed !== collapsed;
+    readerCollapsed = collapsed;
+    reader.classList.toggle('collapsed', collapsed);
+    if (collapsed) root.setAttribute('data-bauify-reader-collapsed', 'true'); else root.removeAttribute('data-bauify-reader-collapsed');
+    reader.querySelector('.reader-toggle').textContent = collapsed ? 'Show analysis' : 'View diagram';
+    reader.querySelector('.reader-toggle').setAttribute('aria-expanded', String(!collapsed));
+    if (changed) requestAnimationFrame(function () { if (window.Archify && Archify.view && Archify.view.centerAt && focused.length) locateComponents(focused); });
+  }
+  reader.querySelector('.reader-toggle').addEventListener('click', function () { setReaderCollapsed(!readerCollapsed); });
+  function readerPage(name) {
+    reader.hidden = false;
+    reader.querySelector('.reader-path').textContent = 'Analysis / ' + name;
+    setReaderCollapsed(false);
+  }
+  function positionReader() {
+    var bar = toolbar.getBoundingClientRect();
+    var header = document.querySelector('.header');
+    root.style.setProperty('--bauify-reader-top', Math.max(76, Math.ceil(Math.max(bar.bottom, header ? header.getBoundingClientRect().bottom : 0) + 12)) + 'px');
+  }
+
+  var panel = document.createElement('section');
   panel.id = 'bauify-panel'; panel.hidden = true; panel.setAttribute('aria-label', 'Bauify code analysis');
-  document.body.appendChild(panel);
+  reader.appendChild(panel);
 
   var layer = null;
   // The left column's home: the project overview. A component panel replaces it; "Overview" brings it back.
-  var overview = document.createElement('aside');
+  var overview = document.createElement('section');
   overview.id = 'bauify-overview'; overview.hidden = true; overview.setAttribute('aria-label', 'Code analysis overview');
-  document.body.appendChild(overview);
-  var overviewCollapsed = false;
+  reader.appendChild(overview);
   var findingById = {}; (data.findings || []).forEach(function (f) { findingById[f.id] = f; });
   var entryById = {}; ((data.overview && data.overview.findings) || []).forEach(function (e) { entryById[e.id] = e; });
   var moduleInfo = {};
   data.components.forEach(function (c) { c.modules.forEach(function (m) { moduleInfo[m.id] = m; }); });
-  (data.unmapped || []).forEach(function (m) { if (!moduleInfo[m.id]) moduleInfo[m.id] = { id: m.id, label: m.label, path: m.label, files: m.files, loc: m.loc, fanIn: m.fanIn, fanOut: m.fanOut }; });
-  var detail = document.createElement('aside');
+  (data.unmapped || []).forEach(function (m) { if (!moduleInfo[m.id]) moduleInfo[m.id] = { id: m.id, label: m.label, path: m.label, files: m.files, loc: m.loc, fanIn: m.fanIn, fanOut: m.fanOut, fileList: m.fileList || [] }; });
+  var detail = document.createElement('section');
   detail.id = 'bauify-detail'; detail.hidden = true; detail.setAttribute('aria-label', 'Bauify finding details');
-  document.body.appendChild(detail);
-  var codePane = document.createElement('aside');
+  reader.appendChild(detail);
+  var codePane = document.createElement('section');
   codePane.id = 'bauify-code'; codePane.hidden = true; codePane.setAttribute('aria-label', 'Bauify source excerpt');
-  document.body.appendChild(codePane);
+  reader.appendChild(codePane);
   // Danger levels behind the colours. Same wording everywhere: legend, badge, detail header.
   var LEVELS = {
     red: { name: 'critical', text: 'an error was reported; inspect its evidence and assumptions' },
@@ -520,14 +592,31 @@ const JS = `
     svg.querySelectorAll('g[data-node-id]').forEach(function (g) { g.classList.toggle('bauify-focus', focused.indexOf(g.getAttribute('data-node-id')) !== -1); });
     if (focused.length) root.setAttribute('data-bauify-focus', 'on'); else root.removeAttribute('data-bauify-focus');
     if (layer) drawLayer();
+    if (focused.length) requestAnimationFrame(function () { locateComponents(focused); });
+  }
+  function locateComponents(ids, showCanvas) {
+    var boxes = (ids || []).map(nodeBox).filter(Boolean);
+    var camera = window.Archify && Archify.view;
+    if (!boxes.length || !camera || !camera.centerAt) return false;
+    if (window.innerWidth <= 1000) {
+      if (!showCanvas) return false;
+      setReaderCollapsed(true);
+    }
+    var x = (Math.min.apply(Math, boxes.map(function (b) { return b.x; })) + Math.max.apply(Math, boxes.map(function (b) { return b.x + b.w; }))) / 2;
+    var y = (Math.min.apply(Math, boxes.map(function (b) { return b.y; })) + Math.max.apply(Math, boxes.map(function (b) { return b.y + b.h; }))) / 2;
+    return camera.centerAt(x, y, { scale: camera.state ? camera.state().scale : 1, instant: true });
   }
   function showOverview() {
+    readerPage('Overview');
+    root.removeAttribute('data-bauify-source');
     panel.hidden = true; detail.hidden = true; codePane.hidden = true; setFocus([]);
     overview.querySelectorAll('.bauify-item.active').forEach(function (x) { x.classList.remove('active'); });
     overview.hidden = false;
   }
   function esc(s) { return String(s).replace(/[&<>"']/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]; }); }
   function show(id) {
+    readerPage('Component');
+    root.removeAttribute('data-bauify-source');
     var c = byId[id]; if (!c) return;
     overview.hidden = true; setFocus([]);
     var h = '<button class="close" aria-label="Close">×</button><button type="button" class="back">← Overview</button>';
@@ -589,7 +678,14 @@ const JS = `
   function ref(file, line, rest, why, tone) {
     return '<button type="button" class="ref" data-file="' + esc(file) + '" data-line="' + line + '" data-why="' + esc(why || '') + '" data-tone="' + (tone || '') + '"><b>' + esc(short(file)) + '</b> <em>(line ' + line + ')</em>' + (rest ? ' ' + rest : '') + '</button>';
   }
-  function findingCard(f) {
+  function nextStepHtml(f) {
+    var text = f.code === 'coupling/hub' ? 'Check whether dependencies cluster by responsibility before splitting this module.'
+      : f.code === 'coupling/import-cycle' ? 'Inspect the cited imports and initialization behavior before changing this dependency.'
+      : f.code === 'coupling/cycle' ? 'Check which shared responsibility links these modules. A module cycle does not establish a file-level failure.'
+      : 'Review the evidence and assumptions before changing code.';
+    return '<div class="next-step"><b>Suggested next step</b><p>' + esc(text) + '</p></div>';
+  }
+  function findingCard(f, compact) {
     var ev = '';
     var tone = f.severity === 'error' ? 'red' : f.severity === 'warning' ? 'amber' : 'blue';
     if (f.evidence && f.evidence.risk) ev += '<div class="ev"><div>import risk: <b>' + esc(f.evidence.risk.loading) + '</b> — ' + esc(f.evidence.risk.loadingNote) + '</div></div>';
@@ -612,13 +708,15 @@ const JS = `
       if (f.evidence.imports.length > 8) ev += '<div class="ev">… ' + (f.evidence.imports.length - 8) + ' more in findings.json</div>';
     }
     var fixes = (f.supportedFixes || []).length ? '<div class="ev fixes">' + f.supportedFixes.map(function (x) { return '<div>· ' + esc(x) + '</div>'; }).join('') + '</div>' : '';
-    return '<div class="finding ' + esc(f.severity) + '"><b>' + esc(f.code) + '</b> · ' + esc(f.severity) + (f.id ? ' · ' + esc(f.id) : '') + '<br>' + esc(f.message) + ev + fixes + '</div>';
+    return (compact ? '' : nextStepHtml(f)) + '<div class="finding ' + esc(f.severity) + '">' + ev + '<details class="technical"><summary>Rule details and alternatives</summary><b>' + esc(f.code) + '</b> · ' + esc(f.severity) + (f.id ? ' · ' + esc(f.id) : '') + '<p>' + esc(f.message) + '</p>' + fixes + '</details></div>';
   }
   // Source excerpt for one file:line, from the windows embedded at overlay time.
-  function showCode(file, line, why, tone) {
+  function showCode(file, line, why, tone, full) {
+    readerPage('Source');
     var snip = (data.snippets || {})[file];
     line = Number.isInteger(line) && line > 0 ? line : null;
-    var h = '<div class="grip" title="Drag to move up or down"><button class="close" aria-label="Close">×</button><div class="k">Source · ' + (line ? 'line ' + line : 'full file · no specific finding line') + ' · drag to move</div><h3>' + esc(file) + '</h3></div>';
+    var sourceParent = detail.hidden ? 'Component' : 'Problem';
+    var h = '<div class="grip"><button class="close" aria-label="Close">×</button><button type="button" class="source-back back">← ' + sourceParent + '</button><div class="k">Source · ' + (line ? 'line ' + line : (full ? 'full file' : 'file preview') + ' · no specific finding line') + '</div><h3>' + esc(file) + '</h3></div>';
     if (why) h += '<div class="why">' + esc(why) + '</div>';
     if (!snip) {
       h += '<div class="why" style="margin-top:10px">Source lines are not embedded in this page. Restart Code Analysis to include this file and its context.</div>';
@@ -634,9 +732,14 @@ const JS = `
         h += '</div>';
       } else if (changes) h += '<div class="diff-legend">Change markers unavailable: no readable base commit.</div>';
       var deletion = function (after) { return deleted.has(after) ? '<span class="diff-deleted" title="Deleted from the base commit">− ' + deleted.get(after) + ' deleted line(s)</span>' : ''; };
-      h += '<pre>';
-      h += deletion(0);
+      var start = full ? 0 : line ? Math.max(0, Math.min(line - 5, snip.lines.length - 9)) : 0;
+      var end = full ? snip.lines.length : Math.min(snip.lines.length, start + (line ? 9 : 12));
+      h += '<div class="why">Lines ' + (start + 1) + '–' + end + ' of ' + snip.lines.length + (line || full ? '' : ' · opening lines, not finding evidence') + '</div>';
+      if (snip.lines.length > (line ? 9 : 12)) h += '<button type="button" class="source-file source-toggle">' + (full ? 'Show excerpt' : 'Show full file') + '</button>';
+      h += '<pre' + (full ? '' : ' class="excerpt"') + '>';
+      if (!start) h += deletion(0);
       snip.lines.forEach(function (text, i) {
+        if (i < start || i >= end) return;
         var n = i + 1;
         var kind = added.has(n) ? 'added' : modified.has(n) ? 'modified' : '';
         h += '<span class="ln' + (n === line ? ' hit ' + (tone || '') : '') + (kind ? ' diff-' + kind : '') + '"' + (kind ? ' title="' + (kind === 'added' ? 'Added' : 'Modified') + ' since base commit"' : '') + '><i>' + n + '</i>' + esc(text) + '</span>';
@@ -646,27 +749,24 @@ const JS = `
     }
     codePane.innerHTML = h;
     codePane.hidden = false;
-    codePane.querySelector('.close').addEventListener('click', function () { codePane.hidden = true; detail.querySelectorAll('.ref.active').forEach(function (x) { x.classList.remove('active'); }); });
-    // Vertical drag on the header; the pane keeps the top the user left it at across clicks.
-    var grip = codePane.querySelector('.grip');
-    grip.addEventListener('pointerdown', function (e) {
-      if (e.target.closest('a') || e.target.closest('.close') || e.button !== 0) return;
-      var startY = e.clientY, startTop = codePane.getBoundingClientRect().top;
-      grip.setPointerCapture(e.pointerId);
-      var move = function (ev) { var top = Math.max(8, Math.min(window.innerHeight - 60, startTop + ev.clientY - startY)); codePane.style.top = top + 'px'; codePane.style.maxHeight = 'calc(100vh - ' + (top + 16) + 'px)'; };
-      var up = function () { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); grip.removeEventListener('pointercancel', up); };
-      grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up); grip.addEventListener('pointercancel', up);
-      e.preventDefault();
-    });
+    document.documentElement.setAttribute('data-bauify-source', 'on');
+    var sourceToggle = codePane.querySelector('.source-toggle');
+    if (sourceToggle) sourceToggle.addEventListener('click', function () { showCode(file, line, why, tone, !full); });
+    var backToSourceParent = function () { codePane.hidden = true; document.documentElement.removeAttribute('data-bauify-source'); readerPage(sourceParent); detail.querySelectorAll('.ref.active').forEach(function (x) { x.classList.remove('active'); }); };
+    codePane.querySelector('.close').addEventListener('click', backToSourceParent);
+    codePane.querySelector('.source-back').addEventListener('click', backToSourceParent);
     var hit = codePane.querySelector('.ln.hit');
-    if (hit) hit.scrollIntoView({ block: 'center' });
+    if (hit) codePane.scrollTop = Math.max(0, hit.offsetTop - codePane.offsetTop - codePane.clientHeight / 2);
   }
   function showDetail(c, key) {
+    readerPage('Problem');
+    root.removeAttribute('data-bauify-source');
+    panel.hidden = true;
     var ind = c.indicators.items.filter(function (i) { return i.key === key; })[0]; if (!ind) return;
     var ids = ind.findings || [];
     var fl = allFindings(c).filter(function (f) { return ids.indexOf(f.id) !== -1; });
     var lvl = LEVELS[ind.status] || LEVELS.neutral;
-    var h = '<button class="close" aria-label="Close">×</button>';
+    var h = '<button class="close" aria-label="Close">×</button><button class="back" type="button">← Component</button>';
     h += '<div class="k">' + esc(c.label) + '</div><h3><i class="bauify-' + ind.status + '"></i>' + esc(ind.label) + '</h3>';
     h += '<div class="level"><b>' + esc(lvl.name) + '</b> — ' + esc(ind.value) + (ind.status === 'neutral' ? '' : '<br>' + esc(lvl.text)) + '</div>';
     h += '<div class="k">Diagram details</div>' + diagram(c, key, fl);
@@ -676,7 +776,9 @@ const JS = `
     detail.innerHTML = h;
     detail.hidden = false;
     codePane.hidden = true;
-    detail.querySelector('.close').addEventListener('click', function () { detail.hidden = true; codePane.hidden = true; panel.querySelectorAll('.ind.active').forEach(function (x) { x.classList.remove('active'); }); });
+    var backToComponent = function () { readerPage('Component'); detail.hidden = true; codePane.hidden = true; panel.hidden = false; panel.querySelectorAll('.ind.active').forEach(function (x) { x.classList.remove('active'); }); };
+    detail.querySelector('.close').addEventListener('click', backToComponent);
+    detail.querySelector('.back').addEventListener('click', backToComponent);
     wireRefs();
   }
   function wireRefs() {
@@ -702,14 +804,14 @@ const JS = `
     var s = f.subject || {};
     if (f.code === 'coupling/import-cycle' && s.files) return 'Import cycle · ' + plural(s.files.length, 'file');
     if (f.code === 'coupling/cycle' && s.modules) return 'Module cycle · ' + plural(s.modules.length, 'module');
-    if (f.code === 'coupling/hub' && s.module) return 'Hub module · ' + modLabel(s.module);
+    if (f.code === 'coupling/hub' && s.module) return modLabel(s.module) + ' connects many modules';
     return f.code;
   }
   function findingWhat(f) {
     var s = f.subject || {};
-    if (s.files) return s.files.slice(0, 3).map(short).join(' ↔ ') + (s.files.length > 3 ? ' …' : '');
-    if (s.modules) return s.modules.slice(0, 4).map(modLabel).join(' ↔ ') + (s.modules.length > 4 ? ' …' : '');
-    if (f.code === 'coupling/hub' && f.evidence) return 'depended on by ' + f.evidence.fanIn + ' · depends on ' + f.evidence.fanOut;
+    if (s.files) return 'Files: ' + s.files.slice(0, 3).map(short).join(', ') + (s.files.length > 3 ? ' …' : '');
+    if (s.modules) return 'Modules: ' + s.modules.slice(0, 4).map(modLabel).join(', ') + (s.modules.length > 4 ? ' …' : '');
+    if (f.code === 'coupling/hub' && f.evidence) return f.evidence.fanIn + ' modules depend on it; it depends on ' + f.evidence.fanOut + '.';
     return f.message;
   }
   function findingWhere(f) {
@@ -739,7 +841,8 @@ const JS = `
     lines.push('Checked: ' + (run.length ? run.map(function (r) { return (GROUPS[r] || r).toLowerCase(); }).join(', ') : 'nothing') + (off.length ? ' · switched off: ' + off.join(', ') : ''));
     var missing = [['complexity/', 'complexity'], ['redundancy/', 'duplication'], ['architecture/', 'architecture boundaries']].filter(function (d) { return !run.some(function (r) { return r.indexOf(d[0]) === 0; }); }).map(function (d) { return d[1]; });
     if (missing.length) lines.push('Not checked: ' + missing.join(', '));
-    return '<div class="k">Coverage</div><div class="ev cov">' + lines.map(function (l) { return '<div>' + esc(l) + '</div>'; }).join('') + '</div>';
+    var incomplete = (c.otherLanguages || []).length || pe.length || unresolved || off.length;
+    return '<details class="coverage"><summary>Coverage · ' + esc(LANGS[c.language] || c.language || 'Unknown') + ' · ' + (files.analyzed == null ? 'file count unavailable' : plural(files.analyzed, 'file')) + (incomplete ? ' · incomplete' : '') + '</summary><div class="ev cov">' + lines.map(function (l) { return '<div>' + esc(l) + '</div>'; }).join('') + '</div></details>';
   }
   function renderOverview() {
     var o = data.overview;
@@ -747,9 +850,12 @@ const JS = `
     var v = VERDICT[o.verdict] || VERDICT['none-found'];
     var counts = plural(o.counts.findings, 'finding') + (o.counts.findings ? ' · ' + ['error', 'warning', 'info'].filter(function (k) { return o.counts[k]; }).map(function (k) { return o.counts[k] + ' ' + k; }).join(' · ') : '') +
       (o.counts.offDiagram ? ' · ' + o.counts.offDiagram + ' not on this diagram' : '');
-    var h = '<div class="ov-head"><div class="k">Code analysis · overview</div><button type="button" class="ov-toggle" aria-expanded="' + (overviewCollapsed ? 'false' : 'true') + '" aria-label="' + (overviewCollapsed ? 'Expand' : 'Collapse') + ' overview">' + (overviewCollapsed ? '+' : '–') + '</button></div>';
-    h += '<h3 title="' + (overviewCollapsed ? 'Expand overview' : '') + '"><i class="bauify-' + v.tone + '"></i>' + esc(v.text) + (overviewCollapsed && o.priorities.length ? ' · ' + o.priorities.length : '') + '</h3>';
+    var h = '<h3><i class="bauify-' + v.tone + '"></i>' + esc(v.text) + '</h3>';
     h += '<div class="ev">' + esc(counts) + '</div>';
+    if (o.priorities.length) {
+      var hubs = o.priorities.map(function (id) { return findingById[id]; }).filter(function (f) { return f && f.code === 'coupling/hub'; });
+      h += '<p class="verdict-note">' + (hubs.length ? 'Start with responsibility boundaries in ' + hubs.map(function (f) { return esc(modLabel(f.subject.module)); }).join(' and ') + '. ' : 'Start with the dependency structures below. ') + 'Each finding links to its evidence; runtime failure is not proven.</p>';
+    }
     if (o.priorities.length) {
       h += '<div class="k">Look at first</div>';
       o.priorities.forEach(function (id, i) { h += findingRow(id, i + 1); });
@@ -763,10 +869,6 @@ const JS = `
     h += coverageHtml(o.coverage);
     h += '<details><summary>Colour key</summary>' + legend() + '</details>';
     overview.innerHTML = h;
-    overview.classList.toggle('collapsed', overviewCollapsed);
-    var toggle = function () { overviewCollapsed = !overviewCollapsed; renderOverview(); };
-    overview.querySelector('.ov-toggle').addEventListener('click', toggle);
-    overview.querySelector('h3').addEventListener('click', function () { if (overviewCollapsed) toggle(); });
     overview.querySelectorAll('[data-finding]').forEach(function (el) {
       el.addEventListener('click', function () {
         overview.querySelectorAll('.bauify-item.active').forEach(function (x) { x.classList.remove('active'); });
@@ -781,26 +883,38 @@ const JS = `
     var comps = (f.componentIds || []).map(function (id) { return byId[id]; }).filter(Boolean);
     var mods = comps.flatMap(function (c) { return c.modules; });
     (f.moduleIds || []).forEach(function (id) { if (moduleInfo[id] && !mods.some(function (m) { return m.id === id; })) mods.push(moduleInfo[id]); });
-    return { label: comps.map(function (c) { return c.label; }).join(', ') || 'not on this diagram', modules: mods, fileList: comps.flatMap(function (c) { return c.fileList || []; }), incoming: [], outgoing: [], findings: [f] };
+    var files = comps.flatMap(function (c) { return c.fileList || []; });
+    (f.moduleIds || []).forEach(function (id) { ((moduleInfo[id] || {}).fileList || []).forEach(function (file) { if (!files.some(function (v) { return v.path === file.path; })) files.push(file); }); });
+    return { label: comps.map(function (c) { return c.label; }).join(', ') || 'not on this diagram', modules: mods, fileList: files, incoming: [], outgoing: [], findings: [f] };
   }
   function showFinding(id) {
     var f = findingById[id]; if (!f) return;
+    readerPage('Problem');
+    root.removeAttribute('data-bauify-source');
+    overview.hidden = true; panel.hidden = true;
     var e = entryById[id];
     var tone = toneOf(f.severity), lvl = LEVELS[tone];
     var scope = findingScope(f);
     setFocus(f.componentIds || []);
-    var h = '<button class="close" aria-label="Close">×</button>';
+    var h = '<button class="close" aria-label="Close">×</button><button class="back" type="button">← Overview</button>';
     h += '<div class="k">' + esc(GROUPS[f.code] || f.code) + ' · ' + esc(scope.label) + '</div><h3><i class="bauify-' + tone + '"></i>' + esc(findingTitle(f)) + '</h3>';
-    h += '<div class="level"><b>' + esc(lvl.name) + '</b> — ' + esc(findingWhat(f)) + '<br>' + esc(lvl.text) + '</div>';
+    var explanation = f.code === 'coupling/hub' ? 'High incoming and outgoing coupling; inspect responsibilities before deciding to split.' : lvl.text;
+    h += '<div class="level"><b>' + esc(lvl.name) + '</b> — ' + esc(findingWhat(f)) + '<br>' + esc(explanation) + '</div>';
+    h += nextStepHtml(f);
+    if ((f.componentIds || []).length) h += '<button type="button" class="locate">Locate related components</button>';
+    else h += '<p class="ev">Not mapped to this diagram. Code evidence is still available below.</p>';
     var pic = f.code === 'coupling/import-cycle' || f.code === 'coupling/cycle' ? cycleDiagram(scope, [f]) : f.code === 'coupling/hub' ? hubDiagram(scope, [f]) : '';
     if (pic) h += '<div class="k">Diagram details</div>' + pic;
-    h += '<div class="k">Finding</div>' + findingCard(f);
+    h += '<div class="k">Code evidence</div>' + findingCard(f, true);
     if (e && e.relatedIds.length) h += '<div class="k">Same structure, also reported as</div>' + e.relatedIds.map(function (r) { return findingRow(r); }).join('');
     detail.innerHTML = h;
     detail.hidden = false;
     codePane.hidden = true;
     detail.scrollTop = 0;
-    detail.querySelector('.close').addEventListener('click', function () { detail.hidden = true; codePane.hidden = true; setFocus([]); overview.querySelectorAll('.bauify-item.active').forEach(function (x) { x.classList.remove('active'); }); });
+    detail.querySelector('.close').addEventListener('click', showOverview);
+    detail.querySelector('.back').addEventListener('click', showOverview);
+    var locate = detail.querySelector('.locate');
+    if (locate) locate.addEventListener('click', function () { locateComponents(f.componentIds, true); });
     detail.querySelectorAll('[data-finding]').forEach(function (el) { el.addEventListener('click', function () { showFinding(el.getAttribute('data-finding')); }); });
     wireRefs();
   }
@@ -913,8 +1027,8 @@ const JS = `
     });
     nodes.forEach(function (n) { svg += nodeRect(pos[n].x, pos[n].y, bw, bh, short(n), mine[n] ? 'focus' : ''); });
     svg += '</svg>';
-    return svg + '<div class="caption">' + (isFile ? 'Representative file cycle. ' : 'Representative package-level cycle. ') + 'Solid = recorded module-scope dependency; dashed = deferred, conditional, type-only or asynchronous dependency. Green box = belongs to this component. Line numbers are in the findings below. ' +
-      (f.evidence.kind !== 'eager' ? 'This dependency component contains deferred, conditional, or type-only edges. The drawing does not prove import-time safety.' : 'Module-scope dependency cycle. Inspect execution order and binding access; a graph alone does not prove failure.') + '</div>';
+    return svg + '<div class="caption">' + (isFile ? 'Representative file cycle.' : 'Representative package-level cycle.') + ' Runtime failure is not proven.</div><details><summary>How to read this diagram</summary><div class="caption">Solid = recorded module-scope dependency; dashed = deferred, conditional, type-only or asynchronous dependency. Green box = belongs to this component. Line numbers are in the findings below. ' +
+      (f.evidence.kind !== 'eager' ? 'This dependency component contains deferred, conditional, or type-only edges. The drawing does not prove import-time safety.' : 'Module-scope dependency cycle. Inspect execution order and binding access; a graph alone does not prove failure.') + '</div></details>';
   }
   // Star: dependents on the left, dependencies on the right.
   function hubDiagram(c, fl) {
@@ -939,7 +1053,7 @@ const JS = `
     svg += boxes;
     svg += nodeRect(mid.x, mid.y, bw, bh, centre, 'focus') + '</svg>';
     return svg + '<div class="caption">Left: modules that depend on it (fan-in ' + left.length + '). Right: modules it depends on (fan-out ' + right.length + ').' + (f ? ' Threshold ' + f.evidence.threshold.fanIn + ' / ' + f.evidence.threshold.fanOut + ' from config.' : ' Below the hub threshold.') +
-      '<br>A hub is a module that is both widely depended on (fan-in) and depends widely (fan-out). High fan-in means every change here ripples out to its dependents; high fan-out means changes elsewhere ripple in. Both at once is the usual shape of a module that has absorbed several responsibilities — a coordination point, not a bug. Check whether its dependents cluster by reason: that is where a split would go.</div>' + (f ? hubSources(c, f) : '');
+      '</div><details><summary>What does high coupling mean?</summary><div class="caption">A hub is a module that is both widely depended on (fan-in) and depends widely (fan-out). Changes may affect dependents or require coordination with dependencies. This is a design signal, not a proven bug. Check whether its dependents cluster by responsibility before deciding to split.</div></details>' + (f ? hubSources(c, f) : '');
   }
   // Two bars: imports coming in vs going out, and where I = out / (in + out) lands.
   function instabilityDiagram(c) {
@@ -956,6 +1070,10 @@ const JS = `
     return svg + '<div class="caption">Fan-in / fan-out summed over the modules mapped to this component (each counts modules, not import statements). High fan-in says "change carefully"; high fan-out says "changes elsewhere reach me".</div>';
   }
   function setOn(on) {
+    reader.hidden = !on;
+    if (!on) root.removeAttribute('data-bauify-reader-collapsed');
+    positionReader();
+    root.removeAttribute('data-bauify-source');
     root.setAttribute('data-bauify', on ? 'on' : 'off');
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     if (on) {
@@ -974,6 +1092,6 @@ const JS = `
     e.stopPropagation(); e.preventDefault();
     show(g.getAttribute('data-node-id'));
   }, true);
-  window.addEventListener('resize', function () { if (root.getAttribute('data-bauify') === 'on') drawLayer(); });
+  window.addEventListener('resize', function () { positionReader(); if (root.getAttribute('data-bauify') === 'on') drawLayer(); });
 })();
 `;

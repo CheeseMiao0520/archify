@@ -31,7 +31,9 @@ The orchestrator validates intermediate data against JSON schemas. It also check
 
 The implemented rules inspect file-level import cycles, module-level coupling cycles, and modules with high incoming and outgoing dependency counts. Import evidence distinguishes relevant loading conditions such as lazy, conditional, and type-only imports. Findings describe static structure and potential loading risks; they do not prove a runtime failure or certify safe execution.
 
-The analysis layer provides component details, dependency diagrams, findings, and a source panel. Source references with line numbers locate the associated evidence; references without a line number open the file without marking its first line as a finding. The source panel supports scrolling through context. The Code Analysis button toggles the layer after analysis succeeds.
+The analysis layer uses one reading column for the project overview, component pages, problem pages, and source pages. Desktop layouts reserve space beside that column for the architecture canvas; narrow windows show one reading page at a time and offer a View diagram / Show analysis toggle. Back buttons return to the previous page. Problem pages lead with the observed facts and a suggested next step, then show a relationship diagram and code evidence. Rule identifiers, detailed explanations, and alternative fixes remain expandable.
+
+Source references with line numbers show a nine-line context window and highlight the cited line. References without a line number show a twelve-line file preview, explicitly labeled as opening lines rather than finding evidence. Readers can switch to the full captured file and back; excerpt lines wrap, while full-file mode retains original formatting. Unmapped modules retain their file evidence even without a component on the architecture diagram. Related components are highlighted and can be located using the Viewer camera while preserving the desktop zoom. The Code Analysis button toggles the layer after analysis succeeds.
 
 ## Files and responsibilities
 
