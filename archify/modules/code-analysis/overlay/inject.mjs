@@ -17,6 +17,9 @@
 // the authored diagram itself.
 // The whole Bauify dataset (module graph plus per-file facts) is embedded in
 // the page so future findings can attach to a file without re-running.
+// `findings` lists every finding once, with the modules and components it
+// touches; a finding whose modules are on no component has componentIds []
+// and is still listed, so a project-level view never loses it.
 // Nothing in the authored IR is changed or inferred.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -70,6 +73,12 @@ export function buildOverlay({ ir, graph, html, map, facts = null, findings = []
   }
   const edges = [...edgeMap.values()].sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : a.to < b.to ? -1 : 1));
   const unmapped = graph.modules.filter((m) => !claimed.has(m.id)).map((m) => ({ id: m.id, label: m.label, files: m.files, loc: m.loc, fanIn: m.fanIn, fanOut: m.fanOut }));
+  const fileModule = new Map([...fileIndex].flatMap(([id, list]) => list.map((f) => [f.path, id])));
+  const listed = findings.map((f) => ({
+    ...f,
+    moduleIds: findingModules(f, fileModule),
+    componentIds: components.filter((c) => c.findings.includes(f)).map((c) => c.id),
+  }));
 
   const payload = {
     generator: 'bauify',
@@ -81,6 +90,7 @@ export function buildOverlay({ ir, graph, html, map, facts = null, findings = []
     components,
     edges,
     unmapped,
+    findings: listed,
     snippets: sourceRoot ? collectSnippets(findings, sourceRoot, components, facts) : {},
   };
 
@@ -88,6 +98,18 @@ export function buildOverlay({ ir, graph, html, map, facts = null, findings = []
   const idx = html.lastIndexOf('</body>');
   const out = idx === -1 ? html + injection : html.slice(0, idx) + injection + html.slice(idx);
   return { html: out, mapped: components.filter((c) => c.modules.length).length, components: components.length, edges: edges.length, unmapped: unmapped.length, snippets: Object.keys(payload.snippets).length };
+}
+
+// Modules a finding is about: named directly, or owning one of its files.
+// Files outside the graph (excluded roles, no facts) contribute nothing.
+function findingModules(f, fileModule) {
+  const sub = f.subject || {};
+  const ids = new Set();
+  if (typeof sub.module === 'string') ids.add(sub.module);
+  if (Array.isArray(sub.modules)) for (const m of sub.modules) ids.add(m);
+  if (Array.isArray(sub.files)) for (const file of sub.files) if (fileModule.has(file)) ids.add(fileModule.get(file));
+  if (typeof sub.file === 'string' && fileModule.has(sub.file)) ids.add(fileModule.get(sub.file));
+  return [...ids].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 // A finding touches a component when its subject names the component, one of

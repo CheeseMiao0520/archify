@@ -281,6 +281,8 @@ semantic validation verifies uniqueness and cross-record references.
 
 A component's `sources` in the IR name files; the deepest module whose path contains that file claims the component, and descendants follow their parent unless another component claims them. `--map` replaces this with an explicit `{ componentId: [moduleId] }` table. A module no component claims is listed, not dropped.
 
+Per-component `findings` repeat a finding on every component it touches, and a finding whose modules no component claims appears on none of them. The payload therefore also carries a top-level `findings` list: each finding exactly once, with `moduleIds` (named in its subject, or owning one of its files) and `componentIds` (the components that show it, possibly empty). A project-level view counts and ranks from this list rather than from the components.
+
 ### Indicators and the halo
 
 For each component the indicators are computed on the Node side from the findings that touch it: the cycle indicator looks at `import-cycle` findings on its files and `cycle` findings on its modules and takes the worst tier; the hub indicator looks for `hub` findings on its modules; instability is fan-out over fan-in plus fan-out summed over its modules. The component's colour is the worst indicator. On the page, `drawLayer` draws one rounded `rect` per component in an SVG group appended to Archify's SVG, sized from `getBBox()` of the component's `g[data-node-id]`, pushed 10 px outside the box and blurred with a CSS filter so it reads as a halo rather than a second border; red animates.

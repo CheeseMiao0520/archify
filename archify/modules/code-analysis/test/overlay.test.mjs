@@ -73,6 +73,21 @@ test('overlay: indicators are red for a proven load-time failure, amber for an e
   assert.equal(payloadOf(buildOverlay({ ir, graph, html: FAKE_HTML, map: null, facts, findings: [fileCycle('eager')] }).html).components.find((c) => c.id === 'lib').findings.length, 1, 'file-level findings attach through file paths');
 });
 
+test('overlay: every finding is listed once at the top level with its modules and components, including unmapped ones', () => {
+  const facts = { schema_version: 1, repository: graph.repository, files: [{ path: 'src/index.mjs', loc: 1, role: 'source' }, { path: 'src/lib/helper.mjs', loc: 1, role: 'source' }, { path: 'tools/x.mjs', loc: 1, role: 'source' }], symbols: [], calls: [], imports: [], unresolved: { external: 0, outside: 0, unknown: 0, opaque: 0 } };
+  const base = { dimension: 'coupling', confidence: 1, message: 'm', supportedFixes: [] };
+  const across = { ...base, id: 'COUP-aaaaaaaaaaaa', code: 'coupling/import-cycle', severity: 'warning', subject: { files: ['src/lib/helper.mjs', 'src/index.mjs'] }, evidence: { kind: 'eager', path: [], imports: [], lazyImports: 0, totalImports: 2, threshold: null } };
+  const offDiagram = { ...base, id: 'COUP-bbbbbbbbbbbb', code: 'coupling/hub', severity: 'warning', subject: { module: 'tools' }, evidence: { fanIn: 5, fanOut: 5, dependents: [], dependencies: [], threshold: { fanIn: 5, fanOut: 5 } } };
+  const p = payloadOf(buildOverlay({ ir, graph, html: FAKE_HTML, map: null, facts, findings: [across, offDiagram] }).html);
+  assert.deepEqual(p.findings.map((f) => f.id), ['COUP-aaaaaaaaaaaa', 'COUP-bbbbbbbbbbbb'], 'a cycle across two components is listed once');
+  assert.deepEqual(p.findings[0].componentIds, ['app', 'lib']);
+  assert.deepEqual(p.findings[0].moduleIds, ['src', 'src-lib']);
+  assert.deepEqual(p.findings[1].componentIds, [], 'on no component, still listed');
+  assert.deepEqual(p.findings[1].moduleIds, ['tools']);
+  assert.ok(!p.components.some((c) => c.findings.some((f) => f.id === 'COUP-bbbbbbbbbbbb')), 'no component can show it, which is why the top-level list exists');
+  assert.equal(p.findings[0].message, 'm', 'the finding itself is carried whole');
+});
+
 test('overlay: an explicit map wins and an unmapped component is reported, not invented', () => {
   const result = buildOverlay({ ir, graph, html: FAKE_HTML, map: { app: ['src', 'src-lib'], lib: [] } });
   const p = payloadOf(result.html);
