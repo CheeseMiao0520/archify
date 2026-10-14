@@ -20,6 +20,7 @@ export function evaluate(graph, config = {}, facts = null) {
   // Deterministic output order; ids do not depend on it (see assignIds).
   diagnostics.sort((a, b) => compareText(a.code, b.code) || compareText(JSON.stringify(a.subject), JSON.stringify(b.subject)));
   assignIds(diagnostics, graph);
+  if (facts) attachEvidenceDigests(diagnostics, graph, facts);
   const summary = { errors: 0, warnings: 0, info: 0 };
   const key = { error: 'errors', warning: 'warnings', info: 'info' };
   for (const d of diagnostics) summary[key[d.severity]] += 1;
@@ -50,6 +51,34 @@ function assignIds(diagnostics, graph) {
     d.id = id;
   }
 }
+
+// evidenceDigest pins a finding to the source it was computed from: a hash
+// over the text of only the files the finding is about (the subject's files,
+// or every file of the subject's modules). Editing an unrelated file leaves it
+// unchanged; repository.snapshotId changes on any edit and is too coarse to
+// tell whether this finding's evidence is still current.
+function attachEvidenceDigests(diagnostics, graph, facts) {
+  const text = new Map((facts.files || []).map((f) => [f.path, f.sourceText]));
+  const moduleFiles = new Map();
+  for (const [file, id] of Object.entries(graph?.fileModules || {})) {
+    if (!moduleFiles.has(id)) moduleFiles.set(id, []);
+    moduleFiles.get(id).push(file);
+  }
+  for (const d of diagnostics) {
+    const files = [...new Set(subjectFiles(d.subject, moduleFiles))].sort(compareText);
+    if (!files.length) continue;
+    const parts = files.map((f) => [f, text.has(f) && typeof text.get(f) === 'string' ? sha256(text.get(f)) : null]);
+    d.evidenceDigest = { files, sha256: sha256(JSON.stringify(parts)) };
+  }
+}
+
+function subjectFiles(subject, moduleFiles) {
+  if (Array.isArray(subject?.files)) return subject.files;
+  const modules = Array.isArray(subject?.modules) ? subject.modules : typeof subject?.module === 'string' ? [subject.module] : [];
+  return modules.flatMap((id) => moduleFiles.get(id) || []);
+}
+
+function sha256(text) { return createHash('sha256').update(text).digest('hex'); }
 
 function idFor(dimension, identity) {
   return `${dimension.toUpperCase().slice(0, 4)}-${createHash('sha256').update(identity).digest('hex').slice(0, 12)}`;

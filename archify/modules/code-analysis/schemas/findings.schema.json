@@ -35,7 +35,17 @@
           "message": { "type": "string", "minLength": 1 },
           "subject": { "type": "object" },
           "evidence": { "type": "object", "required": ["threshold"] },
-          "supportedFixes": { "type": "array", "items": { "type": "string" } }
+          "supportedFixes": { "type": "array", "items": { "type": "string" } },
+          "evidenceDigest": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["files", "sha256"],
+            "description": "Hash over the source text of only the files this finding is about; present when raw facts were available. A changed digest means the evidence must be re-checked.",
+            "properties": {
+              "files": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+              "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+            }
+          }
         }
       }
     }

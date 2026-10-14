@@ -61,6 +61,35 @@ test('ids: module findings are identified by grouping path, not by the generated
   assert.notEqual(moved.id, before.id);
 });
 
+test('evidenceDigest: tracks only the files a finding is about, and is omitted without facts', () => {
+  const graph = graphOf([['a', 'b'], ['b', 'a']]);
+  const imports = [{ from: 'a/x.py', to: 'b/y.py' }, { from: 'b/y.py', to: 'a/x.py' }];
+  const run = (texts) => {
+    const facts = factsOf(imports);
+    facts.files.push({ path: 'c/z.py', loc: 1, role: 'source' });
+    for (const f of facts.files) f.sourceText = texts[f.path] ?? `# ${f.path}`;
+    const out = evaluate(graph, {}, facts);
+    assert.deepEqual(schemaErrors('findings', out), []);
+    return out.diagnostics.find((d) => d.code === 'coupling/import-cycle');
+  };
+  const base = run({});
+  assert.deepEqual(base.evidenceDigest.files, ['a/x.py', 'b/y.py']);
+  assert.match(base.evidenceDigest.sha256, /^[0-9a-f]{64}$/);
+  const unrelated = run({ 'c/z.py': '# edited elsewhere' });
+  assert.deepEqual(unrelated.evidenceDigest, base.evidenceDigest, 'an edit outside the cycle keeps the evidence current');
+  const involved = run({ 'a/x.py': '# edited inside the cycle' });
+  assert.notEqual(involved.evidenceDigest.sha256, base.evidenceDigest.sha256);
+  assert.equal(involved.id, base.id, 'same problem, stale evidence');
+  assert.ok(!('evidenceDigest' in evaluate(graph).diagnostics[0]), 'no facts, no digest');
+});
+
+test('evidenceDigest: module findings cover every file of their modules', () => {
+  const graph = { ...graphOf([['a', 'b'], ['b', 'a']]), fileModules: { 'a/x.py': 'a', 'a/w.py': 'a', 'b/y.py': 'b', 'c/z.py': 'c' } };
+  const facts = factsOf([{ from: 'a/x.py', to: 'b/y.py' }, { from: 'b/y.py', to: 'a/w.py' }]);
+  const cycle = evaluate(graph, {}, facts).diagnostics.find((d) => d.code === 'coupling/cycle');
+  assert.deepEqual(cycle.evidenceDigest.files, ['a/w.py', 'a/x.py', 'b/y.py']);
+});
+
 test('hub: fires only when both fan-in and fan-out meet the configured thresholds, echoed in evidence', () => {
   const edges = [];
   for (const d of ['d1', 'd2', 'd3', 'd4', 'd5']) edges.push([d, 'core']);
