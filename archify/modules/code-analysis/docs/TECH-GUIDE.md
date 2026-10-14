@@ -230,7 +230,7 @@ Test files import almost everything; keeping them would push every module's fan-
 
 ### The rule engine
 
-`evaluate/index.mjs` loads each rule module, runs it with the module graph, the raw facts, and the configuration, and gives every finding a stable id (`COUP-0001`) after a deterministic sort. Rules do not read each other's output. A suppressed rule is counted in `summary.suppressed` rather than silently skipped.
+`evaluate/index.mjs` loads each rule module, runs it with the module graph, the raw facts, and the configuration, and gives every finding a stable id such as `COUP-3f9a2c1b07de`: the dimension prefix plus a hash of the rule code and the finding's subject (sorted file paths, or module grouping paths rather than generated module ids). The id does not depend on output order, so adding or fixing one finding leaves the other ids unchanged and findings can be matched across runs. Changing the module grouping configuration changes module-level ids, because it changes what the module is. Rules do not read each other's output. A suppressed rule is counted in `summary.suppressed` rather than silently skipped.
 
 ### Strongly connected components
 

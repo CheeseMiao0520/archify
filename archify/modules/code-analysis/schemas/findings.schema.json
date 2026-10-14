@@ -27,7 +27,7 @@
         "additionalProperties": false,
         "required": ["id", "code", "dimension", "severity", "confidence", "message", "subject", "evidence", "supportedFixes"],
         "properties": {
-          "id": { "type": "string", "pattern": "^[A-Z]{2,4}-[0-9]{4}$" },
+          "id": { "type": "string", "pattern": "^[A-Z]{2,4}-[0-9a-f]{12}$" },
           "code": { "type": "string", "pattern": "^[a-z-]+/[a-z-]+$" },
           "dimension": { "enum": ["coupling", "complexity", "redundancy", "error-handling", "impact", "ai-smell"] },
           "severity": { "enum": ["error", "warning", "info"] },
