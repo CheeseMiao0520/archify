@@ -492,7 +492,7 @@ function segmentLabelBox(segment) {
 // Whether moving one message to `y` keeps it readable: inside the timeline,
 // 28px from messages sharing its horizontal span, and clear of every other
 // label, route and note. Used to offer only repairs that hold.
-function messageFitsAt(messageIndex, y) {
+function messageFitsAt(messageIndex, y, ignore = null) {
   const messages = asArray(sequence.messages);
   if (y < layout.lifelineTop + 18) return false;
   // An automatic canvas recalculates its height after this edit; an authored
@@ -520,6 +520,7 @@ function messageFitsAt(messageIndex, y) {
   if (sequence.meta?.viewBox && movedNote && movedNote.y + movedNote.height > layout.lifelineBottom + 20) return false;
   return messages.every((other, otherIndex) => {
     if (otherIndex === messageIndex || typeof other.y !== 'number') return true;
+    if (ignore !== null && ignore.has(otherIndex)) return true;
     const [otherLeft, otherRight] = span(other);
     if (Math.abs(other.y - y) < 28 && left < otherRight && otherLeft < right) return false;
     const otherRects = [messageLabelBox(other), messageRouteBox(other), noteRect(other)].filter(Boolean);
@@ -573,14 +574,19 @@ function noteSingleAdjustment(blocker, requiredY) {
 // single move uses (which enforces the 28px spacing wherever the horizontal
 // spans overlap, so disjoint lanes may keep a closer row). No move passes a
 // message the note does not reach — crossing one would reorder the timeline.
-// Earlier candidates stay bound while later ones are checked, note layouts are
-// refreshed for the moved positions, and every y value is restored afterwards.
+// Earlier candidates stay bound while later ones are ignored until placed;
+// note layouts are refreshed for the moved positions, and every y value is
+// restored afterwards.
 // Returns the ordered edits, or [] when no arrangement holds (an authored
 // canvas without room, or a crossing), so the repair is advertised only when
 // applying the whole adjustment clears the diagnostic.
 function noteOverlapAdjustment(reached, requiredY) {
   const previousY = reached.map((entry) => entry.message.y);
   const assigned = [];
+  // Entries placed later still sit on the rows this same adjustment vacates,
+  // so they must not veto the current scan — only bound earlier placements
+  // and unrelated messages are obstacles. Every pair is still verified: when
+  // a later entry is placed, the earlier ones already sit at their final rows.
   // Note geometry is memoized per message object and depends on y; refresh the
   // entry on every move so later checks read the candidate position.
   const place = (entry, y) => {
@@ -588,13 +594,14 @@ function noteOverlapAdjustment(reached, requiredY) {
     noteLayouts.delete(entry.message);
   };
   try {
-    for (const entry of reached) {
+    for (const [order, entry] of reached.entries()) {
       const minimum = assigned.length === 0 ? requiredY : assigned[assigned.length - 1] + 1;
       const ceiling = Math.min(moveCeiling(reached, entry), requiredY + 28 * reached.length + 600);
       let chosen = null;
+      const floating = new Set(reached.slice(order + 1).map((later) => later.index));
       for (let y = minimum; y <= ceiling && chosen === null; y += 1) {
         place(entry, y);
-        if (messageFitsAt(entry.index, y)) chosen = y;
+        if (messageFitsAt(entry.index, y, floating)) chosen = y;
       }
       if (chosen === null) return [];
       place(entry, chosen);
@@ -908,7 +915,7 @@ function validateSequence() {
         ? noteSingleAdjustment(blocker, requiredY)
         : noteOverlapAdjustment(reached, requiredY);
       const extra = reached.length - 1;
-      report(`Note on message "${message.label}" wraps to ${lines} (down to y=${bottom}) and reaches message "${blocker.message.label}" at y=${blocker.message.y}${extra > 0 ? ` and ${extra} more message${extra > 1 ? 's' : ''} below` : ''} — move "${blocker.message.label}" and later messages down so it sits at y=${requiredY} or below, or shorten the note.`, {
+      report(`Note on message "${message.label}" wraps to ${lines} (down to y=${bottom}) and reaches message "${blocker.message.label}" at y=${blocker.message.y}${extra > 0 ? ` and ${extra} more message${extra > 1 ? 's' : ''} below` : ''} — move "${blocker.message.label}" and later messages down so it sits at y=${requiredY} or below${reached.length > 1 && adjustment.length > 1 ? '; the listed edits are one atomic adjustment, apply them all before revalidating' : ''}, or shorten the note.`, {
         code: 'sequence/note-overlap',
         subject,
         evidence: {

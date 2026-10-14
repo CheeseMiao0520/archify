@@ -416,12 +416,14 @@ test('a reached message with its own note is checked at its moved position', (t)
     meta: { title: 'Note wrap', output: 'note.html', quality_profile: 'showcase', column_fit: 'spread', viewBox: [560, 600], legend: { mode: 'hidden' } },
   };
   const diagnostic = failure(t, spec, 'sequence/note-overlap');
-  // The first blocker clears the second by 28px (380 + 28); the second then
-  // clears the first blocker's note at its new position (408 + 22 + 20 + 2),
-  // which a scan reading the note's stale y would miss.
+  // The first blocker takes the first clear slot 399: the row at 380 is
+  // vacated by this same adjustment, so it must not veto the scan. The second
+  // then clears the first blocker's note at its new position
+  // (399 + 22 + 20 + 2 = 443), which a scan reading the note's stale y
+  // would miss.
   assert.deepEqual(diagnostic.supportedFixes, [
-    'set /messages/1/y to 408',
-    'set /messages/2/y to 452',
+    'set /messages/1/y to 399',
+    'set /messages/2/y to 443',
   ]);
   let repaired = spec;
   for (const fix of diagnostic.supportedFixes) repaired = applyFix(repaired, fix);
@@ -439,12 +441,12 @@ test('a note on the moved message that cannot clear the content limit withholds 
         { from: 'client', to: 'api', y: 366, label: 'tail', note: Array(60).fill('word').join(' ') },
       ],
     }),
-    meta: { title: 'Note wrap', output: 'note.html', quality_profile: 'showcase', column_fit: 'spread', viewBox: [560, 580], legend: { mode: 'hidden' } },
+    meta: { title: 'Note wrap', output: 'note.html', quality_profile: 'showcase', column_fit: 'spread', viewBox: [560, 520], legend: { mode: 'hidden' } },
   };
   const diagnostic = failure(t, spec, 'sequence/note-overlap');
   assert.equal(diagnostic.evidence.reached.length, 2);
-  // Every slot below requiredY pushes the tail's own wrapped note past
-  // y = viewBox height - 45, which would trade this failure for
+  // At this height the tail's own wrapped note breaches the authored content
+  // limit from every reachable slot, which would trade this failure for
   // sequence/note-canvas-limit, so no edit is advertised.
   assert.deepEqual(diagnostic.supportedFixes, []);
 });
@@ -676,4 +678,49 @@ test('notes that fit their phase, or messages outside it, do not request a phase
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.ok(!(JSON.parse(result.stdout).composition?.sequenceNoteBorders || []).some(d => d.code === 'sequence/note-segment-border'));
   }
+});
+// A later reached row still sits on the slot this same adjustment vacates, so
+// it must not veto the scan: with rows at 330 and 397, the first clear slot
+// is 399 — not 425 past the stale row.
+test('the ordered adjustment ignores rows the same repair vacates', (t) => {
+  const spec = {
+    ...sequence({
+      participants: ['client', 'api'],
+      messages: [
+        { from: 'client', to: 'api', y: 300, label: 'owner', note: Array(60).fill('word').join(' ') },
+        { from: 'client', to: 'api', y: 330, label: 'first blocker' },
+        { from: 'client', to: 'api', y: 397, label: 'second blocker' },
+      ],
+    }),
+    meta: { title: 'Note wrap', output: 'note.html', quality_profile: 'showcase', column_fit: 'spread', viewBox: [560, 600], legend: { mode: 'hidden' } },
+  };
+  const diagnostic = failure(t, spec, 'sequence/note-overlap');
+  assert.deepEqual(diagnostic.supportedFixes, [
+    'set /messages/1/y to 399',
+    'set /messages/2/y to 427',
+  ]);
+  let repaired = spec;
+  for (const fix of diagnostic.supportedFixes) repaired = applyFix(repaired, fix);
+  const after = run(t, 'validate', repaired).result;
+  assert.equal(after.status, 0, after.stdout + after.stderr);
+});
+
+// Applying only the first edit of a joint plan strands the rest without room
+// (the moved row becomes their ceiling), so the receipt must say the listed
+// edits are one atomic adjustment instead of alternatives.
+test('the ordered adjustment is advertised as one atomic repair', (t) => {
+  const spec = {
+    ...sequence({
+      participants: ['client', 'api'],
+      messages: [
+        { from: 'client', to: 'api', y: 300, label: 'owner', note: Array(60).fill('word').join(' ') },
+        { from: 'client', to: 'api', y: 330, label: 'first blocker' },
+        { from: 'client', to: 'api', y: 366, label: 'second blocker' },
+      ],
+    }),
+    meta: { title: 'Note wrap', output: 'note.html', quality_profile: 'showcase', column_fit: 'spread', viewBox: [560, 600], legend: { mode: 'hidden' } },
+  };
+  const diagnostic = failure(t, spec, 'sequence/note-overlap');
+  assert.ok(diagnostic.supportedFixes.length > 1);
+  assert.match(diagnostic.message, /one atomic adjustment, apply them all before revalidating/);
 });
