@@ -12,6 +12,7 @@ export function semanticErrors(name, data) {
     });
     return seen;
   };
+  if (name === 'baseline') unique(data.accepted, 'id', '/accepted');
   if (name === 'raw-facts') {
     const unresolved = data.imports.filter((edge) => !edge.resolved).length;
     if (Object.values(data.unresolved).reduce((sum, count) => sum + count, 0) !== unresolved) {

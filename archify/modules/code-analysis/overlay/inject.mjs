@@ -48,6 +48,10 @@ export function buildOverlay({ ir, graph, html, map, facts = null, findings = []
     if (key) (findingsByFile.get(key) || findingsByFile.set(key, []).get(key)).push(f);
   }
 
+  // Indicators and the diagram rings show open findings: a finding accepted in
+  // the baseline (with unchanged evidence) stays listed but does not colour the diagram.
+  const accepted = new Set(Object.entries(run.review ? run.review.findings : {}).filter(([, r]) => r.status === 'accepted').map(([id]) => id));
+  const openFindings = findings.filter((f) => !accepted.has(f.id));
   const components = ir.components.map((c) => {
     const ids = mapping.get(c.id) || [];
     const mods = ids.map((id) => modules.get(id)).filter(Boolean);
@@ -66,7 +70,7 @@ export function buildOverlay({ ir, graph, html, map, facts = null, findings = []
       incoming,
       fileList: ids.flatMap((id) => (fileIndex.get(id) || []).map((f) => ({ ...f, module: id }))).map((f) => ({ ...f, findings: findingsByFile.get(f.path) || [] })),
       findings: findings.filter((f) => touches(f, set, c.id, new Set(ids.flatMap((id) => (fileIndex.get(id) || []).map((f) => f.path))))),
-      indicators: indicators(set, mods, findings, mapping, new Set(ids.flatMap((id) => (fileIndex.get(id) || []).map((f) => f.path)))),
+      indicators: indicators(set, mods, openFindings, mapping, new Set(ids.flatMap((id) => (fileIndex.get(id) || []).map((f) => f.path)))),
     };
   });
 
@@ -79,7 +83,9 @@ export function buildOverlay({ ir, graph, html, map, facts = null, findings = []
   const edges = [...edgeMap.values()].sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : a.to < b.to ? -1 : 1));
   const unmapped = graph.modules.filter((m) => !claimed.has(m.id)).map((m) => ({ id: m.id, label: m.label, files: m.files, loc: m.loc, fanIn: m.fanIn, fanOut: m.fanOut, fileList: (fileIndex.get(m.id) || []).map((f) => ({ ...f, module: m.id })) }));
   const fileModule = new Map([...fileIndex].flatMap(([id, list]) => list.map((f) => [f.path, id])));
+  const reviewed = run.review ? run.review.findings : {};
   const listed = findings.map((f) => ({
+    ...(reviewed[f.id] ? { review: reviewed[f.id] } : {}),
     ...f,
     moduleIds: findingModules(f, fileModule),
     componentIds: components.filter((c) => c.findings.includes(f)).map((c) => c.id),
@@ -108,7 +114,7 @@ export function buildOverlay({ ir, graph, html, map, facts = null, findings = []
 
 // Modules a finding is about: named directly, or owning one of its files.
 // Files outside the graph (excluded roles, no facts) contribute nothing.
-function findingModules(f, fileModule) {
+export function findingModules(f, fileModule) {
   const sub = f.subject || {};
   const ids = new Set();
   if (typeof sub.module === 'string') ids.add(sub.module);
@@ -484,6 +490,14 @@ html[data-bauify-focus="on"] #bauify-layer rect:not(.focus) { opacity: .12; anim
 #bauify-code pre .ln.hit.red { background: color-mix(in srgb, #FB7185 18%, transparent); box-shadow: inset 3px 0 0 #FB7185; }
 #bauify-code pre .gap { display: block; padding: 2px 10px; color: var(--text-muted, #94a3b8); font-size: 10px; }
 #bauify-detail .fixes { margin-top: 4px; } #bauify-detail .fixes div { white-space: normal; }
+/* Review: re-analysis, comparison with the previous run, baseline status. */
+#bauify-overview .bauify-reanalyze { float: right; margin: 0 0 6px 8px; padding: 3px 10px; border: 1px solid var(--panel-border, #1e293b); border-radius: 6px; background: none; color: var(--backend-stroke, #34D399); font: inherit; font-size: 12px; cursor: pointer; }
+#bauify-overview .bauify-reanalyze[disabled] { color: var(--text-muted, #94a3b8); cursor: progress; }
+#bauify-overview .review-line { margin-top: 4px; }
+.bauify-item.accepted { opacity: .62; }
+.bauify-item .badge-new, .bauify-item .badge-accepted, #bauify-detail .badge-accepted { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 10px; letter-spacing: .04em; text-transform: uppercase; vertical-align: 1px; }
+.bauify-item .badge-new { background: #FB7185; color: #0b1220; }
+.bauify-item .badge-accepted, #bauify-detail .badge-accepted { border: 1px solid var(--panel-border, #1e293b); color: var(--text-muted, #94a3b8); }
 /* One reading column owns the layout; the four pages retain their scroll state. */
 #bauify-reader { position: fixed; left: 16px; top: var(--bauify-reader-top, 76px); bottom: 16px; width: 420px; z-index: 62; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--panel-border, #1e293b); border-radius: 12px; background: linear-gradient(var(--panel, #0f172a), var(--panel, #0f172a)), var(--bg, #0b1220); color: var(--text, #f8fafc); font: 14px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
 #bauify-reader[hidden] { display: none; }
@@ -870,8 +884,11 @@ const JS = `
   }
   function findingRow(id, n) {
     var f = findingById[id]; if (!f) return '';
-    return '<button type="button" class="bauify-item ' + toneOf(f.severity) + '" data-finding="' + esc(id) + '">' + (n ? '<span class="n">' + n + '</span>' : '') +
-      '<b>' + esc(findingTitle(f)) + '</b> <em>' + esc(f.severity) + '</em><span class="what">' + esc(findingWhat(f)) + '</span><span class="where">' + esc(findingWhere(f)) + '</span></button>';
+    var r = f.review || {};
+    var badges = (r.since === 'new' ? '<span class="badge-new">new</span>' : '') +
+      (r.status === 'accepted' ? '<span class="badge-accepted">accepted</span>' : r.status === 'accepted-changed' ? '<span class="badge-accepted">accepted · evidence changed</span>' : '');
+    return '<button type="button" class="bauify-item ' + toneOf(f.severity) + (r.status === 'accepted' ? ' accepted' : '') + '" data-finding="' + esc(id) + '"' + (r.reason ? ' title="Accepted: ' + esc(r.reason) + '"' : '') + '>' + (n ? '<span class="n">' + n + '</span>' : '') +
+      '<b>' + esc(findingTitle(f)) + '</b> <em>' + esc(f.severity) + '</em>' + badges + '<span class="what">' + esc(findingWhat(f)) + '</span><span class="where">' + esc(findingWhere(f)) + '</span></button>';
   }
   function coverageHtml(c) {
     if (!c) return '';
@@ -897,14 +914,37 @@ const JS = `
     var incomplete = (c.otherLanguages || []).length || pe.length || unresolved || off.length;
     return '<details class="coverage"><summary>Coverage · ' + esc(LANGS[c.language] || c.language || 'Unknown') + ' · ' + (files.analyzed == null ? 'file count unavailable' : plural(files.analyzed, 'file')) + (incomplete ? ' · incomplete' : '') + '</summary><div class="ev cov">' + lines.map(function (l) { return '<div>' + esc(l) + '</div>'; }).join('') + '</div></details>';
   }
+  // Since the previous run, and against the baseline. Fixed findings are no longer
+  // in this result, so they are listed from the comparison itself.
+  function reviewHtml(r) {
+    if (!r) return '';
+    var h = '';
+    var c = r.comparison;
+    if (c) {
+      h += '<div class="ev review-line">Since the previous analysis: ' + c.new.length + ' new · ' + c.fixed.length + ' fixed · ' + c.evidenceChanged.length + ' with changed evidence</div>';
+      if (c.fixed.length) h += '<details><summary>Fixed since the previous analysis · ' + c.fixed.length + '</summary><div class="ev">' + c.fixed.map(function (f) { return '<div>' + esc(GROUPS[f.code] || f.code) + ': ' + esc(f.message) + '</div>'; }).join('') + '</div></details>';
+    }
+    var b = r.baseline;
+    if (b) {
+      h += '<div class="ev review-line">Baseline: ' + b.accepted + ' accepted' + (b.changed.length ? ' · ' + b.changed.length + ' changed since accepted and shown again' : '') + (b.stale.length ? ' · ' + plural(b.stale.length, 'entry') .replace('entrys', 'entries') + ' no longer found' : '') + '</div>';
+      if (b.stale.length) h += '<details><summary>Baseline entries no longer found · ' + b.stale.length + '</summary><div class="ev">' + b.stale.map(function (e) { return '<div>' + esc(e.id) + ' (' + esc(e.code) + ') · ' + esc(e.reason) + '</div>'; }).join('') + '<div>Fixed or moved; remove them from the baseline file.</div></div></details>';
+    }
+    return h;
+  }
   function renderOverview() {
     var o = data.overview;
     if (!o) { overview.innerHTML = '<div class="k">Code analysis</div>' + legend(); return; }
     var v = VERDICT[o.verdict] || VERDICT['none-found'];
-    var counts = plural(o.counts.findings, 'finding') + (o.counts.findings ? ' · ' + ['error', 'warning', 'info'].filter(function (k) { return o.counts[k]; }).map(function (k) { return o.counts[k] + ' ' + k; }).join(' · ') : '') +
-      (o.counts.offDiagram ? ' · ' + o.counts.offDiagram + ' not on this diagram' : '');
-    var h = '<h3><i class="bauify-' + v.tone + '"></i>' + esc(v.text) + '</h3>';
+    var acceptedCount = o.counts.accepted || 0;
+    var verdictText = o.verdict === 'none-found' && acceptedCount ? 'No open findings · ' + acceptedCount + ' accepted in the baseline' : v.text;
+    var counts = [plural(o.counts.findings, 'finding')]
+      .concat(['error', 'warning', 'info'].filter(function (k) { return o.counts[k]; }).map(function (k) { return o.counts[k] + ' ' + k; }))
+      .concat(acceptedCount ? [acceptedCount + ' accepted'] : [])
+      .concat(o.counts.offDiagram ? [o.counts.offDiagram + ' not on this diagram'] : []).join(' · ');
+    var h = typeof window.__archifyReanalyze === 'function' ? '<button type="button" class="bauify-reanalyze" title="Read the repository again and compare with this result">Re-analyze</button>' : '';
+    h += '<h3><i class="bauify-' + v.tone + '"></i>' + esc(verdictText) + '</h3>';
     h += '<div class="ev">' + esc(counts) + '</div>';
+    h += reviewHtml(o.review);
     if (o.priorities.length) {
       var picks = o.priorities.map(function (id) { return findingById[id]; }).filter(Boolean);
       var hubs = picks.filter(function (f) { return f.code === 'coupling/hub'; });
@@ -921,7 +961,8 @@ const JS = `
     if (o.priorities.length) {
       h += '<div class="k">Look at first</div>';
       o.priorities.forEach(function (id, i) { h += findingRow(id, i + 1); });
-    } else h += '<div class="ev" style="margin-top:8px">No rule fired. This covers only the checks listed under Coverage; it is not a quality guarantee.</div>';
+    } else if (acceptedCount) h += '<div class="ev" style="margin-top:8px">Every finding is accepted in the baseline. New findings, and accepted ones whose code changes, will show up here.</div>';
+    else h += '<div class="ev" style="margin-top:8px">No rule fired. This covers only the checks listed under Coverage; it is not a quality guarantee.</div>';
     if (o.groups.length) {
       h += '<div class="k">All findings · click a component on the diagram for its own view</div>';
       o.groups.forEach(function (g) {
@@ -931,6 +972,15 @@ const JS = `
     h += coverageHtml(o.coverage);
     h += '<details><summary>Colour key</summary>' + legend() + '</details>';
     overview.innerHTML = h;
+    var again = overview.querySelector('.bauify-reanalyze');
+    if (again) again.addEventListener('click', function () {
+      again.disabled = true; again.textContent = 'Analyzing…';
+      window.__archifyReanalyze().catch(function (error) {
+        again.disabled = false; again.textContent = 'Re-analyze';
+        var note = overview.querySelector('.reanalyze-error') || again.insertAdjacentElement('afterend', document.createElement('div'));
+        note.className = 'ev reanalyze-error'; note.textContent = 'Re-analysis failed: ' + error.message + ' The result shown is from the last successful run.';
+      });
+    });
     overview.querySelectorAll('[data-finding]').forEach(function (el) {
       el.addEventListener('click', function () {
         overview.querySelectorAll('.bauify-item.active').forEach(function (x) { x.classList.remove('active'); });
@@ -964,6 +1014,7 @@ const JS = `
       : f.code === 'architecture/boundary' ? 'These imports break a boundary declared in the analysis config. The rule comes from the config, not from the diagram.'
       : f.code === 'complexity/function' ? 'Cyclomatic complexity counts independent paths through the function. A high count is a maintenance signal, not a defect.' : lvl.text;
     h += '<div class="level"><b>' + esc(lvl.name) + '</b> — ' + esc(findingWhat(f)) + '<br>' + esc(explanation) + '</div>';
+    if (f.review && f.review.reason) h += '<p class="ev"><span class="badge-accepted">' + (f.review.status === 'accepted-changed' ? 'accepted · evidence changed' : 'accepted') + '</span> ' + esc(f.review.reason) + (f.review.status === 'accepted-changed' ? ' — the code behind it changed since it was accepted; review it again.' : '') + '</p>';
     h += nextStepHtml(f);
     if ((f.componentIds || []).length) h += '<button type="button" class="locate">Locate related components</button>';
     else h += '<p class="ev">Not mapped to this diagram. Code evidence is still available below.</p>';

@@ -44,7 +44,7 @@ test('overview: priorities rank by severity, then reach, and stop at the limit',
   assert.deepEqual(o.priorities, [fileCycle.id, offDiagramHub.id, innerCycle.id]);
   assert.deepEqual(o.findings.find((f) => f.id === offDiagramHub.id).impact, { modules: 1, size: 0, fanIn: 6, files: 4 });
   assert.deepEqual(o.groups.map((g) => [g.code, g.severity, g.count]), [['coupling/import-cycle', 'warning', 3], ['coupling/hub', 'warning', 1], ['coupling/cycle', 'info', 1]]);
-  assert.deepEqual(o.counts, { findings: 5, error: 0, warning: 3, info: 2, offDiagram: 1 });
+  assert.deepEqual(o.counts, { findings: 5, error: 0, warning: 3, info: 2, accepted: 0, offDiagram: 1 });
 });
 
 test('overview: one rule with many instances does not take every priority slot', () => {

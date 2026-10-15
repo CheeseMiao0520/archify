@@ -14,6 +14,7 @@ import { schemaErrors } from '../extract/shared/schema.mjs';
 import { buildModuleGraph } from '../graphs/module.mjs';
 import { buildOverlay } from '../overlay/inject.mjs';
 import { evaluate } from '../evaluate/index.mjs';
+import { reviewFindings, validateBaseline } from './review.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -28,6 +29,14 @@ export function loadConfig(explicit) {
     subject: { option: '--config' }, evidence: { path: explicit }, supportedFixes: ['pass an existing JSON file'],
   });
   return { ...defaults, ...JSON.parse(fs.readFileSync(explicit, 'utf8')) };
+}
+
+// Counts for receipts and the CLI summary; the full lists are in review.json.
+export function reviewSummary(review) {
+  return {
+    baseline: review.baseline ? { entries: review.baseline.entries, accepted: review.baseline.accepted.length, changed: review.baseline.changed.length, stale: review.baseline.stale.length } : null,
+    comparison: review.comparison ? { new: review.comparison.new.length, fixed: review.comparison.fixed.length, evidenceChanged: review.comparison.evidenceChanged.length, unchanged: review.comparison.unchanged } : null,
+  };
 }
 
 export function readJsonInput(file, what) {
@@ -130,10 +139,27 @@ export function overlayHtml({ html, ir, graph, facts = null, findings = [], map 
   return buildOverlay({ ir, graph, html, map, facts, findings, sourceRoot, run });
 }
 
+// Baseline file → validated document, or null when none was given.
+export function loadBaseline(file) {
+  return file ? validateBaseline(readJsonInput(file, 'analysis --baseline'), file) : null;
+}
+
+// Previous findings.json → document, or null when there is none or it is not
+// a readable findings document (a comparison is optional, never a failure).
+export function loadPrevious(file) {
+  if (!file || !fs.existsSync(file)) return null;
+  try {
+    const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return schemaErrors('findings', doc).length ? null : doc;
+  } catch { return null; }
+}
+
 // The whole analysis for one delivered page, as the button runs it:
 // extract → graphs → evaluate → overlay, each stage written to `out`.
 // `html` is the page Archify delivered for `ir`; it is read, never modified.
-export function analyzeRepository({ root, ir, html, out, language = null, config = null, map = null, irSnapshot = null }) {
+// `baseline` (file) marks accepted findings; `previous` (a findings.json from
+// an earlier run) adds a comparison. Both are recorded in review.json.
+export function analyzeRepository({ root, ir, html, out, language = null, config = null, map = null, irSnapshot = null, baseline = null, previous = null }) {
   const absRoot = path.resolve(root);
   const irPath = path.resolve(ir);
   const htmlPath = path.resolve(html);
@@ -148,9 +174,11 @@ export function analyzeRepository({ root, ir, html, out, language = null, config
   fs.writeFileSync(path.join(dir, 'module-graph.json'), stableJson(graph));
   const findings = evaluateGraph(graph, cfg, facts);
   fs.writeFileSync(path.join(dir, 'findings.json'), stableJson(findings));
+  const review = reviewFindings(findings.diagnostics, { baseline: loadBaseline(baseline), previous: loadPrevious(previous) });
+  fs.writeFileSync(path.join(dir, 'review.json'), stableJson(review));
   const irDoc = irSnapshot ?? readJsonInput(irPath, 'analysis --ir');
   const mapDoc = map ? readJsonInput(map, 'analysis --map') : null;
-  const run = { rules: findings.rules, suppressed: cfg.ignore || [], exclude: cfg.exclude || [], otherLanguages, boundaries: cfg.boundaries || null };
+  const run = { rules: findings.rules, suppressed: cfg.ignore || [], exclude: cfg.exclude || [], otherLanguages, boundaries: cfg.boundaries || null, review };
   const overlay = overlayHtml({ html: fs.readFileSync(htmlPath, 'utf8'), ir: irDoc, graph, facts, findings: findings.diagnostics, map: mapDoc, sourceRoot: absRoot, run });
   fs.writeFileSync(path.join(dir, 'overview.json'), stableJson(overlay.overview));
   const outHtml = path.join(dir, 'repo.analysis.html');
@@ -161,5 +189,6 @@ export function analyzeRepository({ root, ir, html, out, language = null, config
     graphs: { modules: graph.modules.length, edges: graph.edges.length, excludedFiles: graph.excluded.files },
     evaluate: findings.summary,
     overlay: { html: outHtml, components: overlay.components, mapped: overlay.mapped, findings: findings.diagnostics.length, snippets: overlay.snippets, verdict: overlay.overview.verdict, priorities: overlay.overview.priorities, otherLanguages },
+    review: reviewSummary(review),
   });
 }

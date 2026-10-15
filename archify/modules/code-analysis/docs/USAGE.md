@@ -15,11 +15,11 @@ Use the project's architecture JSON prepared with Archify as `architecture.json`
 4. Click a source link for a short captured excerpt. Show full file expands it, and Show excerpt returns to the short view. References without a line show a file preview, not a finding location.
 5. Click **Code Analysis** again to return to the architecture view.
 
-Keep the terminal running. After changing source code, stop the server with `Ctrl+C`, restart it, open the new URL, and click **Code Analysis** again.
+Keep the terminal running. After changing source code, click **Re-analyze** on the overview: the repository is read again without restarting, the page reloads with the new result, and the overview shows what changed since the previous analysis (new, fixed, and findings whose code changed). If a re-analysis fails, the last good result stays in place and the reason is shown next to the button. Changes to the architecture JSON or to the `--config` file still need a restart.
 
 Analysis reads the working tree, including uncommitted and untracked source files. Results are labeled **Working tree**; any base commit is context only. Source panels use the text captured during extraction, and working-tree results do not provide commit-based source links. The raw facts retain that source text and a snapshot digest so findings, graphs, and source panels refer to the same extraction. Non-Git directories are supported.
 
-The source panel marks captured changes against the base commit: green gutters for added lines, amber for modified lines, and red deletion markers between lines. This includes staged and unstaged changes; files absent from the base are labeled **New file**. Markers stay tied to the captured source, so restart analysis to see later edits. Without a readable Git base, the panel reports that markers are unavailable rather than treating every line as new.
+The source panel marks captured changes against the base commit: green gutters for added lines, amber for modified lines, and red deletion markers between lines. This includes staged and unstaged changes; files absent from the base are labeled **New file**. Markers stay tied to the captured source, so re-analyze to see later edits. Without a readable Git base, the panel reports that markers are unavailable rather than treating every line as new.
 
 If the architecture JSON changes or becomes unavailable after startup, the analysis request is rejected and the page asks you to regenerate the diagram. Restart with the updated JSON and open the new URL. The server never rewrites your input JSON or silently combines a new architecture with the previous diagram.
 
@@ -66,4 +66,38 @@ To change the thresholds, set any of them in the `--config` file; unset values k
 ```
 
 JS/TS functions are not measured yet; for those projects the overview lists complexity as not checked.
+
+## Accepting known findings (baseline)
+
+Real projects have findings the team knows about and has decided to leave for now. A baseline file records them, so the overview and CI focus on what is new:
+
+```sh
+node bin/archify.mjs code-analysis check "/path/to/project" --baseline analysis-baseline.json --update-baseline --reason "existing debt when analysis was adopted"
+```
+
+This writes every current finding to `analysis-baseline.json` with that reason. Edit the reasons per entry if you like, and commit the file. Pass it to the page with `--baseline analysis-baseline.json` (`npm start -- … --baseline …`) or to `check`.
+
+- Accepted findings stay listed, marked **accepted** with their reason, but no longer count toward the verdict, the priorities, the diagram colours, or a CI failure.
+- Each entry remembers a fingerprint of the code it was about. If that code changes, the finding is shown again as **accepted · evidence changed** so someone looks at it once more.
+- Entries whose finding no longer occurs are listed as no longer found: the problem was fixed or moved, and the entry can be removed. Running `--update-baseline` again keeps existing reasons, adds new findings, and drops those entries.
+
+## Terminal and CI: `code-analysis check`
+
+`check` runs the same analysis without a diagram and exits with a status a pipeline can use:
+
+```sh
+node bin/archify.mjs code-analysis check "/path/to/project" --baseline analysis-baseline.json --fail-on warning --out .analysis
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--fail-on error\|warning\|info\|never` | Fail when an open finding reaches this level (default `warning`). |
+| `--baseline file` | Accepted findings do not fail the run unless their code changed. |
+| `--out dir` | Write `raw-facts`, `module-graph`, `findings`, `review` and `overview` JSON. The previous `findings.json` in that directory is compared with automatically. |
+| `--compare findings.json` | Compare with a specific earlier run instead. |
+| `--new-only` | Fail only on findings that are new since the comparison, for gating pull requests. |
+| `--update-baseline [--reason text]` | Write the baseline instead of checking. |
+| `--json` | Print a machine-readable receipt instead of the summary. |
+
+Exit codes: `0` passed, `1` the gate failed, `2` the analysis could not run (the diagnostic says why). The printed summary lists failing findings as `path:line` with their ids, the comparison counts, and stale baseline entries.
 

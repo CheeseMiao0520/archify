@@ -13,6 +13,10 @@
 //   as complexity, then dependents and files), then by id. The best finding of
 //   each rule at the top severity is picked first, so one rule with many
 //   instances does not take every slot; remaining slots follow the ranking.
+// - review: findings accepted in the baseline (with unchanged evidence) are
+//   listed and counted but excluded from the verdict and the priorities; an
+//   accepted finding whose evidence changed is open again. `review` also
+//   carries the comparison with the previous run when there is one.
 // - coverage: what this run looked at and what it did not.
 // Everything here is derived from data already in the payload; no wording is
 // produced, so the page and an agent read the same facts.
@@ -33,32 +37,46 @@ export function buildOverview({ findings = [], graph, facts = null, unmapped = [
     moduleIds: f.moduleIds || [],
     impact: impactOf(f, modules),
     relatedIds: [...(related.get(f.id) || [])].sort(compareText),
+    status: f.review?.status || 'open',
+    ...(f.review?.since ? { since: f.review.since } : {}),
   }));
   const ranked = [...entries].sort(compareEntries);
   const priorities = [];
   const covered = new Set();
   const take = (e) => { priorities.push(e.id); covered.add(e.id); for (const r of e.relatedIds) covered.add(r); };
-  const topSeverity = ranked.length ? ranked[0].severity : null;
   const rulesTaken = new Set();
-  for (const e of ranked) {
+  const open = ranked.filter((e) => e.status !== 'accepted');
+  const topSeverity = open.length ? open[0].severity : null;
+  for (const e of open) {
     if (priorities.length >= MAX_PRIORITIES || e.severity !== topSeverity) break;
     if (covered.has(e.id) || rulesTaken.has(e.code)) continue;
     rulesTaken.add(e.code);
     take(e);
   }
-  for (const e of ranked) {
+  for (const e of open) {
     if (priorities.length >= MAX_PRIORITIES) break;
     if (!covered.has(e.id)) take(e);
   }
+  // Severity counts and the verdict cover open findings only.
   const bySeverity = { error: 0, warning: 0, info: 0 };
-  for (const f of findings) bySeverity[f.severity] += 1;
+  for (const e of open) bySeverity[e.severity] += 1;
+  const accepted = entries.length - open.length;
   return {
     verdict: bySeverity.error + bySeverity.warning > 0 ? 'attention' : bySeverity.info > 0 ? 'signals-only' : 'none-found',
-    counts: { findings: findings.length, ...bySeverity, offDiagram: entries.filter((e) => !e.componentIds.length).length },
+    counts: { findings: findings.length, ...bySeverity, accepted, offDiagram: entries.filter((e) => !e.componentIds.length).length },
+    review: reviewOf(run.review),
     groups: groupsOf(ranked),
     priorities,
     findings: ranked,
     coverage: coverageOf({ graph, facts, unmapped, run }),
+  };
+}
+
+function reviewOf(review) {
+  if (!review || (!review.baseline && !review.comparison)) return null;
+  return {
+    baseline: review.baseline ? { entries: review.baseline.entries, accepted: review.baseline.accepted.length, changed: review.baseline.changed, stale: review.baseline.stale } : null,
+    comparison: review.comparison ? { new: review.comparison.new, fixed: review.comparison.fixed, evidenceChanged: review.comparison.evidenceChanged, unchanged: review.comparison.unchanged } : null,
   };
 }
 

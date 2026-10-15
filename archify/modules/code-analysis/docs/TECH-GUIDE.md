@@ -328,7 +328,24 @@ The second panel's diagrams are plain SVG strings built in the page: the cycle r
 
 ### The click
 
-The button POSTs to `/analyze`. The request must come from the served page (the `Origin` header) and carry a token minted for this process; anything else is refused, so a page in another tab cannot start an analysis or pick paths. On the first accepted request the server calls `analyzeRepository` from `lib/analysis.mjs` in-process: extract → graphs → evaluate → overlay, with JSON stage outputs written to `<out>/analysis/` and validated against their schemas; the overlay produces HTML. The response is the analysis page. Concurrent clicks share the one run; later clicks get the finished page back without running again.
+The button POSTs to `/analyze`. The request must come from the served page (the `Origin` header) and carry a token minted for this process; anything else is refused, so a page in another tab cannot start an analysis or pick paths. On the first accepted request the server starts `bin/analyze-run.mjs` as a child process. It passes the `analyzeRepository` options as JSON on stdin and reads back one JSON line: the receipt, or the structured diagnostics. Extract → graphs → evaluate → overlay run there, so a large repository does not block the server's event loop.
+
+Each run writes to `<out>/analysis.next-<random>`. Only on success is it swapped in: the current `<out>/analysis` moves to `<out>/analysis.previous`, and the new directory becomes `<out>/analysis`. A failed run's directory is removed. The current `findings.json` is passed as `previous`, so every run carries a comparison with the one before. The response is the analysis page. Concurrent clicks share the one run; later clicks get the latest result back without running again.
+
+### Re-analysis
+
+A request with `X-Analysis-Refresh: 1` discards the cached result (unless a run is already in progress, which it joins) and starts a new run. The client exposes `window.__archifyReanalyze`; when it exists, the overview shows **Re-analyze**. On success the page reloads with `?analysis=open`, and the client clicks its start button, which fetches the new cached result. This re-mounts the layer from scratch instead of patching a running one; the query string is then removed. On failure the button re-enables and the error is shown under it, while the last good result stays on screen and on disk. A changed architecture IR is still refused with 409, as on the first click.
+
+### Review: baseline and comparison
+
+`lib/review.mjs` compares this run's findings with two things, both keyed by the stable finding id:
+
+- **Baseline** (`--baseline`, `schemas/baseline.schema.json`, ids unique). Each finding is `open`, `accepted`, or `accepted-changed`. An entry that recorded a `sha256` whose value no longer matches the finding's `evidenceDigest` is `accepted-changed`. Entries whose finding is gone are `stale`.
+- **Previous run** (`previous`). Findings are `new`, `evidence-changed`, or `unchanged`; previous findings that are gone are `fixed`.
+
+`review.json` holds both. The overlay copies each finding's status onto the top-level findings list. The overview keeps accepted findings in its lists and counts them as `counts.accepted`, but excludes them from the severity counts, the verdict, and the priorities. Component indicators and diagram rings are computed from open findings only. An unreadable previous `findings.json` means no comparison, not a failure; an invalid baseline stops the run with `baseline/invalid`.
+
+`bin/check.mjs` runs the same review without a diagram. The gate counts open findings at or above `--fail-on`; `accepted-changed` counts as open. With `--new-only`, only findings new since the comparison count. Exit codes are 0 (passed), 1 (gate failed), and 2 (diagnostic). `--update-baseline` writes `baselineFrom(findings)`: existing reasons are kept, new findings get `--reason`, and gone entries are dropped.
 
 ### Handing over to the layer
 

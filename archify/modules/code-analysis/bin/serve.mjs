@@ -4,12 +4,17 @@
 //   2. The page is served locally with one extra toolbar button, "Code Analysis".
 //   3. Clicking it runs the analysis (extract → graphs → evaluate → overlay) for the
 //      repository and switches the page to the analysis view. Nothing runs before the click.
+//   4. "Re-analyze" on the overview runs it again after code changes, without a restart.
+// Each run happens in a child process (bin/analyze-run.mjs) so the server stays
+// responsive, writes to a fresh directory, and replaces <out>/analysis only when it
+// succeeds; the run it replaces moves to <out>/analysis.previous and is the
+// comparison for the next one. A failed run leaves the last good result in place.
 // The delivered HTML is never modified; the analysis page is written next to it.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { DiagnosticError } from '../extract/shared/diagnostics.mjs';
@@ -19,6 +24,27 @@ const execute = promisify(execFile);
 const here = path.dirname(fileURLToPath(import.meta.url));
 const moduleRoot = path.resolve(here, '..');
 const archify = path.resolve(here, '../../../bin/archify.mjs');
+const worker = path.join(here, 'analyze-run.mjs');
+
+// Runs one analysis in a child process and resolves with its receipt.
+// Failures come back as the worker's structured diagnostics.
+export function runWorker(options) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [worker], { stdio: ['pipe', 'pipe', 'pipe'] });
+    let stdout = '', stderr = '';
+    child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk; });
+    child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      let message = null;
+      try { message = JSON.parse(stdout.trim().split('\n').pop()); } catch { /* no JSON line */ }
+      if (message && message.status !== 'error' && code === 0) return resolve(message);
+      if (message && message.diagnostics) return reject(new DiagnosticError(message.diagnostics.map((d) => d.message).join('\n'), message.diagnostics));
+      reject(new Error(`analysis process exited with ${code}: ${(stderr || stdout).trim().split('\n').slice(-3).join(' ')}`));
+    });
+    child.stdin.end(JSON.stringify(options));
+  });
+}
 
 // The module's two dependencies (typescript for the JS/TS extractor, ajv for
 // schema checks) live in its own package. Archify itself needs no install, and
@@ -47,12 +73,15 @@ export async function ensureDependencies(root = moduleRoot) {
 
 export const USAGE = `Usage:
   archify code-analysis serve <repo-root> --ir <architecture.json> --out <dir>
-                              [--language ts|py] [--map overlay-map.json] [--config file.json] [--quality standard|showcase]
+                              [--language ts|py] [--map overlay-map.json] [--config file.json]
+                              [--baseline baseline.json] [--quality standard|showcase]
 
 Delivers the authored diagram with Archify, serves it on a local port, and runs the
 code analysis for <repo-root> when "Code Analysis" is clicked on that page. Nothing
-runs before the click. Output: <dir>/architecture.html (Archify's artifact, untouched)
-and <dir>/analysis/{raw-facts,module-graph,findings}.json + repo.analysis.html.`;
+runs before the click; "Re-analyze" on the overview runs it again after code changes.
+Output: <dir>/architecture.html (Archify's artifact, untouched) and
+<dir>/analysis/{raw-facts,module-graph,findings,review,overview}.json + repo.analysis.html;
+the run before is kept in <dir>/analysis.previous and compared with.`;
 
 export function parseArgs(argv) {
   const [repo, ...rest] = argv;
@@ -60,7 +89,7 @@ export function parseArgs(argv) {
   const options = {};
   for (let i = 0; i < rest.length; i += 2) {
     const key = rest[i];
-    if (!['--ir', '--out', '--language', '--config', '--map', '--quality'].includes(key) || !rest[i + 1] || rest[i + 1].startsWith('--')) throw new Error(`Invalid option: ${key}\n${USAGE}`);
+    if (!['--ir', '--out', '--language', '--config', '--map', '--quality', '--baseline'].includes(key) || !rest[i + 1] || rest[i + 1].startsWith('--')) throw new Error(`Invalid option: ${key}\n${USAGE}`);
     options[key] = rest[i + 1];
   }
   if (!options['--ir'] || !options['--out']) throw new Error(`serve requires --ir and --out\n${USAGE}`);
@@ -73,7 +102,6 @@ export async function startAnalysisView(argv) {
   const irBytes = fs.readFileSync(ir);
   const doc = JSON.parse(irBytes.toString('utf8'));
   await ensureDependencies();
-  const { analyzeRepository } = await import('../lib/analysis.mjs');
   fs.mkdirSync(out, { recursive: true });
 
   // 1. Archify delivers the diagram. Repository evidence is checked when the IR pins a repository.
@@ -112,10 +140,31 @@ export async function startAnalysisView(argv) {
   const token = randomBytes(24).toString('hex');
   const page = fs.readFileSync(delivered, 'utf8').replace('</body>', `<script>(${client.toString()})(${JSON.stringify(token)})</script></body>`);
   let pending = null, result = null, origin;
+  const analysisDir = path.join(out, 'analysis');
+  // One run: fresh directory, then swap it in. The current result is the comparison.
+  const runAnalysis = async () => {
+    const next = path.join(out, `analysis.next-${randomBytes(6).toString('hex')}`);
+    try {
+      await runWorker({
+        root, ir, irSnapshot: doc, html: delivered, out: next,
+        language: options['--language'] || null, config: options['--config'] ? path.resolve(options['--config']) : null,
+        map: options['--map'] ? path.resolve(options['--map']) : null, baseline: options['--baseline'] ? path.resolve(options['--baseline']) : null,
+        previous: path.join(analysisDir, 'findings.json'),
+      });
+    } catch (error) {
+      fs.rmSync(next, { recursive: true, force: true });
+      throw error;
+    }
+    const previousDir = path.join(out, 'analysis.previous');
+    fs.rmSync(previousDir, { recursive: true, force: true });
+    if (fs.existsSync(analysisDir)) fs.renameSync(analysisDir, previousDir);
+    fs.renameSync(next, analysisDir);
+    return fs.readFileSync(path.join(analysisDir, 'repo.analysis.html'), 'utf8');
+  };
   const server = http.createServer(async (req, res) => {
     const send = (status, body, type = 'application/json') => { res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); res.end(body); };
     if (req.headers.host !== new URL(origin).host) return send(403, '{}');
-    if (req.method === 'GET' && req.url === '/') return send(200, page, 'text/html; charset=utf-8');
+    if (req.method === 'GET' && new URL(req.url, origin).pathname === '/') return send(200, page, 'text/html; charset=utf-8');
     if (req.method !== 'POST' || req.url !== '/analyze') return send(404, '{}');
     if (req.headers.origin !== origin || req.headers['x-analysis-token'] !== token) return send(403, '{}');
     // Check before cached results as well: this page belongs to the delivered IR.
@@ -125,18 +174,12 @@ export async function startAnalysisView(argv) {
       error: 'Architecture has changed. Please regenerate the diagram.',
       diagnostics: [{ code: 'analysis/architecture-changed', severity: 'error', message: 'Architecture has changed. Please regenerate the diagram.', subject: { file: ir }, evidence: {}, supportedFixes: ['restart with the updated IR to regenerate the diagram'] }],
     }));
-    // 3. The click. One analysis per server lifetime; concurrent clicks share it.
+    // 3. The click returns the latest result; 4. a refresh request runs a new one.
+    // Concurrent requests share the run in progress.
     try {
+      if (req.headers['x-analysis-refresh'] === '1' && !pending) result = null;
       if (!result) {
-        pending ??= new Promise((resolve, reject) => {
-          try {
-            const receipt = analyzeRepository({
-              root, ir, irSnapshot: doc, html: delivered, out: path.join(out, 'analysis'),
-              language: options['--language'] || null, config: options['--config'] || null, map: options['--map'] || null,
-            });
-            resolve(fs.readFileSync(receipt.overlay.html, 'utf8'));
-          } catch (error) { reject(error); }
-        }).then((html) => { result = html; return html; }).finally(() => { pending = null; });
+        pending ??= runAnalysis().then((html) => { result = html; return html; }).finally(() => { pending = null; });
       }
       send(200, result || await pending, 'text/html; charset=utf-8');
     } catch (error) {
@@ -175,8 +218,19 @@ function client(token) {
   var toolbarObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(positionNote) : null;
   if (toolbarObserver) toolbarObserver.observe(toolbar);
   var say = function (text) { note.textContent = text; note.style.display = text ? 'block' : 'none'; positionNote(); };
+  // Re-analysis: the server runs a new analysis; the page then reloads and opens it,
+  // which re-mounts the layer cleanly instead of patching a live one.
+  window.__archifyReanalyze = async function () {
+    var response = await fetch('/analyze', { method: 'POST', headers: { 'X-Analysis-Token': token, 'X-Analysis-Refresh': '1' } });
+    if (!response.ok) {
+      var body = {};
+      try { body = await response.json(); } catch (e) { /* not JSON */ }
+      throw new Error(body.error || 'analysis failed');
+    }
+    location.replace(location.pathname + '?analysis=open');
+  };
   button.addEventListener('click', async function () {
-    button.disabled = true; button.textContent = 'Analyzing…'; say('Reading the repository — imports, modules, rules. This runs once.');
+    button.disabled = true; button.textContent = 'Analyzing…'; say('Reading the repository — imports, modules, rules.');
     try {
       var response = await fetch('/analyze', { method: 'POST', headers: { 'X-Analysis-Token': token } });
       if (!response.ok) {
@@ -203,11 +257,13 @@ function client(token) {
       }
       var toggle = document.getElementById('btn-bauify');
       if (toggle) toggle.click();
+      if (location.search) history.replaceState(null, '', location.pathname);
     } catch (error) {
       button.disabled = false; button.textContent = 'Code Analysis';
       say('Analysis failed: ' + error.message + ' — click Code Analysis to retry.');
     }
   });
+  if (new URLSearchParams(location.search).get('analysis') === 'open') button.click();
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -333,3 +333,12 @@ from a import Config
 
 边界检查在 AI Voice 上试用：按 entry（`main.py`、`scripts/`）、ui、voice（asr/tts/wakeword/voice_lock/avatar）、llm、tools、foundation（`utils/`、`config.py`）六层和五条“下层不依赖上层”的规则，得到 3 项，均为函数内的延迟导入：`utils/memory.py → llm`（记忆抽取调用 LLM）、`utils/voicelines.py → tts/wakeword`（语音播报合成与终止词检查）、`tools/weather/openmeteo.py → asr/wakeword`（复用 ASR 的地名纠错与语音匹配）。前两项属于放在 `utils` 中的功能代码，第三项可把共用的语音匹配下沉到基础层。结果精确、无明显误报；分层为推断，需项目作者确认。
 
+## 11. 日常使用：基线、对比、CI 与重新分析（2026-10-15）
+
+- **基线**：`--baseline` 文件按稳定 ID 记录已接受的问题、原因和当时的证据哈希。已接受的问题仍列出，但不计入结论、优先项、图上颜色和 CI 失败；证据变化后显示为“已接受 · 证据已变化”，需要复核；已消失的条目报告为可删除。`check --update-baseline` 生成或更新基线，保留已有原因。
+- **前后对比**：每次分析与上一次结果比较，列出新增、修复和证据变化的问题，写入 `review.json`，总览显示“自上次分析以来”。
+- **CI 命令**：`archify code-analysis check <repo>`，无需架构图；`--fail-on` 设定失败级别，`--new-only` 只对新增问题失败；退出码 0 通过、1 门禁失败、2 无法分析。
+- **重新分析**：分析在子进程中运行，结果先写入新目录、成功后替换，上一轮保留为 `analysis.previous` 用于对比；总览的 Re-analyze 按钮无需重启服务，失败时保留上一次结果。架构 JSON 或配置变更仍需重启。
+
+在 AI Voice（重建的源码树）上验证：首次运行 16 项警告失败；写入基线后通过；新增一个复杂函数后，`--new-only` 只对该函数失败。
+

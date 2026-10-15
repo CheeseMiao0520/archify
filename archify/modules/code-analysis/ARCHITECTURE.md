@@ -14,7 +14,9 @@ npm start -- "/path/to/project" --ir architecture.json
 
 The server first invokes Archify's `deliver architecture` command with the authored JSON. If the input pins repository evidence, delivery checks it against the project's Git repository. Delivery failures stop startup before a page is served.
 
-The server serves the diagram on a loopback address with a Code Analysis button. Source extraction starts only when the reader clicks that button. Concurrent requests share a pending analysis; successful results are cached for the server lifetime. A failed analysis can be retried. Source or configuration changes require a server restart and another analysis request.
+The server serves the diagram on a loopback address with a Code Analysis button. Source extraction starts only when the reader clicks that button. Each analysis runs in a child process (`bin/analyze-run.mjs`), so the server stays responsive. Concurrent requests share a pending analysis, and the latest successful result is returned until the reader clicks **Re-analyze**. That runs a new analysis, which replaces the result only when it succeeds; the page then reloads and opens it. A failed analysis leaves the last good result and can be retried. Changes to the architecture JSON or the config file still require a server restart.
+
+`archify code-analysis check` (`bin/check.mjs`) runs extract → graphs → evaluate without a diagram for terminals and CI, and exits non-zero when an open finding reaches the configured level.
 
 ## Analysis pipeline
 
@@ -46,9 +48,10 @@ Source references with line numbers show a nine-line context window and highligh
 - `evaluate/rules/coupling/`: import-cycle, module-cycle, and hub rules.
 - `evaluate/rules/architecture/`: opt-in layer boundary rules declared in the config.
 - `evaluate/rules/complexity/`: function complexity and nesting thresholds (Python functions).
-- `lib/`: pipeline orchestration and intermediate-data checks.
+- `lib/`: pipeline orchestration, intermediate-data checks, and review (`review.mjs`: baseline and run comparison).
+- `bin/check.mjs`: headless analysis for terminals and CI; `bin/analyze-run.mjs`: one analysis run in a child process for the server.
 - `overlay/`: mapping and browser presentation.
-- `schemas/`: raw-facts, module-graph, and findings contracts.
+- `schemas/`: raw-facts, module-graph, findings, and baseline contracts.
 - `test/`: regression tests, small source fixtures, and expected extraction results.
 - `docs/`: usage and technical documentation.
 
@@ -61,9 +64,13 @@ After successful analysis, `<out>/analysis/` contains:
 - `raw-facts.json`
 - `module-graph.json`
 - `findings.json`
+- `review.json` (baseline status and comparison with the previous run)
+- `overview.json`
 - `repo.analysis.html`
 
-The analysis HTML embeds source context for mapped and evidence files and can display existing results offline. It cannot rescan a project without the local server. A failed pipeline can leave intermediate JSON files; their presence alone does not mean analysis completed successfully.
+Each run is written to a fresh `<out>/analysis.next-*` directory and swapped in only when it succeeds. The run it replaces moves to `<out>/analysis.previous/` and is the comparison for the next run. A failed run is removed, so `<out>/analysis/` always holds the last complete result.
+
+The analysis HTML embeds source context for mapped and evidence files and can display existing results offline. It cannot rescan a project without the local server.
 
 ## Runtime dependencies and boundaries
 
