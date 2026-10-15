@@ -6,6 +6,8 @@ Writes a JSON document on stdout:
 Each symbol is a module-scope binding: {"name", "kind": "function"|"class"|"variable"|"import", "line"}
   (the line where the name becomes bound; what a `from m import name` elsewhere
   needs to have executed already when `m` is only partially initialised).
+Each function: {"name", "qualname", "line", "endLine", "complexity", "nesting", "deepestLine"}
+  (see `functions` for how complexity and nesting are counted).
 Each import: {"line", "kind": "static"|"dynamic", "level", "module", "names"}
   - `import a.b as c`       -> level 0, module "a.b",  names ["*"]
   - `from a.b import x, y`  -> level 0, module "a.b",  names ["x", "y"]
@@ -258,12 +260,91 @@ def module_bindings(tree):
     return sorted(seen.values(), key=lambda b: (b["line"], b["name"]))
 
 
+# Function-level measurements. Cyclomatic complexity follows the usual
+# McCabe/radon reading: 1 for the function, +1 for each if/elif, loop, except
+# handler, conditional expression, match case (an irrefutable `case _` adds
+# nothing), comprehension `for` and `if`, and each extra operand of `and`/`or`.
+# Nesting is the deepest stack of blocks (if/for/while/with/try/match) inside
+# the body; `elif` stays at its `if`'s depth. Nested functions and classes are
+# measured on their own and are not added to their parent; lambdas are part of
+# the function that contains them.
+_MATCH = getattr(ast, "Match", None)
+_TRY_STAR = getattr(ast, "TryStar", None)
+_BLOCKS = tuple(t for t in (ast.If, ast.For, ast.AsyncFor, ast.While, ast.With, ast.AsyncWith, ast.Try, _TRY_STAR, _MATCH) if t is not None)
+_LOOPS = (ast.For, ast.AsyncFor, ast.While)
+_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+
+
+def _is_irrefutable(case):
+    pattern = case.pattern
+    return case.guard is None and isinstance(pattern, getattr(ast, "MatchAs", ())) and pattern.pattern is None
+
+
+def _measure(func):
+    state = {"complexity": 1, "nesting": 0, "deepest": func.lineno}
+
+    def visit(node, depth):
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, _SCOPES):
+                continue  # measured separately
+            child_depth = depth
+            if isinstance(child, ast.If):
+                state["complexity"] += 1
+            elif isinstance(child, _LOOPS):
+                state["complexity"] += 1
+            elif isinstance(child, ast.ExceptHandler):
+                state["complexity"] += 1
+            elif isinstance(child, ast.IfExp):
+                state["complexity"] += 1
+            elif isinstance(child, ast.BoolOp):
+                state["complexity"] += len(child.values) - 1
+            elif isinstance(child, ast.comprehension):
+                state["complexity"] += 1 + len(child.ifs)
+            elif _MATCH is not None and isinstance(child, ast.match_case):
+                if not _is_irrefutable(child):
+                    state["complexity"] += 1
+            if isinstance(child, _BLOCKS):
+                # `elif` is an If alone in its parent If's orelse: same depth.
+                is_elif = isinstance(child, ast.If) and isinstance(node, ast.If) and node.orelse == [child]
+                child_depth = depth if is_elif else depth + 1
+                if child_depth > state["nesting"]:
+                    state["nesting"] = child_depth
+                    state["deepest"] = child.lineno
+            visit(child, child_depth)
+
+    visit(func, 0)
+    return state
+
+
+def functions(tree):
+    out = []
+
+    def walk(node, prefix):
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                qualname = prefix + child.name
+                m = _measure(child)
+                out.append({
+                    "name": child.name, "qualname": qualname, "line": child.lineno,
+                    "endLine": getattr(child, "end_lineno", None) or child.lineno,
+                    "complexity": m["complexity"], "nesting": m["nesting"], "deepestLine": m["deepest"],
+                })
+                walk(child, qualname + ".<locals>.")
+            elif isinstance(child, ast.ClassDef):
+                walk(child, prefix + child.name + ".")
+            elif not isinstance(child, ast.Lambda):
+                walk(child, prefix)
+
+    walk(tree, "")
+    return sorted(out, key=lambda f: (f["line"], f["qualname"]))
+
+
 def main():
     request = json.load(sys.stdin)
     out = []
     for rel in request["files"]:
         raw = base64.b64decode(request["sources"][rel], validate=True)
-        record = {"path": rel, "loc": 0, "imports": [], "symbols": [], "sourceText": ""}
+        record = {"path": rel, "loc": 0, "imports": [], "symbols": [], "functions": [], "sourceText": ""}
         try:
             encoding, _ = tokenize.detect_encoding(io.BytesIO(raw).readline)
             text = raw.decode(encoding)
@@ -271,6 +352,7 @@ def main():
             tree = ast.parse(text, filename=rel)
             record["imports"] = collect(tree)
             record["symbols"] = module_bindings(tree)
+            record["functions"] = functions(tree)
         except (SyntaxError, ValueError, UnicodeError, LookupError) as error:
             record["error"] = "%s (line %s)" % (getattr(error, "msg", str(error)), getattr(error, "lineno", None))
         out.append(record)

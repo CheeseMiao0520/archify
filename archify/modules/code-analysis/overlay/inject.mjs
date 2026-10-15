@@ -132,6 +132,7 @@ function touches(f, set, componentId, filePaths) {
   const sub = f.subject || {};
   if (sub.component === componentId) return true;
   if (sub.boundary && filePaths && boundaryFiles(f).some((p) => filePaths.has(p))) return true;
+  if (typeof sub.file === 'string' && filePaths && filePaths.has(sub.file)) return true;
   if (Array.isArray(sub.files) && filePaths && sub.files.some((p) => filePaths.has(p))) return true;
   if (sub.module && set.has(sub.module)) return true;
   if (Array.isArray(sub.modules) && sub.modules.some((m) => set.has(m))) return true;
@@ -168,6 +169,9 @@ function indicators(set, mods, findings, mapping, filePaths) {
   // Only present when boundaries are configured and one is crossed here: an
   // unconfigured check must not show up as a green "no violations".
   const boundaries = findings.filter((f) => f.code === 'architecture/boundary' && boundaryFiles(f).some((p) => filePaths.has(p)));
+  // Only present when functions were measured and one here reaches a threshold.
+  const complex = findings.filter((f) => f.code === 'complexity/function' && filePaths.has(f.subject.file))
+    .sort((a, b) => b.evidence.complexity - a.evidence.complexity || b.evidence.nesting - a.evidence.nesting);
   const fanIn = mods.reduce((n, m) => n + m.fanIn, 0);
   const fanOut = mods.reduce((n, m) => n + m.fanOut, 0);
   const instability = fanIn + fanOut === 0 ? null : Math.round((fanOut / (fanIn + fanOut)) * 100) / 100;
@@ -192,6 +196,13 @@ function indicators(set, mods, findings, mapping, filePaths) {
       value: boundaries.map((f) => `${f.subject.boundary.from} → ${f.subject.boundary.to} (${f.evidence.totalImports} import${f.evidence.totalImports === 1 ? '' : 's'})`).join(', ') + ' cross a configured boundary',
       detail: [],
       findings: boundaries.map((f) => f.id).filter(Boolean),
+    }] : []),
+    ...(complex.length ? [{
+      key: 'complexity', label: 'Complex functions',
+      status: complex.some((f) => f.severity === 'warning') ? 'amber' : 'blue',
+      value: `${complex.length} function${complex.length === 1 ? '' : 's'} over the threshold; highest ${complex[0].subject.function} (complexity ${complex[0].evidence.complexity}, nesting ${complex[0].evidence.nesting})`,
+      detail: [],
+      findings: complex.map((f) => f.id).filter(Boolean),
     }] : []),
     {
       key: 'instability', label: 'Instability',
@@ -568,7 +579,7 @@ const JS = `
   // Danger levels behind the colours. Same wording everywhere: legend, badge, detail header.
   var LEVELS = {
     red: { name: 'critical', text: 'an error was reported; inspect its evidence and assumptions' },
-    amber: { name: 'warning', text: 'eager import cycle (potentially import-order dependent), hub module, or crossed architecture boundary' },
+    amber: { name: 'warning', text: 'eager import cycle (potentially import-order dependent), hub module, crossed architecture boundary, or very complex function' },
     blue: { name: 'info', text: 'structural coupling; initialization behavior is not established' },
     green: { name: 'clean', text: 'no rule fired' },
     grey: { name: 'unmapped', text: 'no source code maps to this component' },
@@ -702,6 +713,7 @@ const JS = `
       : f.code === 'coupling/import-cycle' ? 'Inspect the cited imports and initialization behavior before changing this dependency.'
       : f.code === 'coupling/cycle' ? 'Check which shared responsibility links these modules. A module cycle does not establish a file-level failure.'
       : f.code === 'architecture/boundary' ? 'Check what the cited imports need from the other layer: move it behind an interface in an allowed layer, or update the rule if this dependency is intended.'
+      : f.code === 'complexity/function' ? 'Start at the deepest nested block: extract it into a named helper, or return early for edge cases. Make sure the current behavior is covered by tests before restructuring.'
       : 'Review the evidence and assumptions before changing code.';
     return '<div class="next-step"><b>Suggested next step</b><p>' + esc(text) + '</p></div>';
   }
@@ -715,6 +727,11 @@ const JS = `
       ev += ref(pr.entry, pr.viaLine, '<span>→ leaves for ' + esc(short(pr.chain[1] || pr.importer)) + ' before <b>' + esc(pr.name) + '</b> exists</span>', 'This module-scope import runs before ' + pr.name + ' is bound (line ' + pr.boundAt + '); static line order alone does not prove the execution sequence.', tone);
       ev += ref(pr.importer, pr.line, '<span>→ asks the half-built ' + esc(short(pr.entry)) + ' for <b>' + esc(pr.name) + '</b></span>', 'May read ' + pr.name + ' before its binding; execution timing and failure are not proven.', tone);
       ev += ref(pr.entry, pr.boundAt, '<span>→ <b>' + esc(pr.name) + '</b> has its recorded binding here</span>', 'The binding the other side needed; it only exists once the file has run this far.', 'amber');
+    }
+    if (f.code === 'complexity/function' && f.subject && f.subject.file) {
+      ev += '<div class="ev" style="margin-top:4px">Where to look — click to see the code:</div>';
+      ev += ref(f.subject.file, f.subject.line, '<span>' + esc(f.subject.function) + '() starts</span> <em>· ' + plural(f.evidence.length, 'line') + '</em>', 'The function this finding measures (lines ' + f.subject.line + '–' + f.subject.endLine + ').', tone);
+      if (f.evidence.deepestLine && f.evidence.deepestLine !== f.subject.line) ev += ref(f.subject.file, f.evidence.deepestLine, '<span>deepest nesting (' + f.evidence.nesting + ' levels)</span>', 'The most deeply nested block; usually the best place to start simplifying.', tone);
     }
     if (f.evidence && f.evidence.imports && f.evidence.imports.length) {
       var isCycle = f.code === 'coupling/import-cycle' || f.code === 'coupling/cycle';
@@ -822,7 +839,7 @@ const JS = `
     'signals-only': { tone: 'blue', text: 'Signals only' },
     'none-found': { tone: 'green', text: 'No findings within the checks that ran' }
   };
-  var GROUPS = { 'coupling/import-cycle': 'Import cycles', 'coupling/cycle': 'Module cycles', 'coupling/hub': 'Hub modules', 'architecture/boundary': 'Boundary violations' };
+  var GROUPS = { 'coupling/import-cycle': 'Import cycles', 'coupling/cycle': 'Module cycles', 'coupling/hub': 'Hub modules', 'architecture/boundary': 'Boundary violations', 'complexity/function': 'Complex functions' };
   var LANGS = { py: 'Python', ts: 'JS/TS' };
   function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
   function toneOf(severity) { return severity === 'error' ? 'red' : severity === 'warning' ? 'amber' : 'blue'; }
@@ -833,6 +850,7 @@ const JS = `
     if (f.code === 'coupling/cycle' && s.modules) return 'Module cycle · ' + plural(s.modules.length, 'module');
     if (f.code === 'coupling/hub' && s.module) return modLabel(s.module) + ' connects many modules';
     if (f.code === 'architecture/boundary' && s.boundary) return s.boundary.from + ' depends on ' + s.boundary.to;
+    if (f.code === 'complexity/function' && s.function) return s.function + '() is complex';
     return f.code;
   }
   function findingWhat(f) {
@@ -840,6 +858,7 @@ const JS = `
     if (s.files) return 'Files: ' + s.files.slice(0, 3).map(short).join(', ') + (s.files.length > 3 ? ' …' : '');
     if (s.modules) return 'Modules: ' + s.modules.slice(0, 4).map(modLabel).join(', ') + (s.modules.length > 4 ? ' …' : '');
     if (f.code === 'coupling/hub' && f.evidence) return f.evidence.fanIn + ' modules depend on it; it depends on ' + f.evidence.fanOut + '.';
+    if (f.code === 'complexity/function' && f.evidence) return 'complexity ' + f.evidence.complexity + ' · nesting ' + f.evidence.nesting + ' · ' + plural(f.evidence.length, 'line') + ' · ' + short(s.file);
     if (f.code === 'architecture/boundary' && f.evidence) return plural(f.evidence.totalImports, 'import') + ' in ' + plural(f.evidence.files.length, 'file') + ' · rule: ' + (f.evidence.rule.reason || s.boundary.from + ' must not depend on ' + s.boundary.to);
     return f.message;
   }
@@ -873,7 +892,7 @@ const JS = `
       lines.push('Boundaries: ' + plural(b.layers.length, 'layer') + ', ' + plural(b.rules, 'rule') + ' from the analysis config');
       b.layers.filter(function (l) { return !l.files; }).forEach(function (l) { lines.push('Layer "' + l.name + '" matches no analyzed file; check its globs'); });
     }
-    var missing = [['complexity/', 'complexity'], ['redundancy/', 'duplication'], ['architecture/', 'architecture boundaries (none configured)']].filter(function (d) { return !run.some(function (r) { return r.indexOf(d[0]) === 0; }); }).map(function (d) { return d[1]; });
+    var missing = [['complexity/', c.language === 'ts' ? 'complexity (measured for Python only so far)' : 'complexity'], ['redundancy/', 'duplication'], ['architecture/', 'architecture boundaries (none configured)']].filter(function (d) { return !run.some(function (r) { return r.indexOf(d[0]) === 0; }); }).map(function (d) { return d[1]; });
     if (missing.length) lines.push('Not checked: ' + missing.join(', '));
     var incomplete = (c.otherLanguages || []).length || pe.length || unresolved || off.length;
     return '<details class="coverage"><summary>Coverage · ' + esc(LANGS[c.language] || c.language || 'Unknown') + ' · ' + (files.analyzed == null ? 'file count unavailable' : plural(files.analyzed, 'file')) + (incomplete ? ' · incomplete' : '') + '</summary><div class="ev cov">' + lines.map(function (l) { return '<div>' + esc(l) + '</div>'; }).join('') + '</div></details>';
@@ -891,7 +910,13 @@ const JS = `
       var hubs = picks.filter(function (f) { return f.code === 'coupling/hub'; });
       var onlyBoundaries = picks.every(function (f) { return f.code === 'architecture/boundary'; });
       var anyCycle = picks.some(function (f) { return f.code === 'coupling/import-cycle' || f.code === 'coupling/cycle'; });
-      h += '<p class="verdict-note">' + (hubs.length ? 'Start with responsibility boundaries in ' + hubs.map(function (f) { return esc(modLabel(f.subject.module)); }).join(' and ') + '. ' : onlyBoundaries ? 'Start with the layer rules broken below. ' : 'Start with the dependency structures below. ') + 'Each finding links to its evidence' + (anyCycle ? '; runtime failure is not proven.' : '.') + '</p>';
+      // The lead follows the first priority; the cycle caveat only when a cycle is listed.
+      var first = picks[0] || {};
+      var lead = first.code === 'coupling/hub' ? 'Start with responsibility boundaries in ' + hubs.map(function (f) { return esc(modLabel(f.subject.module)); }).join(' and ') + '. '
+        : first.code === 'complexity/function' ? 'Start with the most complex functions below. '
+        : onlyBoundaries ? 'Start with the layer rules broken below. '
+        : 'Start with the dependency structures below. ';
+      h += '<p class="verdict-note">' + lead + 'Each finding links to its evidence' + (anyCycle ? '; runtime failure is not proven.' : '.') + '</p>';
     }
     if (o.priorities.length) {
       h += '<div class="k">Look at first</div>';
@@ -936,12 +961,13 @@ const JS = `
     var h = '<button class="close" aria-label="Close">×</button><button class="back" type="button">← Overview</button>';
     h += '<div class="k">' + esc(GROUPS[f.code] || f.code) + ' · ' + esc(scope.label) + '</div><h3><i class="bauify-' + tone + '"></i>' + esc(findingTitle(f)) + '</h3>';
     var explanation = f.code === 'coupling/hub' ? 'High incoming and outgoing coupling; inspect responsibilities before deciding to split.'
-      : f.code === 'architecture/boundary' ? 'These imports break a boundary declared in the analysis config. The rule comes from the config, not from the diagram.' : lvl.text;
+      : f.code === 'architecture/boundary' ? 'These imports break a boundary declared in the analysis config. The rule comes from the config, not from the diagram.'
+      : f.code === 'complexity/function' ? 'Cyclomatic complexity counts independent paths through the function. A high count is a maintenance signal, not a defect.' : lvl.text;
     h += '<div class="level"><b>' + esc(lvl.name) + '</b> — ' + esc(findingWhat(f)) + '<br>' + esc(explanation) + '</div>';
     h += nextStepHtml(f);
     if ((f.componentIds || []).length) h += '<button type="button" class="locate">Locate related components</button>';
     else h += '<p class="ev">Not mapped to this diagram. Code evidence is still available below.</p>';
-    var pic = f.code === 'coupling/import-cycle' || f.code === 'coupling/cycle' ? cycleDiagram(scope, [f]) : f.code === 'coupling/hub' ? hubDiagram(scope, [f]) : f.code === 'architecture/boundary' ? boundaryDiagram([f]) : '';
+    var pic = f.code === 'coupling/import-cycle' || f.code === 'coupling/cycle' ? cycleDiagram(scope, [f]) : f.code === 'coupling/hub' ? hubDiagram(scope, [f]) : f.code === 'architecture/boundary' ? boundaryDiagram([f]) : f.code === 'complexity/function' ? complexityDiagram([f]) : '';
     if (pic) h += '<div class="k">Diagram details</div>' + pic;
     h += '<div class="k">Code evidence</div>' + findingCard(f, true);
     if (e && e.relatedIds.length) h += '<div class="k">Same structure, also reported as</div>' + e.relatedIds.map(function (r) { return findingRow(r); }).join('');
@@ -1030,7 +1056,30 @@ const JS = `
     if (key === 'cycle') return cycleDiagram(c, fl);
     if (key === 'hub') return hubDiagram(c, fl);
     if (key === 'boundary') return boundaryDiagram(fl);
+    if (key === 'complexity') return complexityDiagram(fl);
     return instabilityDiagram(c);
+  }
+  // One row per function: complexity and nesting as bars against their warning thresholds.
+  function complexityDiagram(fl) {
+    var rows = fl.filter(function (f) { return f.code === 'complexity/function'; }).slice(0, 8);
+    if (!rows.length) return '<div class="ev">No measured function reaches a threshold here.</div>';
+    // Per row: the function name, then one labelled bar for complexity and one for nesting.
+    var W = 400, rowH = 58, H = rows.length * rowH + 8, x0 = 112, span = 270;
+    var svg = svgOpen(W, H);
+    rows.forEach(function (f, i) {
+      var y = 6 + i * rowH, t = f.evidence.threshold || {};
+      var cMax = Math.max(f.evidence.complexity, t.complexity || 1) * 1.15, nMax = Math.max(f.evidence.nesting, t.nesting || 1) * 1.15;
+      var name = f.subject.function.length > 56 ? f.subject.function.slice(0, 55) + '…' : f.subject.function;
+      svg += '<text x="8" y="' + (y + 11) + '">' + esc(name) + '()</text>';
+      svg += '<text class="muted" x="8" y="' + (y + 29) + '">complexity ' + f.evidence.complexity + '</text>';
+      svg += '<rect class="bar" x="' + x0 + '" y="' + (y + 20) + '" width="' + (span * f.evidence.complexity / cMax) + '" height="11"/>';
+      svg += '<text class="muted" x="8" y="' + (y + 47) + '">nesting ' + f.evidence.nesting + '</text>';
+      svg += '<rect class="bar" x="' + x0 + '" y="' + (y + 38) + '" width="' + Math.max(2, span * f.evidence.nesting / nMax) + '" height="11" opacity=".6"/>';
+      if (t.complexity) svg += '<path class="e amber" d="M' + (x0 + span * t.complexity / cMax) + ',' + (y + 17) + ' L' + (x0 + span * t.complexity / cMax) + ',' + (y + 34) + '"/>';
+      if (t.nesting) svg += '<path class="e amber" d="M' + (x0 + span * t.nesting / nMax) + ',' + (y + 35) + ' L' + (x0 + span * t.nesting / nMax) + ',' + (y + 52) + '"/>';
+    });
+    svg += '</svg>';
+    return svg + '<div class="caption">Upper bar: cyclomatic complexity; lower bar: nesting depth. Amber ticks mark the thresholds of the level this finding reached; reaching either one is enough. Thresholds are configurable; function length is context only.</div>';
   }
   // One row per crossed boundary: the layer that imports, a crossed-out arrow, the layer it must not reach.
   function boundaryDiagram(fl) {

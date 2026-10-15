@@ -1,6 +1,7 @@
 // Rule engine: every rule is a module exporting { code, dimension, severity,
 // confidence, run({ graph, config, facts }) -> Finding[] } and optionally
-// enabled(config): an opt-in rule that is not configured does not run and is
+// enabled(config, facts): a rule that is not configured, or whose input the
+// extractor did not produce, does not run and is
 // left out of `rules`, so "not checked" is never reported as "clean". Rules are independent —
 // none reads another's output — and every threshold they use is echoed in
 // the finding's evidence so a reader can re-check the call.
@@ -8,15 +9,16 @@ import * as cycle from './rules/coupling/cycle.mjs';
 import * as hub from './rules/coupling/hub.mjs';
 import * as importCycle from './rules/coupling/import-cycle.mjs';
 import * as boundary from './rules/architecture/boundary.mjs';
+import * as complexity from './rules/complexity/function.mjs';
 import { createHash } from 'node:crypto';
 
-export const RULES = [importCycle, cycle, hub, boundary];
+export const RULES = [importCycle, cycle, hub, boundary, complexity];
 
 export function evaluate(graph, config = {}, facts = null) {
   const suppressed = new Set(config.ignore || []);
   const diagnostics = [];
   let suppressedCount = 0;
-  const active = RULES.filter((rule) => !rule.enabled || rule.enabled(config));
+  const active = RULES.filter((rule) => !rule.enabled || rule.enabled(config, facts));
   for (const rule of active) {
     if (suppressed.has(rule.code)) { suppressedCount += 1; continue; }
     for (const finding of rule.run({ graph, config, facts })) diagnostics.push({ id: '', ...finding });
@@ -59,7 +61,7 @@ function assignIds(diagnostics, graph) {
 // evidenceDigest pins a finding to the source it was computed from: a hash
 // over the text of only the files the finding is about (the subject's files,
 // every file of the subject's modules, or both ends of each import crossing a
-// boundary). Editing an unrelated file leaves it
+// boundary; for a function, only that function's lines). Editing an unrelated file leaves it
 // unchanged; repository.snapshotId changes on any edit and is too coarse to
 // tell whether this finding's evidence is still current.
 function attachEvidenceDigests(diagnostics, graph, facts) {
@@ -72,14 +74,22 @@ function attachEvidenceDigests(diagnostics, graph, facts) {
   for (const d of diagnostics) {
     const files = [...new Set(subjectFiles(d, moduleFiles))].sort(compareText);
     if (!files.length) continue;
-    const parts = files.map((f) => [f, text.has(f) && typeof text.get(f) === 'string' ? sha256(text.get(f)) : null]);
-    d.evidenceDigest = { files, sha256: sha256(JSON.stringify(parts)) };
+    const sub = d.subject || {};
+    // A function finding covers only the function's own lines: edits elsewhere in the file keep it current.
+    const span = typeof sub.function === 'string' && Number.isInteger(sub.line) && Number.isInteger(sub.endLine) ? [sub.line, sub.endLine] : null;
+    const parts = files.map((f) => {
+      const source = text.has(f) && typeof text.get(f) === 'string' ? text.get(f) : null;
+      if (source === null) return [f, null];
+      return [f, sha256(span ? source.split(/\r?\n/).slice(span[0] - 1, span[1]).join('\n') : source)];
+    });
+    d.evidenceDigest = { files, ...(span ? { lines: span } : {}), sha256: sha256(JSON.stringify(parts)) };
   }
 }
 
 function subjectFiles(finding, moduleFiles) {
   const subject = finding.subject;
   if (Array.isArray(subject?.files)) return subject.files;
+  if (typeof subject?.file === 'string') return [subject.file];
   // A boundary finding is about the imports that cross it: both ends of each.
   if (subject?.boundary) return (finding.evidence?.imports || []).flatMap((i) => [i.file, i.to]);
   const modules = Array.isArray(subject?.modules) ? subject.modules : typeof subject?.module === 'string' ? [subject.module] : [];
@@ -94,6 +104,8 @@ function idFor(dimension, identity) {
 
 function identityOf(subject, anchors) {
   const anchor = (id) => anchors.get(id) ?? `id:${id}`;
+  // A function is identified by file and qualified name, not by its lines, so edits above it keep its id.
+  if (typeof subject?.file === 'string' && typeof subject?.function === 'string') return { file: subject.file, function: subject.function };
   if (Array.isArray(subject?.files)) return { files: [...subject.files].sort(compareText) };
   if (Array.isArray(subject?.modules)) return { modules: subject.modules.map(anchor).sort(compareText) };
   if (typeof subject?.module === 'string') return { module: anchor(subject.module) };

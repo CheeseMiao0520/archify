@@ -43,6 +43,7 @@
             "description": "Hash over the source text of only the files this finding is about; present when raw facts were available. A changed digest means the evidence must be re-checked.",
             "properties": {
               "files": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+              "lines": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "integer", "minimum": 1 }, "description": "For a function finding: the first and last line hashed." },
               "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
             }
           }

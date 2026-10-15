@@ -42,9 +42,15 @@ test('overview: priorities rank by severity, then reach, and stop at the limit',
   assert.equal(MAX_PRIORITIES, 3);
   // warnings first; the two-module cycle reaches more modules than either one-module warning; the hub's dependents outnumber e's.
   assert.deepEqual(o.priorities, [fileCycle.id, offDiagramHub.id, innerCycle.id]);
-  assert.deepEqual(o.findings.find((f) => f.id === offDiagramHub.id).impact, { modules: 1, fanIn: 6, files: 4 });
+  assert.deepEqual(o.findings.find((f) => f.id === offDiagramHub.id).impact, { modules: 1, size: 0, fanIn: 6, files: 4 });
   assert.deepEqual(o.groups.map((g) => [g.code, g.severity, g.count]), [['coupling/import-cycle', 'warning', 3], ['coupling/hub', 'warning', 1], ['coupling/cycle', 'info', 1]]);
   assert.deepEqual(o.counts, { findings: 5, error: 0, warning: 3, info: 2, offDiagram: 1 });
+});
+
+test('overview: one rule with many instances does not take every priority slot', () => {
+  const cx = (n, complexity) => ({ id: `COMP-00000000000${n}`, code: 'complexity/function', severity: 'warning', subject: { file: `e/f${n}.py`, function: `f${n}` }, evidence: { complexity }, moduleIds: ['e'], componentIds: ['app'] });
+  const o = buildOverview({ findings: [cx(1, 26), cx(2, 47), cx(3, 31), cx(4, 28), offDiagramHub], graph });
+  assert.deepEqual(o.priorities, ['COMP-000000000002', offDiagramHub.id, 'COMP-000000000003'], 'best of each warning rule first (largest complexity first), then by rank');
 });
 
 test('overview: the verdict never claims more than the checks did', () => {

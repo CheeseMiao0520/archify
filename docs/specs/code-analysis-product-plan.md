@@ -191,6 +191,8 @@
 
 验收目标：不看源码的用户能知道重点；详细用户能核实原因；AI 能获得明确的重构候选。
 
+**已实现（Python）**：Python 提取器为每个函数记录圈复杂度、嵌套深度、起止行和最深嵌套所在行（`facts.functions`），口径如上；规则 `complexity/function` 默认在复杂度 15 或嵌套 5 时给出 info，在 25 或 6 时给出 warning，可在 `rules.complexity.function` 中按级别配置；函数长度只作为上下文。未测量函数的语言（目前 JS/TS）不运行该规则，总览显示“未检查”。finding ID 由文件与限定名计算，`evidenceDigest` 只覆盖函数自身的行。总览优先项先取每条规则在最高严重级别下的最佳一项，避免单一规则占满三个位置。在 AI Voice（Python，182 个文件、879 个源码函数）上：54 项（约 6%），其中 14 项 warning，最高为 `main.py` 的 `loop_wake`（复杂度 47）。阈值最初设为 10/15 时标记 12% 的函数，噪声过多，因而上调。尚未实现：JS/TS 函数测量、源码面板的整段函数区间高亮。
+
 #### 备选顺序：边界检查提前
 
 架构边界检查不依赖新的提取能力，并且与 Archify 的定位最相关；重复代码检测（尤其是结构相似）成本较高、误报较多。但边界规则需要用户先写配置，零配置时没有产出，会加重总览为空的问题。如果更重视差异化能力，可以把阶段调整为：
@@ -326,4 +328,8 @@ from a import Config
 在 Linux（Node 22）上分别对改动前的 `1a55ac68` 与 `e36a25d` 运行 `npm test`：两者均为 2058 项，1982 通过、76 跳过、0 失败。此前报告的 32 项失败在该环境下不复现，未发现本分支引入的回归；它们可能与当时的运行环境（Windows、浏览器或本机工具链）有关，未保留失败清单，暂无法逐项确认。
 
 随后实现了第 4.3 节的路径 glob 分层规则（见该节）。
+
+此前 Windows 运行的 32 项失败清单（`out/ai-voice-overview-real/full-test.log`）全部位于比较恢复、归档构建、Windows 8.3 别名、pinned evidence 的 replace ref、更新通知并发和 MCO/Star History 测试，没有 code-analysis 相关项，与上面的结论一致。
+
+边界检查在 AI Voice 上试用：按 entry（`main.py`、`scripts/`）、ui、voice（asr/tts/wakeword/voice_lock/avatar）、llm、tools、foundation（`utils/`、`config.py`）六层和五条“下层不依赖上层”的规则，得到 3 项，均为函数内的延迟导入：`utils/memory.py → llm`（记忆抽取调用 LLM）、`utils/voicelines.py → tts/wakeword`（语音播报合成与终止词检查）、`tools/weather/openmeteo.py → asr/wakeword`（复用 ASR 的地名纠错与语音匹配）。前两项属于放在 `utils` 中的功能代码，第三项可把共用的语音匹配下沉到基础层。结果精确、无明显误报；分层为推断，需项目作者确认。
 

@@ -52,3 +52,18 @@ To check that layers only depend on what they should, pass a config file with `-
 Each rule names a `from` layer and either `disallow` (layers it must not import) or `allow` (the only other layers it may import; `[]` means none). A file matching several layers belongs to the first one listed. Imports involving files outside every layer, and test or generated files, are not checked. Every import that breaks a rule is listed as evidence, grouped into one finding per layer pair.
 
 Boundaries come only from this config. The architecture diagram is not used as a rule: a missing arrow on the diagram does not forbid a dependency. Without `boundaries`, the overview lists architecture boundaries as not checked. Coverage shows how many files each layer matched; a layer matching no files usually means a mistyped glob. An invalid `boundaries` block stops analysis with `config/boundaries-invalid`.
+
+## Function complexity (Python)
+
+For Python projects, every function is measured: cyclomatic complexity (1 plus each `if`/`elif`, loop, `except`, conditional expression, non-default `case`, comprehension `for`/`if`, and each extra `and`/`or` operand) and nesting depth (`elif` stays at its `if`'s depth). Nested functions are measured on their own; lambdas count toward the function that contains them. Test and generated files are skipped.
+
+A function is reported as info from complexity 15 or nesting 5, and as a warning from complexity 25 or nesting 6. Function length is shown as context but never reported on its own. A high count is a maintenance signal, not a defect. The problem page links to the function's first line and its deepest nested block.
+
+To change the thresholds, set any of them in the `--config` file; unset values keep their defaults:
+
+```json
+{ "rules": { "complexity": { "function": { "info": { "complexity": 12 }, "warning": { "complexity": 30, "nesting": 7 } } } } }
+```
+
+JS/TS functions are not measured yet; for those projects the overview lists complexity as not checked.
+

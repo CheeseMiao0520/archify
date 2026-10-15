@@ -9,7 +9,10 @@
 //   file cycle across modules that lies inside a module-level cycle. Related
 //   findings stay listed but never take two priority slots.
 // - priorities: at most MAX_PRIORITIES findings, by severity, then by how much
-//   of the project they reach (modules, dependents, files), then by id.
+//   of the project they reach (modules, then size for measured findings such
+//   as complexity, then dependents and files), then by id. The best finding of
+//   each rule at the top severity is picked first, so one rule with many
+//   instances does not take every slot; remaining slots follow the ranking.
 // - coverage: what this run looked at and what it did not.
 // Everything here is derived from data already in the payload; no wording is
 // produced, so the page and an agent read the same facts.
@@ -34,12 +37,18 @@ export function buildOverview({ findings = [], graph, facts = null, unmapped = [
   const ranked = [...entries].sort(compareEntries);
   const priorities = [];
   const covered = new Set();
+  const take = (e) => { priorities.push(e.id); covered.add(e.id); for (const r of e.relatedIds) covered.add(r); };
+  const topSeverity = ranked.length ? ranked[0].severity : null;
+  const rulesTaken = new Set();
+  for (const e of ranked) {
+    if (priorities.length >= MAX_PRIORITIES || e.severity !== topSeverity) break;
+    if (covered.has(e.id) || rulesTaken.has(e.code)) continue;
+    rulesTaken.add(e.code);
+    take(e);
+  }
   for (const e of ranked) {
     if (priorities.length >= MAX_PRIORITIES) break;
-    if (covered.has(e.id)) continue;
-    priorities.push(e.id);
-    covered.add(e.id);
-    for (const r of e.relatedIds) covered.add(r);
+    if (!covered.has(e.id)) take(e);
   }
   const bySeverity = { error: 0, warning: 0, info: 0 };
   for (const f of findings) bySeverity[f.severity] += 1;
@@ -77,12 +86,15 @@ function impactOf(f, modules) {
   const fanIn = moduleIds.reduce((n, id) => n + (modules.get(id)?.fanIn || 0), 0);
   const files = Array.isArray(f.subject?.files) ? f.subject.files.length
     : moduleIds.reduce((n, id) => n + (modules.get(id)?.files || 0), 0);
-  return { modules: moduleIds.length, fanIn, files };
+  // Size of a measured finding (cyclomatic complexity); 0 for structural ones.
+  const size = Number.isInteger(f.evidence?.complexity) ? f.evidence.complexity : 0;
+  return { modules: moduleIds.length, size, fanIn, files };
 }
 
 function compareEntries(a, b) {
   return SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]
     || b.impact.modules - a.impact.modules
+    || b.impact.size - a.impact.size
     || b.impact.fanIn - a.impact.fanIn
     || b.impact.files - a.impact.files
     || compareText(a.id, b.id);

@@ -10,6 +10,7 @@ const skillRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const testFiles = [
   'code-analysis-browser.test.mjs',
   'code-analysis-boundary-browser.test.mjs',
+  'code-analysis-complexity-browser.test.mjs',
   'desktop-reader-browser.test.mjs',
   'reader-layout-browser.test.mjs',
   'sequence-header-clearance.test.mjs',

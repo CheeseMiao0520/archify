@@ -269,6 +269,14 @@ semantic validation verifies uniqueness and cross-record references.
 
 `coupling/hub` is arithmetic on the module graph: fan-in and fan-out both at or above the configured thresholds. The thresholds are echoed in the finding so the reader can see what was compared.
 
+### Function complexity
+
+The Python extractor records one entry per function in `facts.functions`: `file`, `name`, `qualname` (`Class.method`, `outer.<locals>.inner`), `line`, `endLine`, `complexity`, `nesting`, and `deepestLine`. Complexity follows the McCabe/radon reading: 1 for the function, plus 1 for each `if`/`elif`, `for`/`while`, `except` handler, conditional expression, `match` case other than an irrefutable `case _`, each comprehension `for` and its `if`s, and each extra operand of an `and`/`or`. Nesting counts stacked `if`/loop/`with`/`try`/`match` blocks; an `elif` is an `If` alone in its parent's `orelse` and keeps the parent's depth. Nested functions and classes are measured separately and are not added to their parent; a lambda is part of the enclosing function. `ast.Match` and `TryStar` are looked up with `getattr`, so older interpreters still run.
+
+`complexity/function` runs only when `facts.functions` is present (its `enabled(config, facts)` checks the facts), so a JS/TS run reports complexity as not checked rather than clean. It reports info from complexity 15 or nesting 5 and a warning from 25 or 6, configurable per level under `rules.complexity.function`. The subject is `{ file, function, line, endLine }`; the id hashes only file and qualified name, so edits above a function keep its id, and `evidenceDigest` hashes only the function's own lines (`evidenceDigest.lines`), so edits elsewhere in the file keep the evidence current. Defaults were checked against a 180-file Python project, where they flag about 6% of functions.
+
+The overview ranks a complexity finding by its size within the same severity and reach, and picks the best finding of each rule at the top severity before filling the remaining priorities, so one rule with many instances does not take all three slots.
+
 ### Architecture boundaries
 
 `architecture/boundary` checks layer rules the reader declares under `boundaries` in the `--config` file: `layers` maps names to path globs, and each rule names a `from` layer with either `disallow` (forbidden layers) or `allow` (the only other layers permitted). It is opt-in: a rule may export `enabled(config)`, and the engine skips a rule that is not enabled and leaves it out of `findings.rules`, so the overview says boundaries were not checked instead of reporting them clean.
