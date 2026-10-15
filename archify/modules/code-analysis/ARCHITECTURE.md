@@ -22,7 +22,7 @@ The server serves the diagram on a loopback address with a Code Analysis button.
 
 1. **Extract facts** (`extract/`): select the Python or JS/TS adapter, read source files, and record files, imports, available symbol information, and unresolved dependencies. Python uses an AST extractor; JS/TS uses the TypeScript Compiler API. Each run selects one language.
 2. **Build the module graph** (`graphs/module.mjs`): group files by explicit configuration, package boundaries, or directory depth; aggregate dependencies between modules; calculate file ownership and module metrics. Root-level files form individual modules. Test and generated roles are excluded by default and counted in the output.
-3. **Evaluate rules** (`evaluate/`): run the import-cycle, module coupling-cycle, and hub rules. Findings include severity, subjects, and supporting evidence. Configured rule suppression is counted in the summary.
+3. **Evaluate rules** (`evaluate/`): run the import-cycle, module coupling-cycle, and hub rules, plus architecture-boundary rules when the config declares them. Findings include severity, subjects, and supporting evidence. Configured rule suppression is counted in the summary.
 4. **Build the analysis view** (`overlay/inject.mjs`): map authored components to code modules using source references or an explicit mapping, then add findings and source navigation to a copy of the delivered page.
 
 The orchestrator validates intermediate data against JSON schemas. It also checks that supplied raw facts and module graph data agree on repository metadata, file ownership, and dependency aggregates.
@@ -43,7 +43,8 @@ Source references with line numbers show a nine-line context window and highligh
 - `extract/ts/`: JavaScript and TypeScript extraction.
 - `extract/shared/`: file, Git metadata, matching, diagnostics, semantics, and schema helpers.
 - `graphs/`: module grouping and dependency aggregation.
-- `evaluate/rules/coupling/`: the three implemented finding rules.
+- `evaluate/rules/coupling/`: import-cycle, module-cycle, and hub rules.
+- `evaluate/rules/architecture/`: opt-in layer boundary rules declared in the config.
 - `lib/`: pipeline orchestration and intermediate-data checks.
 - `overlay/`: mapping and browser presentation.
 - `schemas/`: raw-facts, module-graph, and findings contracts.

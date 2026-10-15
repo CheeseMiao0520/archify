@@ -269,6 +269,14 @@ semantic validation verifies uniqueness and cross-record references.
 
 `coupling/hub` is arithmetic on the module graph: fan-in and fan-out both at or above the configured thresholds. The thresholds are echoed in the finding so the reader can see what was compared.
 
+### Architecture boundaries
+
+`architecture/boundary` checks layer rules the reader declares under `boundaries` in the `--config` file: `layers` maps names to path globs, and each rule names a `from` layer with either `disallow` (forbidden layers) or `allow` (the only other layers permitted). It is opt-in: a rule may export `enabled(config)`, and the engine skips a rule that is not enabled and leaves it out of `findings.rules`, so the overview says boundaries were not checked instead of reporting them clean.
+
+The rule walks `facts.imports`, not module edges, because module edges keep at most five evidence imports. Each resolved import is assigned the first layer whose globs match each end; imports with an end in no layer, within one layer, or touching an excluded role (test, generated) are not checked. Type-only imports count and are marked. All crossing imports for one `from → to` pair form one finding (`subject: { boundary: { from, to } }`, severity warning, confidence 1), so its id stays the same as crossing imports are added or removed while `evidenceDigest`, computed over both ends of every cited import, changes. An invalid `boundaries` block stops analysis with `config/boundaries-invalid` rather than checking less than was declared. The architecture diagram is never used as a constraint source: a missing connection on the diagram does not forbid a dependency.
+
+The overview's coverage lists each declared layer with the number of analyzed files it matched; a layer matching nothing usually means a mistyped glob. On the page a component gets an "Architecture boundary" indicator only when a configured boundary is crossed by one of its files; there is no green boundary claim when nothing was configured.
+
 ---
 
 ## 9. overlay/inject: layering onto Archify's HTML

@@ -29,7 +29,7 @@
         "properties": {
           "id": { "type": "string", "pattern": "^[A-Z]{2,4}-[0-9a-f]{12}$" },
           "code": { "type": "string", "pattern": "^[a-z-]+/[a-z-]+$" },
-          "dimension": { "enum": ["coupling", "complexity", "redundancy", "error-handling", "impact", "ai-smell"] },
+          "dimension": { "enum": ["coupling", "architecture", "complexity", "redundancy", "error-handling", "impact", "ai-smell"] },
           "severity": { "enum": ["error", "warning", "info"] },
           "confidence": { "enum": [1, 0.7, 0.5] },
           "message": { "type": "string", "minLength": 1 },

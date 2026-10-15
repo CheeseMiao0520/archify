@@ -115,14 +115,23 @@ function findingModules(f, fileModule) {
   if (Array.isArray(sub.modules)) for (const m of sub.modules) ids.add(m);
   if (Array.isArray(sub.files)) for (const file of sub.files) if (fileModule.has(file)) ids.add(fileModule.get(file));
   if (typeof sub.file === 'string' && fileModule.has(sub.file)) ids.add(fileModule.get(sub.file));
+  for (const file of boundaryFiles(f)) if (fileModule.has(file)) ids.add(fileModule.get(file));
   return [...ids].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
+// A boundary finding is about both ends of every import that crosses it.
+function boundaryFiles(f) {
+  if (!f.subject || !f.subject.boundary) return [];
+  return ((f.evidence && f.evidence.imports) || []).flatMap((i) => [i.file, i.to]);
+}
+
 // A finding touches a component when its subject names the component, one of
-// its modules, or a cycle containing one of its modules.
+// its modules, a cycle containing one of its modules, or a file on either end
+// of an import crossing a declared boundary.
 function touches(f, set, componentId, filePaths) {
   const sub = f.subject || {};
   if (sub.component === componentId) return true;
+  if (sub.boundary && filePaths && boundaryFiles(f).some((p) => filePaths.has(p))) return true;
   if (Array.isArray(sub.files) && filePaths && sub.files.some((p) => filePaths.has(p))) return true;
   if (sub.module && set.has(sub.module)) return true;
   if (Array.isArray(sub.modules) && sub.modules.some((m) => set.has(m))) return true;
@@ -156,6 +165,9 @@ function indicators(set, mods, findings, mapping, filePaths) {
           ? (internalOnly ? 'package-level cycle inside this component; no file cycles' : `package-level cycle with ${partners.size} other${partners.size === 1 ? '' : 's'}; no file cycles`)
           : 'none';
   const hubs = findings.filter((f) => f.code === 'coupling/hub' && set.has(f.subject.module));
+  // Only present when boundaries are configured and one is crossed here: an
+  // unconfigured check must not show up as a green "no violations".
+  const boundaries = findings.filter((f) => f.code === 'architecture/boundary' && boundaryFiles(f).some((p) => filePaths.has(p)));
   const fanIn = mods.reduce((n, m) => n + m.fanIn, 0);
   const fanOut = mods.reduce((n, m) => n + m.fanOut, 0);
   const instability = fanIn + fanOut === 0 ? null : Math.round((fanOut / (fanIn + fanOut)) * 100) / 100;
@@ -174,6 +186,13 @@ function indicators(set, mods, findings, mapping, filePaths) {
       detail: [],
       findings: hubs.map((f) => f.id).filter(Boolean),
     },
+    ...(boundaries.length ? [{
+      key: 'boundary', label: 'Architecture boundary',
+      status: boundaries.some((f) => f.severity === 'error') ? 'red' : 'amber',
+      value: boundaries.map((f) => `${f.subject.boundary.from} → ${f.subject.boundary.to} (${f.evidence.totalImports} import${f.evidence.totalImports === 1 ? '' : 's'})`).join(', ') + ' cross a configured boundary',
+      detail: [],
+      findings: boundaries.map((f) => f.id).filter(Boolean),
+    }] : []),
     {
       key: 'instability', label: 'Instability',
       status: 'neutral',
@@ -549,7 +568,7 @@ const JS = `
   // Danger levels behind the colours. Same wording everywhere: legend, badge, detail header.
   var LEVELS = {
     red: { name: 'critical', text: 'an error was reported; inspect its evidence and assumptions' },
-    amber: { name: 'warning', text: 'eager import cycle (potentially import-order dependent) or hub module' },
+    amber: { name: 'warning', text: 'eager import cycle (potentially import-order dependent), hub module, or crossed architecture boundary' },
     blue: { name: 'info', text: 'structural coupling; initialization behavior is not established' },
     green: { name: 'clean', text: 'no rule fired' },
     grey: { name: 'unmapped', text: 'no source code maps to this component' },
@@ -682,6 +701,7 @@ const JS = `
     var text = f.code === 'coupling/hub' ? 'Check whether dependencies cluster by responsibility before splitting this module.'
       : f.code === 'coupling/import-cycle' ? 'Inspect the cited imports and initialization behavior before changing this dependency.'
       : f.code === 'coupling/cycle' ? 'Check which shared responsibility links these modules. A module cycle does not establish a file-level failure.'
+      : f.code === 'architecture/boundary' ? 'Check what the cited imports need from the other layer: move it behind an interface in an allowed layer, or update the rule if this dependency is intended.'
       : 'Review the evidence and assumptions before changing code.';
     return '<div class="next-step"><b>Suggested next step</b><p>' + esc(text) + '</p></div>';
   }
@@ -698,8 +718,15 @@ const JS = `
     }
     if (f.evidence && f.evidence.imports && f.evidence.imports.length) {
       var isCycle = f.code === 'coupling/import-cycle' || f.code === 'coupling/cycle';
-      ev += '<div class="ev" style="margin-top:4px">' + (isCycle ? 'Imports on the cycle — click one to see the code:' : 'Evidence — click to see the code:') + '</div>';
+      var crossing = f.code === 'architecture/boundary' && f.subject && f.subject.boundary;
+      ev += '<div class="ev" style="margin-top:4px">' + (isCycle ? 'Imports on the cycle — click one to see the code:' : crossing ? 'Imports that cross the boundary — click one to see the code:' : 'Evidence — click to see the code:') + '</div>';
       f.evidence.imports.slice(0, 8).forEach(function (v) {
+        if (crossing) {
+          var kind = v.typeOnly ? 'type-only import' : (v.lazy || v.conditional) ? 'deferred or conditional import' : 'module-scope import';
+          ev += ref(v.file, v.line, '<span>→ ' + esc(short(v.to)) + '</span> <em>· ' + kind + '</em>',
+            'This import makes ' + crossing.from + ' depend on ' + crossing.to + ', which the configured rule forbids.' + (v.typeOnly ? ' It is type-only: nothing is loaded at runtime, but the layer still depends on code in the other layer.' : ''), tone);
+          return;
+        }
         var deferred = v.lazy || v.conditional || v.deferred || v.typeOnly;
         var kindText = deferred ? 'deferred / conditional / type-only import · dashed' : 'recorded module-scope import · solid';
         ev += ref(v.file, v.line, '<span>→ ' + esc(short(v.to)) + '</span> <em>· ' + kindText + '</em>',
@@ -795,7 +822,7 @@ const JS = `
     'signals-only': { tone: 'blue', text: 'Signals only' },
     'none-found': { tone: 'green', text: 'No findings within the checks that ran' }
   };
-  var GROUPS = { 'coupling/import-cycle': 'Import cycles', 'coupling/cycle': 'Module cycles', 'coupling/hub': 'Hub modules' };
+  var GROUPS = { 'coupling/import-cycle': 'Import cycles', 'coupling/cycle': 'Module cycles', 'coupling/hub': 'Hub modules', 'architecture/boundary': 'Boundary violations' };
   var LANGS = { py: 'Python', ts: 'JS/TS' };
   function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
   function toneOf(severity) { return severity === 'error' ? 'red' : severity === 'warning' ? 'amber' : 'blue'; }
@@ -805,6 +832,7 @@ const JS = `
     if (f.code === 'coupling/import-cycle' && s.files) return 'Import cycle · ' + plural(s.files.length, 'file');
     if (f.code === 'coupling/cycle' && s.modules) return 'Module cycle · ' + plural(s.modules.length, 'module');
     if (f.code === 'coupling/hub' && s.module) return modLabel(s.module) + ' connects many modules';
+    if (f.code === 'architecture/boundary' && s.boundary) return s.boundary.from + ' depends on ' + s.boundary.to;
     return f.code;
   }
   function findingWhat(f) {
@@ -812,6 +840,7 @@ const JS = `
     if (s.files) return 'Files: ' + s.files.slice(0, 3).map(short).join(', ') + (s.files.length > 3 ? ' …' : '');
     if (s.modules) return 'Modules: ' + s.modules.slice(0, 4).map(modLabel).join(', ') + (s.modules.length > 4 ? ' …' : '');
     if (f.code === 'coupling/hub' && f.evidence) return f.evidence.fanIn + ' modules depend on it; it depends on ' + f.evidence.fanOut + '.';
+    if (f.code === 'architecture/boundary' && f.evidence) return plural(f.evidence.totalImports, 'import') + ' in ' + plural(f.evidence.files.length, 'file') + ' · rule: ' + (f.evidence.rule.reason || s.boundary.from + ' must not depend on ' + s.boundary.to);
     return f.message;
   }
   function findingWhere(f) {
@@ -839,7 +868,12 @@ const JS = `
     if ((c.unmappedModules || []).length) lines.push(plural(c.unmappedModules.length, 'module') + ' not on this diagram');
     var run = (c.rules && c.rules.run) || [], off = (c.rules && c.rules.suppressed) || [];
     lines.push('Checked: ' + (run.length ? run.map(function (r) { return (GROUPS[r] || r).toLowerCase(); }).join(', ') : 'nothing') + (off.length ? ' · switched off: ' + off.join(', ') : ''));
-    var missing = [['complexity/', 'complexity'], ['redundancy/', 'duplication'], ['architecture/', 'architecture boundaries']].filter(function (d) { return !run.some(function (r) { return r.indexOf(d[0]) === 0; }); }).map(function (d) { return d[1]; });
+    var b = c.boundaries;
+    if (b) {
+      lines.push('Boundaries: ' + plural(b.layers.length, 'layer') + ', ' + plural(b.rules, 'rule') + ' from the analysis config');
+      b.layers.filter(function (l) { return !l.files; }).forEach(function (l) { lines.push('Layer "' + l.name + '" matches no analyzed file; check its globs'); });
+    }
+    var missing = [['complexity/', 'complexity'], ['redundancy/', 'duplication'], ['architecture/', 'architecture boundaries (none configured)']].filter(function (d) { return !run.some(function (r) { return r.indexOf(d[0]) === 0; }); }).map(function (d) { return d[1]; });
     if (missing.length) lines.push('Not checked: ' + missing.join(', '));
     var incomplete = (c.otherLanguages || []).length || pe.length || unresolved || off.length;
     return '<details class="coverage"><summary>Coverage · ' + esc(LANGS[c.language] || c.language || 'Unknown') + ' · ' + (files.analyzed == null ? 'file count unavailable' : plural(files.analyzed, 'file')) + (incomplete ? ' · incomplete' : '') + '</summary><div class="ev cov">' + lines.map(function (l) { return '<div>' + esc(l) + '</div>'; }).join('') + '</div></details>';
@@ -853,8 +887,11 @@ const JS = `
     var h = '<h3><i class="bauify-' + v.tone + '"></i>' + esc(v.text) + '</h3>';
     h += '<div class="ev">' + esc(counts) + '</div>';
     if (o.priorities.length) {
-      var hubs = o.priorities.map(function (id) { return findingById[id]; }).filter(function (f) { return f && f.code === 'coupling/hub'; });
-      h += '<p class="verdict-note">' + (hubs.length ? 'Start with responsibility boundaries in ' + hubs.map(function (f) { return esc(modLabel(f.subject.module)); }).join(' and ') + '. ' : 'Start with the dependency structures below. ') + 'Each finding links to its evidence; runtime failure is not proven.</p>';
+      var picks = o.priorities.map(function (id) { return findingById[id]; }).filter(Boolean);
+      var hubs = picks.filter(function (f) { return f.code === 'coupling/hub'; });
+      var onlyBoundaries = picks.every(function (f) { return f.code === 'architecture/boundary'; });
+      var anyCycle = picks.some(function (f) { return f.code === 'coupling/import-cycle' || f.code === 'coupling/cycle'; });
+      h += '<p class="verdict-note">' + (hubs.length ? 'Start with responsibility boundaries in ' + hubs.map(function (f) { return esc(modLabel(f.subject.module)); }).join(' and ') + '. ' : onlyBoundaries ? 'Start with the layer rules broken below. ' : 'Start with the dependency structures below. ') + 'Each finding links to its evidence' + (anyCycle ? '; runtime failure is not proven.' : '.') + '</p>';
     }
     if (o.priorities.length) {
       h += '<div class="k">Look at first</div>';
@@ -898,12 +935,13 @@ const JS = `
     setFocus(f.componentIds || []);
     var h = '<button class="close" aria-label="Close">×</button><button class="back" type="button">← Overview</button>';
     h += '<div class="k">' + esc(GROUPS[f.code] || f.code) + ' · ' + esc(scope.label) + '</div><h3><i class="bauify-' + tone + '"></i>' + esc(findingTitle(f)) + '</h3>';
-    var explanation = f.code === 'coupling/hub' ? 'High incoming and outgoing coupling; inspect responsibilities before deciding to split.' : lvl.text;
+    var explanation = f.code === 'coupling/hub' ? 'High incoming and outgoing coupling; inspect responsibilities before deciding to split.'
+      : f.code === 'architecture/boundary' ? 'These imports break a boundary declared in the analysis config. The rule comes from the config, not from the diagram.' : lvl.text;
     h += '<div class="level"><b>' + esc(lvl.name) + '</b> — ' + esc(findingWhat(f)) + '<br>' + esc(explanation) + '</div>';
     h += nextStepHtml(f);
     if ((f.componentIds || []).length) h += '<button type="button" class="locate">Locate related components</button>';
     else h += '<p class="ev">Not mapped to this diagram. Code evidence is still available below.</p>';
-    var pic = f.code === 'coupling/import-cycle' || f.code === 'coupling/cycle' ? cycleDiagram(scope, [f]) : f.code === 'coupling/hub' ? hubDiagram(scope, [f]) : '';
+    var pic = f.code === 'coupling/import-cycle' || f.code === 'coupling/cycle' ? cycleDiagram(scope, [f]) : f.code === 'coupling/hub' ? hubDiagram(scope, [f]) : f.code === 'architecture/boundary' ? boundaryDiagram([f]) : '';
     if (pic) h += '<div class="k">Diagram details</div>' + pic;
     h += '<div class="k">Code evidence</div>' + findingCard(f, true);
     if (e && e.relatedIds.length) h += '<div class="k">Same structure, also reported as</div>' + e.relatedIds.map(function (r) { return findingRow(r); }).join('');
@@ -991,7 +1029,26 @@ const JS = `
   function diagram(c, key, fl) {
     if (key === 'cycle') return cycleDiagram(c, fl);
     if (key === 'hub') return hubDiagram(c, fl);
+    if (key === 'boundary') return boundaryDiagram(fl);
     return instabilityDiagram(c);
+  }
+  // One row per crossed boundary: the layer that imports, a crossed-out arrow, the layer it must not reach.
+  function boundaryDiagram(fl) {
+    var rows = fl.filter(function (f) { return f.subject && f.subject.boundary; });
+    if (!rows.length) return '<div class="ev">No configured boundary is crossed here.</div>';
+    var W = 400, rowH = 44, H = rows.length * rowH + 16, bw = 120, bh = 24;
+    var svg = svgOpen(W, H);
+    rows.forEach(function (f, i) {
+      var y = 8 + i * rowH + rowH / 2, a = { x: 80, y: y }, b = { x: W - 80, y: y };
+      var tone = f.severity === 'error' ? 'red' : 'amber';
+      svg += arrow(a, b, bw, bh, tone);
+      var mx = W / 2, my = y;
+      svg += '<text class="muted" x="' + mx + '" y="' + (my - 12) + '" text-anchor="middle">' + esc(plural(f.evidence.totalImports, 'import')) + '</text>';
+      svg += '<path class="e ' + tone + '" d="M' + (mx - 7) + ',' + (my - 7) + ' L' + (mx + 7) + ',' + (my + 7) + ' M' + (mx + 7) + ',' + (my - 7) + ' L' + (mx - 7) + ',' + (my + 7) + '"/>';
+      svg += nodeRect(a.x, a.y, bw, bh, f.subject.boundary.from, 'focus') + nodeRect(b.x, b.y, bw, bh, f.subject.boundary.to);
+    });
+    svg += '</svg>';
+    return svg + '<div class="caption">Layers and rules come from the analysis config. Each arrow is a dependency the rule forbids; the cited imports are listed below. Imports between files in no declared layer are not checked.</div>';
   }
   // Ring of the files (or modules) on the shortest cycle; lazy edges dashed.
   function cycleDiagram(c, fl) {

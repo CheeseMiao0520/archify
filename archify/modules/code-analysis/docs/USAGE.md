@@ -28,3 +28,27 @@ Python and JS/TS are supported. For mixed-language projects, add `--language py`
 Output defaults to a system temporary directory. Add `--out out/my-project` to choose a persistent output directory. Use the printed URL: double-clicking a static HTML file cannot start local code analysis.
 
 You can also run `node bin/archify.mjs start "/path/to/project" --ir architecture.json` directly. The legacy `code-analysis serve` command remains supported.
+
+## Architecture boundaries
+
+To check that layers only depend on what they should, pass a config file with `--config analysis.config.json`:
+
+```json
+{
+  "boundaries": {
+    "layers": {
+      "domain": ["src/domain/**"],
+      "ui": ["src/ui/**", "src/components/**"],
+      "shared": ["src/shared/**"]
+    },
+    "rules": [
+      { "from": "domain", "disallow": ["ui"], "reason": "domain logic stays UI-free" },
+      { "from": "shared", "allow": [] }
+    ]
+  }
+}
+```
+
+Each rule names a `from` layer and either `disallow` (layers it must not import) or `allow` (the only other layers it may import; `[]` means none). A file matching several layers belongs to the first one listed. Imports involving files outside every layer, and test or generated files, are not checked. Every import that breaks a rule is listed as evidence, grouped into one finding per layer pair.
+
+Boundaries come only from this config. The architecture diagram is not used as a rule: a missing arrow on the diagram does not forbid a dependency. Without `boundaries`, the overview lists architecture boundaries as not checked. Coverage shows how many files each layer matched; a layer matching no files usually means a mistyped glob. An invalid `boundaries` block stops analysis with `config/boundaries-invalid`.

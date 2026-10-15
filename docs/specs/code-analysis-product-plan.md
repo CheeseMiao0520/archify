@@ -137,6 +137,8 @@
 
 价值：连接设计意图和实际代码，是与 Archify 定位紧密相关的能力。
 
+**已实现（路径 glob 分层规则）**：规则 `architecture/boundary`，在 `--config` 的 `boundaries` 中声明 `layers`（名称 → 路径 glob）与 `rules`（`from` 加 `disallow` 或 `allow`）。按需启用：未配置时不运行，总览显示“未检查”而非“通过”。基于 `facts.imports` 判定，每对 `from → to` 层合并为一条 warning，列出全部越界导入；类型导入计入并标注。配置错误以 `config/boundaries-invalid` 停止分析。覆盖信息列出各层匹配的文件数。用法见 `archify/modules/code-analysis/docs/USAGE.md`。尚未实现：“不能引用内部实现”（需公开入口定义）以及以架构图作为约束来源。
+
 ### 4.4 变更影响范围
 
 针对用户选择的文件或本次修改，展示直接依赖者、间接可能受影响模块，以及可识别的关联测试。
@@ -318,3 +320,10 @@ from a import Config
 实现行为以 [Code Analysis Architecture](../../archify/modules/code-analysis/ARCHITECTURE.md) 为准。此次使用真实 AI Voice 工作树重新分析并检查 UI，但其原始架构 JSON 尚有路由校验问题，因此视觉实测复用了已有交付架构页。分析结果为两项警告、两项提示，不代表已确认的运行错误。
 
 验证：最终模块测试 106 项通过、2 项跳过，专项 Chrome 浏览器回归通过。全仓测试运行得到 1934 项通过、32 项失败、92 项跳过；架构比较恢复的一项失败在未修改的 HEAD 基线上也复现，其余全仓失败未在本轮逐项解决。更新后的 ZIP 按仓库 tracked-only 流程生成，并在仓库外解压验证。
+
+## 10. 全仓测试复核与边界检查（2026-10-14）
+
+在 Linux（Node 22）上分别对改动前的 `1a55ac68` 与 `e36a25d` 运行 `npm test`：两者均为 2058 项，1982 通过、76 跳过、0 失败。此前报告的 32 项失败在该环境下不复现，未发现本分支引入的回归；它们可能与当时的运行环境（Windows、浏览器或本机工具链）有关，未保留失败清单，暂无法逐项确认。
+
+随后实现了第 4.3 节的路径 glob 分层规则（见该节）。
+

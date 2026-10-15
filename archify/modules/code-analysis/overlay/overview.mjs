@@ -14,6 +14,8 @@
 // Everything here is derived from data already in the payload; no wording is
 // produced, so the page and an agent read the same facts.
 
+import { layerCounts } from '../evaluate/rules/architecture/boundary.mjs';
+
 export const MAX_PRIORITIES = 3;
 const SEVERITY_RANK = { error: 0, warning: 1, info: 2 };
 
@@ -116,6 +118,8 @@ function coverageOf({ graph, facts, unmapped, run }) {
     unresolved: graph?.unresolved || null,
     rules: { run: rules.filter((r) => !(run.suppressed || []).includes(r)), suppressed: (run.suppressed || []).filter((r) => rules.includes(r)) },
     unmappedModules: unmapped.map((m) => m.id),
+    // Declared layers and how many analyzed files each one matched; null when no boundaries are configured.
+    boundaries: run.boundaries && facts ? layerCounts(run.boundaries, facts.files.filter((f) => !excludedRoles.has(f.role)).map((f) => f.path)) : null,
   };
 }
 
