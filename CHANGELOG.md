@@ -4,7 +4,29 @@ All notable changes are documented here. Format loosely follows [Keep a Changelo
 
 ## [Unreleased]
 
-> Development identity: `v3.0.2-dev.1`. Not a stable release.
+> Development identity: `v3.1.1-dev.1`. Not a stable release.
+
+### Fixed
+
+- **Timeline 时区刻度（#926）。** 刻度按显示时区在各真实时刻的 UTC 偏移对齐，修复跨夏令时后日刻度漂移到 01:00／23:00、半小时跳变后小时刻度漂移的问题。回拨的重复时刻保持独立，跳过的小时或日期不生成虚构刻度；事件时间、标签精度、时间轴比例与断轴规则保持不变。
+
+### Changed
+- **发布后的开发基线。** 在已发布的 3.1.0 代码和验证产物基础上开启 3.1.1-dev.1 开发周期，同步开发身份与可重现的示例、比较图和网站产物。稳定更新清单继续指向已发布的 3.1.0；本次不创建发布或更改已发布版本。
+
+## [3.1.0] — 2026-10-14
+
+### Release highlights
+- **Ten diagram types.** ERD, Class/interface, Tree, Timeline and Waterfall join Architecture, Workflow, Sequence, Dataflow and Lifecycle, with typed JSON, source evidence and standalone Viewer exports.
+- **Live by default.** Each diagram type uses a matching motion choreography; readers can switch to Still. Motion remains separate from authored topology and export geometry.
+- **Readable authoring and recovery.** Bounded route/label coordination, clearer node cards, wrapped Sequence notes, main-path Lifecycle layouts, long-page radar navigation and executable geometry diagnostics reduce avoidable repair work.
+- **Verified delivery and portability.** Finalize reports input, artifact and browser gates separately; repository evidence, atomic delivery, clipboard/export continuity and Windows path handling fail closed with actionable diagnostics.
+- **Guide and handoff.** Concise artifact-first delivery and a localized optional GitHub link inside the reader-opened Guide.
+
+### Known limitations
+- Large Sequence diagrams may require readable page scrolling; floating controls can overlap content at some initial viewport positions.
+- Some complex Dataflow inputs share visual corridors; long Class generic types can wrap awkwardly. Automatic validation does not establish perceptual quality.
+- Waterfall durations need recorded trace evidence to be called measured; author-supplied illustrative values remain labelled.
+- The independently published DSH plugin remains pinned to Archify 3.0.1. Synchronization requires a separate plugin release and host acceptance; the 3.1.0 Skill release does not update it.
 
 ### Added
 - **Traditional Chinese (Taiwan) Viewer catalog.** `meta.locale: "zh-TW"` now selects a bundled catalog covering all 487 Viewer keys with Taiwan terminology (for example 循序圖, 資料流, 匯出, 檢視), instead of falling back to English. Enrollment is data only: `locales/zh-TW.json` plus one manifest entry. `zh-Hant` and `zh-HK` remain distinct, unbundled tags.

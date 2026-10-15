@@ -1,5 +1,6 @@
 ---
 import { version, versioned } from '../data/site';
+import SupportedDiagrams from '../components/SupportedDiagrams.astro';
 import SiteLayout from '../layouts/SiteLayout.astro';
 import Navigation from '../components/Navigation.astro';
 import Brand from '../components/Brand';
@@ -109,7 +110,7 @@ const { lang = 'en' } = Astro.props;
   <!-- PROOF STRIP — receipts, not adjectives -->
   <section class="receipts" aria-label="Archify at a glance">
     <div class="container receipts-row">
-      <div class="receipt fade-up"><b>5</b><span data-i18n="stat-types">Diagram types</span></div>
+      <div class="receipt fade-up"><b>10</b><span data-i18n="stat-types">Diagram types</span></div>
       <div class="receipt fade-up d1"><b>4</b><span data-i18n="stat-presets">Visual presets</span></div>
       <div class="receipt fade-up d2"><b>9/9</b><span data-i18n="stat-checks">Validation checks per artifact</span></div>
       <div class="receipt fade-up d3"><b>4×</b><span data-i18n="stat-export">Native export scale</span></div>
@@ -160,10 +161,11 @@ const { lang = 'en' } = Astro.props;
     <div class="container">
       <header class="section-head fade-up">
         <p class="section-label"><span>02</span><span data-i18n="label-types">Diagram types</span></p>
-        <h2 class="section-heading" data-i18n="types-h2">Five questions. <em>Five kinds of map.</em></h2>
+        <h2 class="section-heading" data-i18n="types-h2">Five starting questions. <em>Choose your map.</em></h2>
         <p class="section-body" data-i18n="types-body">Ask the question you actually have. Archify picks the picture that answers it — for a software system, a plan, or something in your own life.</p>
       </header>
 
+      <SupportedDiagrams />
       <div class="types-index">
         <ol class="types-list" id="types-list">
           <li class="type-item is-active" data-type="arch">

@@ -1,5 +1,6 @@
 ---
 import { version, versioned, jsonScript, guide } from '../data/site';
+import SupportedDiagrams from '../components/SupportedDiagrams.astro';
 import SiteLayout from '../layouts/SiteLayout.astro';
 import Navigation from '../components/Navigation.astro';
 import RecipeReference from '../components/RecipeReference.astro';
@@ -21,6 +22,7 @@ const { lang = 'en' } = Astro.props;
         <h1 data-i18n-html="headline">Choose the question.<br>Get the <em>right diagram.</em></h1>
         <p class="lede" data-i18n="lede">Describe what your audience needs to understand. Archify recommends one bounded visual recipe—plus the evidence it must contain, when not to use it, and a prompt you can copy.</p>
       </div>
+      <SupportedDiagrams />
       <div class="metrics" aria-label="Guide metrics">
         <div class="metric"><strong>{guide.length}</strong><span data-i18n-html="metricRecipes">real-world<br>recipes</span></div>
         <div class="metric"><strong>{new Set(guide.map(recipe => recipe.type)).size}</strong><span data-i18n-html="metricModes">typed diagram<br>modes</span></div>

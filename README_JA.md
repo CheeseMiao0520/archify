@@ -33,7 +33,7 @@
   <a href="https://skills.sh/tt-a1i/archify/archify"><img src="https://img.shields.io/badge/installs-130K%2B-0EA5E9?style=flat-square" alt="130K+ installs on skills.sh" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square" alt="MIT License" /></a>
   <a href="#インストール方法"><img src="https://img.shields.io/badge/works_with-Claude_Code_%7C_Codex_%7C_Cursor_%7C_OpenCode-7C3AED?style=flat-square" alt="Works with Claude Code, Codex, Cursor, and OpenCode" /></a>
-  <a href="CHANGELOG.md#unreleased"><img src="https://img.shields.io/badge/version-3.0.2--dev.1-0891b2?style=flat-square" alt="Development version 3.0.2-dev.1" /></a>
+  <a href="CHANGELOG.md#unreleased"><img src="https://img.shields.io/badge/version-3.1.1--dev.1-0891b2?style=flat-square" alt="Development version 3.1.1-dev.1" /></a>
 </p>
 
 <p align="center">
@@ -171,7 +171,7 @@ Export メニューから PNG をクリップボードにコピーしたり、�
 
 ## クイックスタート
 
-**現在の開発版:** `v3.0.2-dev.1`。[変更履歴](CHANGELOG.md#unreleased)を参照してください。
+**現在の開発版:** `v3.1.1-dev.1`。[変更履歴](CHANGELOG.md#unreleased)を参照してください。
 
 ### 1. インストール
 
@@ -223,7 +223,7 @@ Put supporting detail in cards instead of adding more edges.
 ## 適切な図を選ぶ
 
 <details>
-<summary>5 種類の図、アーキテクチャの比較、サンプル</summary>
+<summary>10 種類の図、アーキテクチャの比較、サンプル</summary>
 
 
 | 種類 | 向いている対象 | プロンプトに含めるもの |
@@ -233,6 +233,11 @@ Put supporting detail in cards instead of adding more edges.
 | **Sequence** | API 呼び出し、キャッシュフォールバック、認証、非同期トレース | 呼び出し元、呼び出し先、戻り、タイミング |
 | **Data Flow** | パイプライン、リネージ、PII、コンシューマ | ソース、変換、ストア、境界 |
 | **Lifecycle** | 状態、リトライ、待機、終端結果 | 状態、イベント、リトライとキャンセルの経路 |
+| **ERD** | データベーススキーマ: テーブル、カラム、キー、カーディナリティ | テーブル、各カラムと型、主キー・外部キー・ユニークキー、リレーションのカーディナリティ |
+| **Class** | クラス、インターフェース、主要メンバー、型同士の関係 | 型、主要メンバー、継承とインターフェース実装、コンポジション、依存 |
+| **Tree** | 親が 1 つの階層: リポジトリ、モジュール、機能の分解 | ルート、階層、各ブランチの中身 |
+| **Timeline** | いつ何が起きたか: インシデントレビュー、リリース履歴 | タイムゾーン付きのタイムスタンプ、イベント、ソースレーン、時刻が実測か説明用か |
+| **Waterfall** | 1 つのリクエストやエージェント実行の時間の内訳 | スパン、開始時刻と所要時間、ネスト、所要時間が実測か説明用か |
 
 Architecture の任意プロファイル `deployment-ownership` は、記述されたオーナー、リージョン配置、データベースのプライベートスコープ、名前付きの境界越えが欠けている場合は fail-closed で停止します。暗黙的に有効化されることはなく、ライブのインフラを検査することもありません。[検証済みのデプロイ実証](https://archify.si/gallery.html#proof-deployment-ownership)を参照してください。
 
@@ -264,6 +269,30 @@ Data Flow はデータの移動と機密性の境界を明示します:
 Lifecycle は進行、待機、リトライ、終端結果を切り分けます:
 
 ![Lifecycle の例](docs/assets/archify-lifecycle.png)
+
+3.1 で ERD、Class、Tree、Timeline、Waterfall が追加されました。
+
+ERD は、テーブル、すべてのカラムとキー、リレーションのカーディナリティをまとめて示します:
+
+![ERD の例: customer、order、payment、inventory、product、order_item テーブルをドメインごとにまとめた注文管理スキーマ](docs/assets/archify-erd.png)
+
+Class は契約、主要メンバー、どの型がそれに依存し実装しているかを示します:
+
+![Class の例: OrderService が PaymentGateway インターフェースに依存し、カードとウォレットのゲートウェイが実装する](docs/assets/archify-class.png)
+
+Tree は機能の分解のような、親が 1 つの包含関係を示します:
+
+![Tree の例: 注文、決済、運用の機能に分解された決済プラットフォーム](docs/assets/archify-tree.png)
+
+Timeline はイベントを実時間に比例した 1 本の時間軸に置き、ソースごとにレーンを分けます:
+
+![Timeline の例: リリース、監視、対応のイベントを 1 本の時間軸に並べた説明用の決済障害](docs/assets/archify-timeline.png)
+
+Waterfall はネストや重なりのあるスパンのどこで時間がかかったかを示します:
+
+![Waterfall の例: 在庫照会と割引計算が並行して走るチェックアウトリクエストの説明用の所要時間](docs/assets/archify-waterfall.png)
+
+サンプルを開く: [`ERD`](https://archify.si/gallery/artifacts/orders.erd.html) · [`Class`](examples/class-payments-rendered.html) · [`Tree`](examples/tree-payment-platform-rendered.html) · [`Timeline`](examples/timeline-payment-incident-rendered.html) · [`Waterfall`](examples/waterfall-checkout-request-rendered.html)。Timeline と Waterfall の例は説明用のデータを使用しています。ログやトレースに基づく時刻や所要時間だけを実データとして扱ってください。
 
 Architecture の例: [`web-app`](examples/web-app.html) · [`Archify pipeline`](examples/archify-repo.html) · [`grid placement`](examples/archify-repo-grid.html) · [`desktop agent`](examples/maka-architecture.html)
 
@@ -337,7 +366,7 @@ node bin/archify.mjs deliver workflow examples/agent-tool-call.workflow.json /tm
 }
 ```
 
-`meta.locale=en|zh-CN|zh-TW|es|ko` はページタイトル、Legend、状態／エラー、アクセシビリティ、HTML/SVG の `lang` をローカライズします（記述された内容自体は変更しません）。該当しない場合は省略し、要求された言語の文言はそのまま維持し、英語へフォールバックした場合はその旨を明示してください。静止出力では `animation` は省略され、`classic` が既定になります。
+`meta.locale=en|zh-CN|zh-TW|es|ko|ar` はページタイトル、Legend、状態／エラー、アクセシビリティ、HTML/SVG の `lang` をローカライズします（記述された内容自体は変更しません）。該当しない場合は省略し、要求された言語の文言はそのまま維持し、英語へフォールバックした場合はその旨を明示してください。静止出力では `animation` は省略され、`classic` が既定になります。
 
 </details>
 

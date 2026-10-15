@@ -10,6 +10,16 @@ Version 1.0.0 was published on 2026-10-04: [npm package](https://www.npmjs.com/p
 
 The adapter registers no native render/validate/deliver tools, custom Web client, Produced Files chips, telemetry, credentials handling, background services, or install hooks. The bundled Skill includes an optional, notification-only stable Archify update checker; it never upgrades the plugin. Authored remote brand assets may also use the Skill's bounded network path. The adapter itself makes no network requests.
 
+## Default Skill roots: unreleased fix
+
+Published **1.0.0** sets `includeDefaultRoots: false`. If its `archify-plugin` provider is the profile's only live filesystem Skill source, personal and project Skills disappear while Archify remains available. This was reported on macOS Desktop `0.2.0-rc.2` in [#906](https://github.com/tt-a1i/archify/issues/906).
+
+The **unreleased source fix** sets `includeDefaultRoots: true`, retaining the host's default personal and project roots alongside the packaged Archify root. The provider name and bundle directory are unchanged. The install command below still installs published 1.0.0, **not this fix**; no new adapter version has been published.
+
+The acceptance script now seeds distinct Skills in both DSH and shared-agent personal/project roots and checks their actual loaded bodies and paths after clean installation and same-profile upgrade. It repeats those checks with the base filesystem provider disabled, so the Archify provider must preserve the roots by itself. The immutable 0.1.0 upgrade baseline retains its original `false` expectation; the candidate requires `true`.
+
+These automated checks use the exact npm CLI host in `release.json` (`0.1.2-rc.1`). They do not establish macOS Desktop `0.2.0-rc.2` acceptance or explain why the reporter's original provider was inactive. That native Desktop verification remains pending; the published support statement is unchanged.
+
 ## Patch execution boundary
 
 The `cordis.patch.yml` file is configuration consumed by the DSH host. Its `bundledSkillDir` value uses the host loader's `!!js` expression to resolve the installed package's `skills` directory when the entry is activated. This expression runs in the DSH host process, outside the agent sandbox; it is not an inert YAML value and should be treated as host-loaded code.

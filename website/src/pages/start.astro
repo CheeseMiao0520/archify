@@ -1,5 +1,7 @@
 ---
 import { version, versioned, jsonScript, starts } from '../data/site';
+import { productChannel } from '../data/product-facts';
+import SupportedDiagrams from '../components/SupportedDiagrams.astro';
 import SiteLayout from '../layouts/SiteLayout.astro';
 import Navigation from '../components/Navigation.astro';
 import head from '../data/start-head.html?raw';
@@ -31,7 +33,8 @@ const { lang = 'en' } = Astro.props;
         <button class="input-path" type="button" role="tab" data-input="description"><strong data-en="Just describe it" data-zh="直接描述">直接描述</strong><span data-en="Start in any chat. No files or repository needed." data-zh="在任意对话里开始，不需要文件或代码库。">Start in any chat. No files or repository needed.</span></button>
         <button class="input-path" type="button" role="tab" data-input="repository"><strong data-en="Use a repository" data-zh="从代码库开始">Use a repository</strong><span data-en="Let the agent inspect code when source evidence matters." data-zh="需要源码证据时，再让 Agent 检查代码。">Let the agent inspect code when source evidence matters.</span></button>
       </div>
-      <p class="type-label" id="type-label"><span data-en="Choose the question shape" data-zh="选择问题形态">Choose the question shape</span><strong data-en={`${Object.keys(starts).length} typed renderers`} data-zh={`${Object.keys(starts).length} 种类型化渲染器`}>{Object.keys(starts).length} typed renderers</strong></p>
+      <p class="type-label" id="type-label"><span data-en="Choose the question shape" data-zh="选择问题形态">Choose the question shape</span><strong data-en={`${Object.keys(starts).length} starting recipes`} data-zh={`${Object.keys(starts).length} 个入门配方`}>{Object.keys(starts).length} starting recipes</strong></p>
+      <SupportedDiagrams />
       <div class="type-tabs" role="tablist" aria-label="Diagram type">
         <button class="type-tab" type="button" role="tab" data-type="architecture" data-en="Architecture" data-zh="架构图">Architecture</button>
         <button class="type-tab" type="button" role="tab" data-type="workflow" data-en="Workflow" data-zh="工作流">Workflow</button>
@@ -87,7 +90,7 @@ const { lang = 'en' } = Astro.props;
     </section>
 
     <footer class="page-footer">
-      <span data-en={`Archify v${version} · development · self-contained HTML · typed JSON source`} data-zh={`Archify v${version} · 开发版 · 独立 HTML · 类型化 JSON 源`}>Archify v{version} · development · self-contained HTML · typed JSON source</span>
+      <span data-en={`Archify v${version} · ${productChannel} · self-contained HTML · typed JSON source`} data-zh={`Archify v${version} · ${productChannel === 'development' ? '开发版' : '稳定版'} · 独立 HTML · 类型化 JSON 源`}>Archify v{version} · {productChannel} · self-contained HTML · typed JSON source</span>
       <span id="copy-status" role="status" aria-live="polite"></span>
       <a href="https://github.com/tt-a1i/archify" data-en="View source on GitHub ↗" data-zh="在 GitHub 查看源码 ↗">View source on GitHub ↗</a>
     </footer>

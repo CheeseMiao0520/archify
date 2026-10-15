@@ -59,6 +59,18 @@ test('DSH documentation identifies the published release and its pinned snapshot
   assert.match(integration, /rather than entirely declarative data/);
 });
 
+test('default-root fix is distinguished from the immutable published package and Desktop evidence', () => {
+  const integration = read('integrations/deepseek-harness/README.md');
+  const section = integration.split('## Default Skill roots: unreleased fix')[1]?.split('\n## ')[0];
+  assert.ok(section, 'keep the unpublished behavior separate from the published support statement');
+  assert.match(section, /Published \*\*1\.0\.0\*\* sets `includeDefaultRoots: false`/);
+  assert.match(section, /unreleased source fix/);
+  assert.match(section, /`includeDefaultRoots: true`/);
+  assert.match(section, /no new adapter version has been published/);
+  assert.match(section, /macOS Desktop `0\.2\.0-rc\.2` acceptance/);
+  assert.match(section, /verification remains pending/);
+});
+
 test('English, Chinese, and Japanese docs cover install, invoke, uninstall, community wording, and Produced Files', () => {
   const englishRoot = read('README.md');
   const chineseRoot = read('README_ZH.md');

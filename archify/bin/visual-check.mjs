@@ -1312,6 +1312,11 @@ export function findChrome({
   platform = process.platform,
   resolveExecutable = executable,
 } = {}) {
+  // Windows environment names are case-insensitive, including when callers
+  // provide a plain object instead of the special process.env object.
+  if (platform === 'win32') {
+    env = Object.fromEntries(Object.entries(env).map(([name, value]) => [name.toUpperCase(), value]));
+  }
   if (Object.prototype.hasOwnProperty.call(env, 'ARCHIFY_CHROME')) {
     return resolveExecutable(env.ARCHIFY_CHROME, platform);
   }
@@ -1343,6 +1348,16 @@ export function findChrome({
   for (const command of commands) {
     const resolved = findOnPath(command, env, platform, resolveExecutable);
     if (resolved) return resolved;
+  }
+  // Preserve every Chrome/Chromium candidate's priority, including portable
+  // PATH installations, before falling back to Windows' bundled browser.
+  if (platform === 'win32') {
+    for (const root of [env['PROGRAMFILES(X86)'], env.PROGRAMFILES, env.LOCALAPPDATA].filter(Boolean)) {
+      const candidate = path.win32.join(root, 'Microsoft', 'Edge', 'Application', 'msedge.exe');
+      const resolved = resolveExecutable(candidate, platform);
+      if (resolved) return resolved;
+    }
+    return findOnPath('msedge', env, platform, resolveExecutable);
   }
   return null;
 }
@@ -1522,9 +1537,20 @@ async function evaluate(cdp, sessionId, expression, awaitPromise = false) {
   return response.result?.value;
 }
 
+function browserEnvironment(env, platform) {
+  if (platform !== 'win32') return env;
+  // Agent-launched Git Bash can inherit this app-health shim. Edge then
+  // relaunches and loses the DevTools pipes (#790). Change the browser's copy
+  // only, and leave unknown/combined layers (including privilege settings) alone.
+  return Object.fromEntries(Object.entries(env).filter(([name, value]) =>
+    !(name.toUpperCase() === '__COMPAT_LAYER'
+      && /^\s*DetectorsAppHealth\s*$/i.test(String(value)))));
+}
+
 export class ChromeVisualBrowser {
   #profile;
   constructor(chromePath, {
+    platform = process.platform,
     env = process.env,
     getuid = typeof process.getuid === 'function' ? () => process.getuid() : null,
     spawnImpl = spawn,
@@ -1536,7 +1562,10 @@ export class ChromeVisualBrowser {
     this.shutdownTimeoutMs = shutdownTimeoutMs;
     this.stderr = '';
     const args = chromeVisualBrowserArgs(this.profileRoot, { env, getuid });
-    this.child = spawnImpl(chromePath, args, { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });
+    this.child = spawnImpl(chromePath, args, {
+      stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'],
+      env: browserEnvironment(env, platform),
+    });
     this.child.stderr.setEncoding('utf8');
     this.child.stderr.on('data', (chunk) => {
       this.stderr = `${this.stderr}${chunk}`.slice(-8000);
@@ -1553,6 +1582,11 @@ export class ChromeVisualBrowser {
         return [
           `Chrome process: ${exit}.`,
           stderr ? `Chrome stderr:\n${stderr}` : '',
+          platform === 'win32' && this.cdp?.receivedBytes === 0
+            ? 'Windows browser startup may have relaunched before connecting to the DevTools pipe. '
+              + 'Retry from a non-elevated PowerShell opened normally, outside an elevated or compatibility-mode parent. '
+              + 'Archify does not disable browser de-elevation or the sandbox to preserve pipe handles.'
+            : '',
         ].filter(Boolean).join('\n');
       },
     });
@@ -2470,14 +2504,14 @@ async function runBrowserEvidence({
     receipt.viewerChrome.status = 'skipped';
     receipt.themeStates.status = 'skipped';
     if (capture) receipt.captures.status = 'skipped';
-    receipt.error = 'Chrome or Chromium is unavailable. Set ARCHIFY_CHROME to its executable path.';
+    receipt.error = 'No supported browser found. Install Chrome/Chromium (or Microsoft Edge on Windows), or set ARCHIFY_CHROME to its executable path.';
     receipt.diagnostics = [failureDiagnostic({
       code: 'viewer/chrome-unavailable',
       severity: 'warning',
       message: receipt.error,
       subject: { artifact },
       evidence: { executable: null },
-      supportedFixes: [`set ARCHIFY_CHROME to a Chrome or Chromium executable and rerun ${command}`],
+      supportedFixes: [`set ARCHIFY_CHROME to a Chrome/Chromium executable (or Microsoft Edge on Windows) and rerun ${command}`],
     })];
     const publication = publishReceiptOnly(artifact, outputs, receipt, ownership);
     if (publication.ok) publishedBrowserEvidenceReceipts.add(receipt);

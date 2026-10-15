@@ -89,16 +89,19 @@ test('homepage version labels and translations match the release identity baseli
   const generated = parse(read(dist, 'index.html'));
   // The redesigned eyebrow separates the version chip from its channel label.
   const version = JSON.parse(read(path.resolve(root, '../archify'), 'package.json')).version;
+  const { channel } = JSON.parse(read(path.resolve(root, '../archify'), 'skill-release.json'));
+  const englishBadge = `${channel === 'development' ? 'Development' : 'Stable'} Agent Skill · see what's new`;
+  const chineseBadge = `${channel === 'development' ? '开发版' : '稳定版'} Agent 技能 · 查看更新`;
   const spans = elements(generated, 'span');
   const badge = spans.find(node => attr(node, 'data-i18n') === 'hero-badge');
-  assert.equal(semantic(badge).children.join(' '), "Development Agent Skill · see what's new");
+  assert.equal(semantic(badge).children.join(' '), englishBadge);
   const versionChip = spans.find(node => (attr(node, 'class') || '').split(/\s+/).includes('eyebrow-tag'));
   assert.equal(semantic(versionChip).children.join(' '), `v${version}`);
   const copyNode = byId(generated, 'site-copy');
   assert.ok(copyNode, 'built page must carry its shared translation dictionary');
   const copy = JSON.parse(copyNode.childNodes.map(child => child.value || '').join(''));
-  assert.equal(copy.en['hero-badge'], "Development Agent Skill · see what's new");
-  assert.equal(copy.zh['hero-badge'], '开发版 Agent 技能 · 查看更新');
+  assert.equal(copy.en['hero-badge'], englishBadge);
+  assert.equal(copy.zh['hero-badge'], chineseBadge);
   for (const key of ['footer-meta']) {
     const labels = (tree) => [...elements(tree, 'span'), ...elements(tree, 'p')]
       .filter(node => attr(node, 'data-i18n') === key).map(semantic);
