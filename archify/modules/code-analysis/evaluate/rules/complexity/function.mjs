@@ -4,8 +4,9 @@
 // Function length is reported as evidence but never fires on its own.
 //
 // The rule runs only when the extractor measured functions (facts.functions is
-// present; the Python adapter does, the JS/TS adapter does not yet). Otherwise
-// it is left out of findings.rules and complexity is reported as not checked.
+// present; both the Python and the JS/TS adapters record them, counted the same
+// way). Facts without them, such as raw facts written by an older version, leave
+// the rule out of findings.rules, and complexity is reported as not checked.
 // Test and generated files follow the module graph's exclusion policy.
 //
 // Thresholds (defaults below) can be set in the config:

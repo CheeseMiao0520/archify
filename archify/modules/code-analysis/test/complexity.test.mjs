@@ -171,3 +171,150 @@ test('complexity: end to end on a Python tree', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+const TS_SAMPLE = `export function branches(x: number, items: any[], flag?: boolean) {
+  if ((x > 1 && x < 5) || x === 9) {
+    return 1;
+  } else if (x === 2) {
+    for (const i of items) {
+      if (i) {
+        while (i.n) {
+          i.n -= 1;
+        }
+      }
+    }
+  } else {
+    try {
+      run();
+    } catch (e) {
+      log(e);
+    }
+  }
+  const y = items.filter((a) => a && a.ok);
+  return flag ?? (y.length ? 2 : 3);
+}
+
+class Engine {
+  constructor(private n: number) { if (n) this.n = n; }
+  get size() { return this.n; }
+  step() {
+    const inner = (z: number) => { if (z) return z; return 0; };
+    return inner(this.n);
+  }
+}
+
+const api = {
+  load(id?: string) { return id?.trim(); },
+  save: async (v: number) => v > 0 ? v : 0,
+};
+
+server.on('request', (req: any, res: any) => {
+  if (req.url === '/') res.end('ok');
+});
+server.on('close', () => {});
+
+declare function overload(a: string): void;
+`;
+
+function tsTree(files) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-complexity-ts-'));
+  for (const [rel, text] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    fs.writeFileSync(path.join(dir, rel), text);
+  }
+  return dir;
+}
+
+test('ts extraction: functions, methods, named arrows and module-scope callbacks; inner callbacks fold in', () => {
+  const dir = tsTree({ 'src/sample.ts': TS_SAMPLE });
+  try {
+    const { facts } = extractFacts(dir, { language: 'ts', config: loadConfig(null) });
+    assert.deepEqual(schemaErrors('raw-facts', facts), []);
+    const byName = Object.fromEntries(facts.functions.map((f) => [f.qualname, f]));
+    assert.deepEqual(Object.keys(byName).sort(), [
+      '<callback of server.on>', '<callback of server.on>#2', 'Engine.constructor', 'Engine.get size', 'Engine.step',
+      'Engine.step.<locals>.inner', 'api.load', 'api.save', 'branches',
+    ], 'the overload signature has no body and is skipped');
+    // 1 + if + || + && + else-if + for-of + if + while + catch + && in the folded callback + ?? + ?:
+    assert.equal(byName.branches.complexity, 12);
+    assert.equal(byName.branches.nesting, 4, 'else-if stays at its if\'s depth: if/else-if > for > if > while');
+    assert.equal(byName.branches.deepestLine, 7);
+    assert.equal(byName['Engine.step'].complexity, 1, 'a named arrow is measured on its own, not added to its parent');
+    assert.equal(byName['Engine.step.<locals>.inner'].complexity, 2);
+    assert.equal(byName['api.load'].complexity, 1, 'optional chaining is not a branch');
+    assert.equal(byName['api.save'].complexity, 2);
+    assert.equal(byName['<callback of server.on>'].complexity, 2);
+    assert.equal(byName['<callback of server.on>'].line, 37);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('ts and python: the same logic gets the same complexity and nesting', () => {
+  const py = `def route(kind, items, flag):
+    if kind == 1 and flag or kind == 9:
+        return 1
+    elif kind == 2:
+        for item in items:
+            if item.ready:
+                while item.pending:
+                    item.pending -= 1
+    else:
+        try:
+            go()
+        except ValueError:
+            pass
+    return 2 if flag else 3
+`;
+  const ts = `export function route(kind: number, items: any[], flag: boolean) {
+  if ((kind === 1 && flag) || kind === 9) {
+    return 1;
+  } else if (kind === 2) {
+    for (const item of items) {
+      if (item.ready) {
+        while (item.pending) {
+          item.pending -= 1;
+        }
+      }
+    }
+  } else {
+    try {
+      go();
+    } catch (e) {
+      // ignored
+    }
+  }
+  return flag ? 2 : 3;
+}
+`;
+  const pyDir = pyTree({ 'app/__init__.py': '', 'app/route.py': py });
+  const tsDir = tsTree({ 'src/route.ts': ts });
+  try {
+    const pick = (dir, language) => extractFacts(dir, { language, config: loadConfig(null) }).facts.functions.find((f) => f.name === 'route');
+    const [p, t] = [pick(pyDir, 'py'), pick(tsDir, 'ts')];
+    assert.deepEqual([t.complexity, t.nesting], [p.complexity, p.nesting]);
+    assert.deepEqual([p.complexity, p.nesting], [10, 4]);
+  } finally {
+    fs.rmSync(pyDir, { recursive: true, force: true });
+    fs.rmSync(tsDir, { recursive: true, force: true });
+  }
+});
+
+test('complexity: runs for JS/TS projects end to end', () => {
+  const body = ['export function dispatch(kind: number) {', '  let out = 0;',
+    ...Array.from({ length: 26 }, (_, i) => `  ${i ? 'else if' : 'if'} (kind === ${i}) { out += ${i}; }`), '  return out;', '}', ''].join('\n');
+  const dir = tsTree({ 'src/dispatch.ts': body, 'src/other.ts': 'export const x = () => 1;\n' });
+  try {
+    const config = loadConfig(null);
+    const { facts } = extractFacts(dir, { language: 'ts', config });
+    const findings = evaluateGraph(buildGraph(facts, config), config, facts);
+    assert.ok(findings.rules.includes('complexity/function'));
+    const f = findings.diagnostics.find((d) => d.code === 'complexity/function');
+    assert.equal(f.subject.function, 'dispatch');
+    assert.equal(f.evidence.complexity, 27);
+    assert.equal(f.severity, 'warning');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+

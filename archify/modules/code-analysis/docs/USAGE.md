@@ -53,9 +53,27 @@ Each rule names a `from` layer and either `disallow` (layers it must not import)
 
 Boundaries come only from this config. The architecture diagram is not used as a rule: a missing arrow on the diagram does not forbid a dependency. Without `boundaries`, the overview lists architecture boundaries as not checked. Coverage shows how many files each layer matched; a layer matching no files usually means a mistyped glob. An invalid `boundaries` block stops analysis with `config/boundaries-invalid`.
 
-## Function complexity (Python)
+## Function complexity
 
-For Python projects, every function is measured: cyclomatic complexity (1 plus each `if`/`elif`, loop, `except`, conditional expression, non-default `case`, comprehension `for`/`if`, and each extra `and`/`or` operand) and nesting depth (`elif` stays at its `if`'s depth). Nested functions are measured on their own; lambdas count toward the function that contains them. Test and generated files are skipped.
+Every Python and JS/TS function is measured the same way. **Cyclomatic complexity** is 1 plus one for each decision point:
+
+| | Python | JS/TS |
+| --- | --- | --- |
+| Conditions | `if`/`elif` | `if`/`else if` |
+| Loops | `for`/`while` | `for`/`for…in`/`for…of`/`while`/`do` |
+| Error handling | `except` | `catch` |
+| Conditional expressions | `x if c else y` | `c ? x : y` |
+| Cases | non-default `case` | non-default `case` |
+| Boolean operators | each extra `and`/`or` operand | each `&&`, `||`, `??` (and `&&=`, `||=`, `??=`) |
+| Comprehensions | each `for`/`if` clause | — |
+
+Optional chaining (`?.`) is not counted. **Nesting depth** is the deepest stack of blocks; `elif`/`else if` stays at its `if`'s depth.
+
+Nested named functions are measured on their own:
+- in Python: methods and nested `def`s;
+- in JS/TS: methods, constructors, accessors, and arrow or function expressions assigned to a name.
+
+Lambdas and anonymous callbacks count toward the function that contains them. A callback at module level has no such function, so it is measured on its own, named after the call it is passed to, such as `<callback of server.on>`. Test and generated files are skipped.
 
 A function is reported as info from complexity 15 or nesting 5, and as a warning from complexity 25 or nesting 6. Function length is shown as context but never reported on its own. A high count is a maintenance signal, not a defect. The problem page links to the function's first line and its deepest nested block.
 
@@ -65,7 +83,6 @@ To change the thresholds, set any of them in the `--config` file; unset values k
 { "rules": { "complexity": { "function": { "info": { "complexity": 12 }, "warning": { "complexity": 30, "nesting": 7 } } } } }
 ```
 
-JS/TS functions are not measured yet; for those projects the overview lists complexity as not checked.
 
 ## Accepting known findings (baseline)
 

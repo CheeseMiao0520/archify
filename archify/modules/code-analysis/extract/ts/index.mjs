@@ -8,6 +8,7 @@ import { matcher } from '../shared/glob.mjs';
 import { snapshotHost } from './snapshot-host.mjs';
 import { describeRepository } from '../shared/git.mjs';
 import { fail } from '../shared/diagnostics.mjs';
+import { measureFunctions } from './functions.mjs';
 
 export const id = 'ts';
 
@@ -59,11 +60,13 @@ export function extract(root, config) {
   const imports = [];
   const unresolved = { external: 0, outside: 0, unknown: 0, opaque: 0 };
   const fileRecords = [];
+  const functions = [];
 
   for (const rel of files) {
     const abs = path.join(absRoot, rel);
     const source = program.getSourceFile(abs);
     fileRecords.push({ path: rel, loc: lineCount(source.text), role: classifyRole(rel, config.roles), sourceText: source.text });
+    if (!source.isDeclarationFile) functions.push(...measureFunctions(source, rel));
     for (const found of collectImports(source, checker, options)) {
       const record = { from: rel, specifier: found.specifier, kind: found.kind, line: found.line, resolved: false };
       if (found.names.length) record.names = found.names;
@@ -86,6 +89,7 @@ export function extract(root, config) {
     files: fileRecords,
     imports,
     symbols: [],
+    functions: functions.sort((a, b) => compareText(a.file, b.file) || a.line - b.line || compareText(a.qualname, b.qualname)),
     calls: [],
     unresolved,
   };

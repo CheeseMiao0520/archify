@@ -24,7 +24,7 @@ The server serves the diagram on a loopback address with a Code Analysis button.
 
 1. **Extract facts** (`extract/`): select the Python or JS/TS adapter, read source files, and record files, imports, available symbol information, and unresolved dependencies. Python uses an AST extractor; JS/TS uses the TypeScript Compiler API. Each run selects one language.
 2. **Build the module graph** (`graphs/module.mjs`): group files by explicit configuration, package boundaries, or directory depth; aggregate dependencies between modules; calculate file ownership and module metrics. Root-level files form individual modules. Test and generated roles are excluded by default and counted in the output.
-3. **Evaluate rules** (`evaluate/`): run the import-cycle, module coupling-cycle, and hub rules; function complexity when the extractor measured functions (Python); and architecture-boundary rules when the config declares them. Findings include severity, subjects, and supporting evidence. Configured rule suppression is counted in the summary.
+3. **Evaluate rules** (`evaluate/`): run the import-cycle, module coupling-cycle, and hub rules; function complexity (Python and JS/TS); and architecture-boundary rules when the config declares them. Findings include severity, subjects, and supporting evidence. Configured rule suppression is counted in the summary.
 4. **Build the analysis view** (`overlay/inject.mjs`): map authored components to code modules using source references or an explicit mapping, then add findings and source navigation to a copy of the delivered page.
 
 The orchestrator validates intermediate data against JSON schemas. It also checks that supplied raw facts and module graph data agree on repository metadata, file ownership, and dependency aggregates.
@@ -47,7 +47,7 @@ Source references with line numbers show a nine-line context window and highligh
 - `graphs/`: module grouping and dependency aggregation.
 - `evaluate/rules/coupling/`: import-cycle, module-cycle, and hub rules.
 - `evaluate/rules/architecture/`: opt-in layer boundary rules declared in the config.
-- `evaluate/rules/complexity/`: function complexity and nesting thresholds (Python functions).
+- `evaluate/rules/complexity/`: function complexity and nesting thresholds (Python and JS/TS functions, measured by each extractor; JS/TS in `extract/ts/functions.mjs`).
 - `lib/`: pipeline orchestration, intermediate-data checks, and review (`review.mjs`: baseline and run comparison).
 - `bin/check.mjs`: headless analysis for terminals and CI; `bin/analyze-run.mjs`: one analysis run in a child process for the server.
 - `overlay/`: mapping and browser presentation.
@@ -78,4 +78,4 @@ The module uses `typescript` for JS/TS parsing and `ajv` for JSON schema checks.
 
 The local server checks the request host and requires the matching origin and per-server token for analysis requests. Embedded source collection is bounded to the analyzed source root.
 
-The analyzer does not execute the analyzed application or call an LLM. It currently does not implement separate call, test, or Git-change graphs, complexity for JS/TS, duplication rules, taint analysis, concurrency or resource-safety verification, automatic fixes, or a composite quality score. Results identify a working-tree extraction with captured source text and a snapshot digest. Git HEAD is contextual base metadata, not the revision of the analyzed content; it is not a change-impact analysis.
+The analyzer does not execute the analyzed application or call an LLM. It currently does not implement separate call, test, or Git-change graphs, duplication rules, taint analysis, concurrency or resource-safety verification, automatic fixes, or a composite quality score. Results identify a working-tree extraction with captured source text and a snapshot digest. Git HEAD is contextual base metadata, not the revision of the analyzed content; it is not a change-impact analysis.

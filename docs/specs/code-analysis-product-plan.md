@@ -342,3 +342,9 @@ from a import Config
 
 在 AI Voice（重建的源码树）上验证：首次运行 16 项警告失败；写入基线后通过；新增一个复杂函数后，`--new-only` 只对该函数失败。
 
+## 12. JS/TS 函数复杂度（2026-10-15）
+
+JS/TS 提取器（`extract/ts/functions.mjs`）按与 Python 对齐的口径记录每个函数：`if`/`else if`、条件表达式、各类循环、`catch`、非默认 `case`、`&&`/`||`/`??`（含赋值形式）各 +1，可选链不计；`else if` 与 `catch` 不增加嵌套。具名函数、方法、构造器、访问器以及赋值给名字的箭头函数单独记录；匿名回调并入外层函数，模块顶层的回调以 `<callback of 调用名>` 单独记录。同一段逻辑在两种语言中得到相同的复杂度和嵌套深度（有对照测试）。阈值沿用 15/5 与 25/6。
+
+在 archify 自身（1245 个源码函数）上标记 12%，其中多数目录为 5–9%，与 Python 接近；`bin/archify.mjs` 因有 10 个超过 200 行的函数达到 20%。最高为 `renderers/workflow/workflow-compiler.mjs` 的 `createReadableLayout`（复杂度 165）。
+
