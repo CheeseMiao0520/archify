@@ -149,7 +149,8 @@ const multiDay = (() => {
 })();
 function clockLabel(ms, { seconds = showSeconds, date = multiDay } = {}) {
   const w = wall(ms);
-  return `${date ? `${w.mo}-${w.d} ` : ''}${w.h}:${w.mi}${seconds ? `:${w.s}` : ''}`;
+  const fraction = new Date(ms).getUTCMilliseconds();
+  return `${date ? `${w.mo}-${w.d} ` : ''}${w.h}:${w.mi}${seconds ? `:${w.s}${fraction ? `.${String(fraction).padStart(3, '0')}` : ''}` : ''}`;
 }
 
 function durationLabel(ms) {

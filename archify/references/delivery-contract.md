@@ -268,7 +268,7 @@ object with gate statuses, bounded actionable diagnostics, artifact identity,
 and evidence paths. The same compact object is written atomically to
 `<output-stem>.finalize-summary.json`; use that file for normal failure repair. When diagnostics are truncated, `diagnosticSummary.omittedByCode` counts the unshown entries by diagnostic code without replacing their full subject and repair evidence in the full receipt.
 Complete stage receipts and timings remain available for auditing in
-`<output-stem>.finalize.json`. With `--out-dir`, both files are written there;
+`<output-stem>.finalize.json`. With `--out-dir`, both files are written there (unless an explicit `--receipt` overrides the finalize receipt path; the artifact HTML stays at the requested output path);
 `--receipt <path.json>` overrides the full receipt path and derives a distinct
 `<path>-summary.json`. Read the full receipt only when the compact summary is
 truncated and its shown subjects and evidence cannot identify a coherent local
@@ -423,12 +423,14 @@ command is:
 node bin/archify.mjs browser-check <output.html> --json --require-provenance
 ```
 
-The zero-dependency command uses Chrome/Chromium (or Microsoft Edge on Windows)
+The zero-dependency command uses Chrome/Chromium (or Microsoft Edge)
 through the DevTools pipe. `ARCHIFY_CHROME` is authoritative when set, including
 an invalid path: Archify does not silently fall back to another browser. Automatic
 Windows discovery checks every Chrome/Chromium install location and PATH command
 first, then Edge under `%ProgramFiles(x86)%`, `%ProgramFiles%`, and `%LocalAppData%`,
-followed by `msedge` on PATH. Non-Windows automatic discovery is unchanged. It
+followed by `msedge` on PATH. On macOS and Linux, discovery also checks
+Chrome/Chromium first, then the Edge application bundle (macOS) and
+`microsoft-edge`/`microsoft-edge-stable` on PATH. It
 measures light-theme containment at 1440×900, 1600×1000, 1920×1080, and
 2048×1320, and verifies the requested light theme at all four viewports, the dark
 theme at both endpoints, and READ/Still runtime states. A requested theme that
@@ -560,12 +562,14 @@ a capable environment.
 
 ## A new candidate at an existing output path
 
-Browser evidence belongs to exact artifact bytes. After editing a candidate whose previous HTML already has browser evidence, choose a fresh evidence directory before running the next `finalize`; this preserves the old receipts and captures without an avoidable ownership-conflict retry:
+Browser evidence belongs to exact artifact bytes. After editing a candidate whose previous HTML already has browser evidence, choose a fresh evidence directory before running the next `finalize`; this preserves the old receipts and captures without an avoidable ownership-conflict retry. `--out-dir` relocates the new browser-check receipt and, by default, the finalize receipt and summary. An explicit `--receipt` overrides the finalize receipt path; its summary follows that path. Successful delivery still rewrites the requested HTML and its sibling `*.delivery.json`. Earlier browser or visual evidence remains bound to its original artifact bytes and must not be treated as evidence for changed HTML:
 
 ```bash
 node bin/archify.mjs finalize architecture candidate.json diagram.html --quality showcase --repo-root <root> --out-dir diagram.review-2 --json
 node bin/archify.mjs visual-check diagram.html --out-dir diagram.review-2 --summary --require-provenance
 ```
+
+The evidence directory is not an archive of the HTML. Copying the HTML there alone does not rebind receipt paths or provenance. If a historical snapshot is needed, preserve the candidate and artifact separately before overwriting them; do not assume copied receipts validate a relocated artifact.
 
 Keep the requested HTML path stable. Use a new revision directory for each changed candidate, and retain the same directory for retries of unchanged bytes. For a diagram without repository evidence, omit `--repo-root`. Let the commands create their output directory. A prior validation failure that produced no HTML or browser evidence needs no new directory. Never remove unknown evidence to make a retry pass.
 
