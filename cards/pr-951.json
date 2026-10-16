@@ -1,0 +1,10 @@
+{
+  "templateVersion": 1,
+  "repository": "tt-a1i/archify",
+  "number": 951,
+  "author": "MannXo",
+  "title": "docs(readme): re-export the four older previews in the Viewer export style",
+  "mergedAt": "2026-10-16T07:56:05Z",
+  "mergeCommit": "10a601f756ca4d2fb8083b63c0cb780e092b4c2e",
+  "url": "https://github.com/tt-a1i/archify/pull/951"
+}
