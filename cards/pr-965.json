@@ -1,0 +1,10 @@
+{
+  "templateVersion": 1,
+  "repository": "tt-a1i/archify",
+  "number": 965,
+  "author": "tt-a1i",
+  "title": "test(website): align Cloudflare fixtures with published routes",
+  "mergedAt": "2026-10-16T00:39:43Z",
+  "mergeCommit": "f8021f7eee6870a552bbad3373cf6bad32c80f37",
+  "url": "https://github.com/tt-a1i/archify/pull/965"
+}
