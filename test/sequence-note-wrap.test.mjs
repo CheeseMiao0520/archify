@@ -764,3 +764,40 @@ test('the ordered adjustment keeps the last integer slot below fractional rows',
   const repaired = run(t, 'validate', applyFix(spec, diagnostic.supportedFixes[0])).result;
   assert.equal(repaired.status, 0, repaired.stdout);
 });
+
+// A reached row can own a note taller than any fixed scan window allows for:
+// the joint allowance derives from the moved notes' computed heights, so the
+// search reaches the stacked slots instead of withholding the whole repair.
+test('the ordered adjustment reaches past a moved note taller than the fixed window', (t) => {
+  const spec = sequence({
+    participants: ['client', 'api'],
+    messages: [
+      { from: 'client', to: 'api', y: 300, label: 'owner', note: Array(60).fill('word').join(' ') },
+      { from: 'client', to: 'api', y: 330, label: 'first', note: Array(620).fill('word').join(' ') },
+      { from: 'client', to: 'api', y: 380, label: 'second' },
+    ],
+  });
+  const diagnostic = failure(t, spec, 'sequence/note-overlap');
+  assert.equal(diagnostic.evidence.requiredY, 399);
+  assert.deepEqual(diagnostic.supportedFixes, ['set /messages/1/y to 399', 'set /messages/2/y to 1059']);
+  const repaired = diagnostic.supportedFixes.reduce(applyFix, spec);
+  assert.equal(run(t, 'validate', repaired).result.status, 0, 'the whole adjustment must hold');
+});
+
+// A segment frame edge rejects every integer within 4px, but the quarter-snapped
+// boundary just outside the exclusion can still hold: offer it before withholding.
+test('the single repair offers the subpixel slot beside a segment edge', (t) => {
+  const spec = sequence({
+    messages: [
+      { from: 'client', to: 'api', y: 300, label: 'owner', note: Array(60).fill('word').join(' ') },
+      { from: 'client', to: 'api', y: 330, label: 'blocker' },
+      { from: 'api', to: 'db', y: 443.5, label: 'disjoint' },
+    ],
+  });
+  spec.segments = [{ label: 'Phase', from: 200, to: 439.2 }];
+  const diagnostic = failure(t, spec, 'sequence/note-overlap');
+  assert.equal(diagnostic.evidence.requiredY, 443);
+  assert.deepEqual(diagnostic.supportedFixes, ['set /messages/1/y to 443.25']);
+  const repaired = run(t, 'validate', applyFix(spec, diagnostic.supportedFixes[0])).result;
+  assert.equal(repaired.status, 0, repaired.stdout);
+});

@@ -552,14 +552,55 @@ function noteReachedMessages(messages, ownerIndex, ownRect) {
 // so such an arrangement is withheld instead (the unedited payment draft pins
 // this in `test/sequence-segment-labels.test.mjs`).
 function moveCeiling(reached, entry) {
+  const raw = rawRowBound(reached, entry);
+  // Rows may be fractional while the scan steps in whole pixels: ceil the bound
+  // so a valid integer slot just below a fractional row survives (ceil(m) - 1 is
+  // still strictly below m, and identical to m - 1 for integer rows).
+  return raw === Infinity ? Infinity : Math.ceil(raw) - 1;
+}
+
+// The raw timeline bound behind moveCeiling: the lowest unreached row below
+// the entry, exclusive. Fractional placements may sit anywhere strictly below
+// it (y=443.25 keeps order below a row at 443.5) even past the integer ceiling.
+function rawRowBound(reached, entry) {
   const moved = new Set(reached.map((candidate) => candidate.index));
   const below = asArray(sequence.messages)
     .filter((message, index) => !moved.has(index) && typeof message.y === 'number' && message.y > entry.message.y)
     .map((message) => message.y);
-  // Rows may be fractional while the scan steps in whole pixels: ceil the bound
-  // so a valid integer slot just below a fractional row survives (ceil(m) - 1 is
-  // still strictly below m, and identical to m - 1 for integer rows).
-  return below.length ? Math.ceil(Math.min(...below)) - 1 : Infinity;
+  return below.length ? Math.min(...below) : Infinity;
+}
+
+// How far the joint scan may look past requiredY: the adjustment stacks the
+// reached rows, and a reached row can own a note taller than any fixed window
+// allows for. Note height does not depend on y, so derive the allowance from
+// the moved notes' computed heights instead of a constant (#923 review).
+function jointScanAllowance(reached) {
+  let stacked = 0;
+  for (const entry of reached) {
+    const rect = noteRect(entry.message);
+    if (rect) stacked += rect.height + 28;
+  }
+  return Math.max(600, stacked);
+}
+
+// Subpixel slots the integer scan cannot name: a segment frame edge rejects
+// every y within 4px, but the boundary just outside the exclusion can still
+// hold (y=443.25 clears an edge at 439.2 below a row at 443.5). Candidates
+// snap outward to whole quarters so they stay exactly representable and keep
+// a real margin outside the exclusion; they may sit past the integer ceiling
+// as long as they stay strictly below the next unreached row. Tried only
+// after the integer scan misses, so integer receipts never change.
+function segmentEdgeCandidates(minimum, ceiling, rawBound) {
+  const candidates = [];
+  for (const segment of asArray(sequence.segments)) {
+    for (const border of [segment.from, segment.to]) {
+      if (typeof border !== 'number') continue;
+      for (const y of [Math.floor((border - 4) * 4) / 4, Math.ceil((border + 4) * 4) / 4]) {
+        if (y >= minimum && (y <= ceiling || y < rawBound) && !Number.isInteger(y)) candidates.push(y);
+      }
+    }
+  }
+  return [...new Set(candidates)].sort((a, b) => a - b);
 }
 
 // Whether a fully assigned joint or single move keeps the implicit legend budget
@@ -591,14 +632,22 @@ function assignedLegendBudgetHolds() {
 function noteSingleAdjustment(blocker, requiredY) {
   const ceiling = Math.min(moveCeiling([blocker], blocker), requiredY + 600);
   const previousY = blocker.message.y;
-  for (let y = requiredY; y <= ceiling; y += 1) {
-    if (!messageFitsAt(blocker.index, y)) continue;
+  const attempt = (y) => {
+    if (!messageFitsAt(blocker.index, y)) return null;
     blocker.message.y = y;
     noteLayouts.delete(blocker.message);
     const holds = assignedLegendBudgetHolds();
     blocker.message.y = previousY;
     noteLayouts.delete(blocker.message);
-    if (holds) return [{ index: blocker.index, y }];
+    return holds ? [{ index: blocker.index, y }] : null;
+  };
+  for (let y = requiredY; y <= ceiling; y += 1) {
+    const hit = attempt(y);
+    if (hit) return hit;
+  }
+  for (const y of segmentEdgeCandidates(requiredY, ceiling, rawRowBound([blocker], blocker))) {
+    const hit = attempt(y);
+    if (hit) return hit;
   }
   return [];
 }
@@ -630,12 +679,21 @@ function noteOverlapAdjustment(reached, requiredY) {
   try {
     for (const [order, entry] of reached.entries()) {
       const minimum = assigned.length === 0 ? requiredY : assigned[assigned.length - 1] + 1;
-      const ceiling = Math.min(moveCeiling(reached, entry), requiredY + 28 * reached.length + 600);
+      const ceiling = Math.min(moveCeiling(reached, entry), requiredY + 28 * reached.length + jointScanAllowance(reached));
       let chosen = null;
       const floating = new Set(reached.slice(order + 1).map((later) => later.index));
       for (let y = minimum; y <= ceiling && chosen === null; y += 1) {
         place(entry, y);
         if (messageFitsAt(entry.index, y, floating)) chosen = y;
+      }
+      if (chosen === null) {
+        for (const y of segmentEdgeCandidates(minimum, ceiling, rawRowBound(reached, entry))) {
+          place(entry, y);
+          if (messageFitsAt(entry.index, y, floating)) {
+            chosen = y;
+            break;
+          }
+        }
       }
       if (chosen === null) return [];
       place(entry, chosen);
