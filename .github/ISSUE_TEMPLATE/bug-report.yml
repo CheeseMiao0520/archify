@@ -40,6 +40,11 @@ body:
         - Sequence
         - Data flow
         - Lifecycle
+        - ERD
+        - Class
+        - Tree
+        - Timeline
+        - Waterfall
         - Installation or packaging
         - Generated viewer
     validations:

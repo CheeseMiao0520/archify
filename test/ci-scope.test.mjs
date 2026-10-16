@@ -49,6 +49,19 @@ test('recipe, schema and shared renderer owners include their real source consum
   assert.ok(selectAffectedTests(schema.owners, [], available).includes('test/generate-validators.test.mjs'));
 });
 
+test('shared SVG parser changes retain the public checker suite without selecting unrelated tests', () => {
+  const available = ['test/svg-path-analysis.test.mjs', 'test/svg-path-checker.test.mjs',
+    'test/cli.test.mjs', 'test/readme-showcase.test.mjs'];
+  const plan = classifyPaths(['archify/renderers/shared/svg-path-analysis.mjs', 'archify.zip']);
+  assert.equal(plan.scope, 'core');
+  assert.deepEqual(plan.changedTests, []);
+  assert.ok(plan.generated && plan.browser && plan.package);
+  assert.deepEqual(selectAffectedTests(plan.owners, plan.changedTests, available), available.slice(0, 2));
+
+  const prose = classifyPaths(['README.md']);
+  assert.deepEqual(selectAffectedTests(prose.owners, prose.changedTests, available), ['test/readme-showcase.test.mjs']);
+});
+
 test('Architecture grid changes retain explicit placement regression coverage', () => {
   const available = ['test/grid.test.mjs', 'test/architecture-first-draft.test.mjs', 'test/cli.test.mjs'];
   const plan = classifyPaths(['archify/renderers/architecture/grid.mjs']);
