@@ -342,6 +342,7 @@ test('a note that reaches several messages emits the whole ordered adjustment', 
         { from: 'client', to: 'api', y: 300, label: 'owner', note: Array(60).fill('word').join(' ') },
         { from: 'client', to: 'api', y: 330, label: 'first blocker' },
         { from: 'client', to: 'api', y: 366, label: 'second blocker' },
+        { from: 'client', to: 'api', y: 490, label: 'unaffected later reply' },
       ],
     }),
     meta: { title: 'Note wrap', output: 'note.html', quality_profile: 'showcase', column_fit: 'spread', viewBox: [560, 600], legend: { mode: 'hidden' } },
@@ -361,6 +362,7 @@ test('a note that reaches several messages emits the whole ordered adjustment', 
   ]);
   let repaired = spec;
   for (const fix of diagnostic.supportedFixes) repaired = applyFix(repaired, fix);
+  assert.deepEqual(repaired.messages[3], spec.messages[3], 'a clear later message stays unchanged (#924)');
   const after = run(t, 'validate', repaired).result;
   assert.equal(after.status, 0, after.stdout + after.stderr);
 });
