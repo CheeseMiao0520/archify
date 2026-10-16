@@ -2,17 +2,17 @@
   "schemaVersion": 1,
   "skillId": "archify",
   "channel": "stable",
-  "version": "2.16.0",
-  "publishedAt": "2026-08-30T11:13:26Z",
+  "version": "3.1.0",
+  "publishedAt": "2026-10-13T17:01:11Z",
   "source": {
     "repository": "https://github.com/tt-a1i/archify",
-    "ref": "v2.16.0",
-    "treeSha": "a198a3e0d03cd08eb582062a52dc4b0bd5b0aa4f"
+    "ref": "v3.1.0",
+    "treeSha": "7e1de2b2cf3a9a91823ee5dcc2089c1d96a7e4f1"
   },
   "artifact": {
-    "sha256": "4c59fa6557a2385beaaef8c7219cc414573acc9f0c30a932d5053b0b20689a46"
+    "sha256": "ffedc53390c9da6e859f41e432c5d2d0615a23cf00a503181f07efbba88a7ce8"
   },
-  "summary": "Adds constraint-driven compilation and update awareness, improves multilingual authoring and viewer behavior, and hardens reproducible releases.",
-  "releaseNotes": "https://github.com/tt-a1i/archify/releases/tag/v2.16.0",
+  "summary": "Adds five diagram types for ten total, default Live motion, clearer layouts and verified delivery, with export and Windows portability fixes.",
+  "releaseNotes": "https://github.com/tt-a1i/archify/releases/tag/v3.1.0",
   "severity": "normal"
 }
