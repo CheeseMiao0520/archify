@@ -325,14 +325,51 @@ test('findChrome checks installed Edge before its Windows PATH fallback', () => 
   }
 });
 
-test('findChrome leaves non-Windows discovery unchanged and returns null when nothing is found', () => {
+test('findChrome discovers Edge from the macOS application bundle', () => {
+  const expected = '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge';
+  assert.equal(findChrome({
+    platform: 'darwin', env: { PATH: '/usr/bin' },
+    resolveExecutable: (candidate) => candidate === expected ? candidate : null,
+  }), expected);
+});
+
+test('findChrome finds microsoft-edge command names on a macOS or Linux PATH', () => {
+  for (const platform of ['darwin', 'linux']) {
+    for (const command of ['microsoft-edge', 'microsoft-edge-stable']) {
+      const expected = `/usr/bin/${command}`;
+      assert.equal(findChrome({
+        platform, env: { PATH: '/usr/bin' },
+        resolveExecutable: (candidate) => candidate === expected ? candidate : null,
+      }), expected, `${platform}:${command}`);
+    }
+  }
+});
+
+test('findChrome keeps Chrome/Chromium ahead of Edge on macOS and Linux', () => {
+  for (const platform of ['darwin', 'linux']) {
+    const chrome = platform === 'darwin'
+      ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+      : '/usr/bin/google-chrome';
+    const edge = platform === 'darwin'
+      ? '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'
+      : '/usr/bin/microsoft-edge';
+    assert.equal(findChrome({
+      platform, env: { PATH: '/usr/bin' },
+      resolveExecutable: (candidate) => [chrome, edge].includes(candidate) ? candidate : null,
+    }), chrome, platform);
+  }
+});
+
+test('findChrome returns null when no browser is found and probes Edge on non-Windows', () => {
   for (const platform of ['win32', 'darwin', 'linux']) {
     const checked = [];
     assert.equal(findChrome({
       platform, env: { PATH: '/usr/bin', PROGRAMFILES: String.raw`C:\Program Files` },
       resolveExecutable(candidate) { checked.push(candidate); return null; },
-    }), null);
-    if (platform !== 'win32') assert.equal(checked.some((candidate) => /edge/i.test(candidate)), false);
+    }), null, platform);
+    if (platform !== 'win32') {
+      assert.ok(checked.some((candidate) => /edge/i.test(candidate)), `${platform} probes Edge candidates`);
+    }
   }
 });
 
