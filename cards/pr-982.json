@@ -1,0 +1,10 @@
+{
+  "templateVersion": 1,
+  "repository": "tt-a1i/archify",
+  "number": 982,
+  "author": "tt-a1i",
+  "title": "fix(website): publish standalone case discovery metadata",
+  "mergedAt": "2026-10-17T03:14:31Z",
+  "mergeCommit": "88d1ae4498b6a1df610badf690c5406882622d15",
+  "url": "https://github.com/tt-a1i/archify/pull/982"
+}
