@@ -30,8 +30,10 @@ test('extract: archify/ self-bootstrap passes schema and is byte-for-byte determ
   const { config, output } = workspace(t);
   const OUT_A = output('facts-a.json');
   const OUT_B = output('facts-b.json');
-  assert.equal(runExtract([ARCHIFY, '--language', 'ts', '--config', config, '--out', OUT_A]).status, 0);
-  assert.equal(runExtract([ARCHIFY, '--language', 'ts', '--config', config, '--out', OUT_B]).status, 0);
+  const first = runExtract([ARCHIFY, '--language', 'ts', '--config', config, '--out', OUT_A]);
+  assert.equal(first.status, 0, `${first.stdout || ''}${first.stderr || ''}${first.error?.message || ''}`);
+  const second = runExtract([ARCHIFY, '--language', 'ts', '--config', config, '--out', OUT_B]);
+  assert.equal(second.status, 0, `${second.stdout || ''}${second.stderr || ''}${second.error?.message || ''}`);
   assert.equal(fs.readFileSync(OUT_A, 'utf8'), fs.readFileSync(OUT_B, 'utf8'));
   const facts = JSON.parse(fs.readFileSync(OUT_A, 'utf8'));
   assert.deepEqual(schemaErrors('raw-facts', facts), []);

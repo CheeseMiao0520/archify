@@ -20,6 +20,29 @@
         "suppressed": { "type": "integer", "minimum": 0 }
       }
     },
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["analyzer", "language", "adapter", "configDigest", "ruleVersions", "coverage"],
+      "description": "What the findings depend on besides the source: analyzer version, effective configuration, rules run and scan coverage. Optional so findings written before it existed stay valid; a comparison with such a run is reported as not verifiable.",
+      "properties": {
+        "analyzer": { "type": "object", "additionalProperties": false, "required": ["name", "version"], "properties": { "name": { "type": "string" }, "version": { "type": "string" } } },
+        "language": { "type": ["string", "null"] },
+        "adapter": { "type": ["string", "null"] },
+        "configDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "sha256 of the effective (merged) configuration, schema_version excluded." },
+        "ruleVersions": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 1 }, "description": "Rules that ran (suppressed rules excluded) and the version of their logic." },
+        "coverage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["files", "excludedRoles", "parseErrors"],
+          "properties": {
+            "files": { "type": ["integer", "null"], "minimum": 0 },
+            "excludedRoles": { "type": "array", "items": { "type": "string" } },
+            "parseErrors": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
     "diagnostics": {
       "type": "array",
       "items": {

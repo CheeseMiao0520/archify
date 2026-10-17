@@ -78,10 +78,10 @@ test('Code Analysis marks baseline findings, re-analyzes without a restart, and 
   // Fix the new cycle and re-analyze without restarting the server.
   write('d.mjs', 'export const d = 1;\n');
   await run("document.querySelector('#bauify-overview .bauify-reanalyze').click()");
-  await wait("location.search === '' && document.documentElement.getAttribute('data-bauify') === 'on' && /fixed/.test(document.getElementById('bauify-overview').innerText)");
+  await wait("location.search === '' && document.documentElement.getAttribute('data-bauify') === 'on' && /no longer detected/.test(document.getElementById('bauify-overview').innerText)");
   overview = await run("document.getElementById('bauify-overview').innerText");
   assert.match(overview, /No open findings · 2 accepted in the baseline/);
-  assert.match(overview, /Since the previous analysis: 0 new · \d+ fixed/);
+  assert.match(overview, /Since the previous analysis: 0 new · \d+ no longer detected/);
   assert.match(overview, /2 findings · 2 accepted\n/, 'counts read cleanly when nothing is open');
   assert.match(overview, /Every finding is accepted in the baseline/);
   assert.equal(await run("document.querySelector('#bauify-layer rect').getAttribute('class').split(' ')[0]"), 'green', 'accepted findings do not colour the diagram');

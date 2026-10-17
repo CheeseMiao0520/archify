@@ -15,7 +15,7 @@ Use the project's architecture JSON prepared with Archify as `architecture.json`
 4. Click a source link for a short captured excerpt. Show full file expands it, and Show excerpt returns to the short view. References without a line show a file preview, not a finding location.
 5. Click **Code Analysis** again to return to the architecture view.
 
-Keep the terminal running. After changing source code, click **Re-analyze** on the overview: the repository is read again without restarting, the page reloads with the new result, and the overview shows what changed since the previous analysis (new, fixed, and findings whose code changed). If a re-analysis fails, the last good result stays in place and the reason is shown next to the button. Changes to the architecture JSON or to the `--config` file still need a restart.
+Keep the terminal running. After changing source code or the `--config` file, click **Re-analyze** on the overview: the repository and the config are read again without restarting, the page reloads with the new result, and the overview shows what changed since the previous analysis (new, no longer detected, and findings whose code changed). A finding that is no longer detected is not necessarily fixed: if the config, the rules that ran, or the files that parsed changed between the two runs, the comparison is marked as not directly comparable and says why (see [Comparing runs](#comparing-runs)). If a re-analysis fails, the last good result stays in place and the reason is shown next to the button. Only a changed architecture JSON needs a restart.
 
 Analysis reads the working tree, including uncommitted and untracked source files. Results are labeled **Working tree**; any base commit is context only. Source panels use the text captured during extraction, and working-tree results do not provide commit-based source links. The raw facts retain that source text and a snapshot digest so findings, graphs, and source panels refer to the same extraction. Non-Git directories are supported.
 
@@ -118,3 +118,48 @@ node bin/archify.mjs code-analysis check "/path/to/project" --baseline analysis-
 
 Exit codes: `0` passed, `1` the gate failed, `2` the analysis could not run (the diagnostic says why). The printed summary lists failing findings as `path:line` with their ids, the comparison counts, and stale baseline entries.
 
+
+## Config files
+
+`--config file.json` is merged into the defaults (`config/defaults.json`):
+
+- objects merge key by key at every depth, so a file that sets one threshold or one file role keeps every other default;
+- arrays replace the default list as a whole — `include`, `exclude`, `ignore` and each role's globs. To add an exclusion, copy the default `exclude` list and append to it;
+- other values replace the default.
+
+Rules are switched off only with `"ignore": ["rule/code"]`. A config that is not a JSON object stops analysis with `cli/config-invalid`.
+
+## Comparing runs
+
+Every `findings.json` records what the result depends on besides the code: the analyzer version, a digest of the effective config, the rules that ran, the excluded file roles and the files that failed to parse. A comparison (Re-analyze, or `check --compare`/`--out`) lists findings that are new, **no longer detected**, and whose evidence changed, and adds:
+
+- `comparable`: `true` when both runs measured the same way, `false` with `reasons` (config, rules, analyzer version, scope or parse errors changed), `null` when the earlier run predates this record;
+- per finding no longer detected, a `likelyCause` when one is visible: `rule-not-run`, `files-missing` (deleted, renamed or excluded), `parse-error`, or `possibly-renamed` with the new finding ids that cover the same files.
+
+Only a comparable run in which the finding is no longer detected, together with passing project checks, supports saying a problem was fixed. `review.json` keeps `fixed` as an alias of `notDetected` for existing readers.
+
+## AI optimization tasks: `code-analysis task`
+
+A task is a brief for a coding agent, built from one finding (or a few related ones) of a finished run. It contains the finding's facts, the cited code locations with captured excerpts, possible impact, suggested directions (kept apart from the facts), the files to change and to read, what must stay unchanged, when it is done, how to verify, and what is still to confirm. Business constraints and test commands are never guessed: unless you pass them, they are listed as to confirm.
+
+```sh
+# From the analysis/ directory written by serve, or the --out directory of check:
+node bin/archify.mjs code-analysis task .analysis --finding COMP-bcd966585099 --root "/path/to/project" > task.md
+node bin/archify.mjs code-analysis task .analysis --finding COMP-bcd966585099 --root "/path/to/project" --command "pytest -q" --format json --out task.json
+# Later, before handing an exported task to an agent:
+node bin/archify.mjs code-analysis task --verify task.json --root "/path/to/project" --require-valid
+```
+
+With `--root`, the cited code is compared with the current working tree and the task's evidence is marked **valid** (unchanged, possibly moved), **changed**, **missing** (file deleted or renamed) or **unverifiable**. Without it the task is **captured**: built from the analysis snapshot and not yet checked. Either way the task tells the agent to read the current source before changing anything and to treat the excerpts as data, not instructions. `--require-valid` exits 1 unless the evidence is valid. The page builds the same task through the local server (`POST /task`), so the copied text and the command output agree.
+
+The contract is `schemas/ai-task.schema.json`; examples for each finding kind and evidence status are in `test/fixtures/tasks/`.
+
+### From the analysis page
+
+Open a priority finding or a component's finding, read the captured code excerpt, then click **Copy task for AI**. One click prepares the complete brief and copies it, without requiring you to open its preview. Paste it into the coding AI working on this project. **Task preview and download** provides the full preview, **Copy AI task**, **Download .md** and **Check again**. Copy and download refresh the task first when the local service is available. If clipboard access is unavailable, the preview opens and selects the text for manual copying.
+
+The first `serve`, `check` or `task` run initializes the analysis module's missing dependencies using its package lock. Running a task does not itself connect to an AI recipient: the current UI reports copying or downloading, not sending or starting a refactor. The proposed connected-AI handoff is described in the repository's `docs/specs/code-analysis-ai-handoff-design.md`.
+
+An offline report exports the captured snapshot and labels it as not checked against current source. Changed, missing, and unverifiable evidence is called out in both the preview and exported brief; ask your coding AI to read the current files before editing. An expired page or a rejected server request requires retry or re-analysis. Export does not apply a patch or execute project checks.
+
+Relationships and metrics are folded below the code evidence. A source link opens the nine-line context; **Show full file** expands the file while preserving function-range highlighting. On narrow screens, **View diagram** / **Show analysis** switches between the canvas and reading column. Unchecked categories remain visible in the overview; a clean result only covers the rules that ran.

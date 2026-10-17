@@ -17,8 +17,22 @@
 // problem was fixed or moved, and the entry can be removed.
 //
 // Comparison with the previous run's findings.json lists findings that are
-// new, fixed (gone), and evidence-changed. A run without a previous result has
-// no comparison rather than "everything is new".
+// new, no longer detected, and evidence-changed. A run without a previous
+// result has no comparison rather than "everything is new".
+//
+// "No longer detected" is not "fixed". A finding also disappears when its rule
+// was switched off or changed, a threshold or the scan scope changed, a file
+// stopped parsing, or a function was renamed (its id changes). The comparison
+// therefore carries `comparable` (true, false, or null when the previous run
+// recorded no analysis context) with the reasons, and each entry of
+// `notDetected` carries a `likelyCause` when one is visible from the data:
+//   rule-not-run   the rule did not run this time
+//   files-missing  a file it was about is no longer analyzed (deleted, renamed, excluded)
+//   parse-error    a file it was about failed to parse this time
+//   possibly-renamed  a new finding of the same rule covers the same files (a renamed
+//                  function, a cycle that gained a file); `candidates` lists their ids
+// `fixed` is kept as a deprecated alias of `notDetected` (same entries) for
+// existing consumers; new consumers should read `notDetected`.
 import { fail } from '../extract/shared/diagnostics.mjs';
 import { schemaErrors } from '../extract/shared/schema.mjs';
 
@@ -31,7 +45,7 @@ export function validateBaseline(doc, file = null) {
   return doc;
 }
 
-export function reviewFindings(diagnostics, { baseline = null, previous = null } = {}) {
+export function reviewFindings(diagnostics, { baseline = null, previous = null, analysis = null, files = null } = {}) {
   const accepted = new Map((baseline?.accepted || []).map((entry) => [entry.id, entry]));
   const current = new Map(diagnostics.map((d) => [d.id, d]));
   const before = previous ? new Map((previous.diagnostics || []).map((d) => [d.id, d])) : null;
@@ -55,15 +69,58 @@ export function reviewFindings(diagnostics, { baseline = null, previous = null }
       changed: ids((d) => findings[d.id].status === 'accepted-changed'),
       stale: [...accepted.values()].filter((e) => !current.has(e.id)).map((e) => ({ id: e.id, code: e.code, reason: e.reason })).sort((a, b) => compareText(a.id, b.id)),
     } : null,
-    comparison: before ? {
-      previousSnapshot: previous.repository?.snapshotId || null,
-      new: ids((d) => findings[d.id].since === 'new'),
-      evidenceChanged: ids((d) => findings[d.id].since === 'evidence-changed'),
-      fixed: [...before.values()].filter((d) => !current.has(d.id)).map((d) => ({ id: d.id, code: d.code, severity: d.severity, message: d.message })).sort((a, b) => compareText(a.id, b.id)),
-      unchanged: diagnostics.filter((d) => findings[d.id].since === 'unchanged').length,
-    } : null,
+    comparison: before ? comparisonOf({ previous, before, current, findings, ids, analysis, files }) : null,
     findings,
   };
+}
+
+function comparisonOf({ previous, before, current, findings, ids, analysis, files }) {
+  const { comparable, reasons } = comparability(previous.analysis || null, analysis);
+  const ran = analysis ? new Set(Object.keys(analysis.ruleVersions)) : null;
+  const known = files ? new Set(files) : null;
+  const parseErrors = new Set(analysis?.coverage?.parseErrors || []);
+  const added = [...current.values()].filter((d) => findings[d.id].since === 'new');
+  const notDetected = [...before.values()].filter((d) => !current.has(d.id)).map((d) => {
+    const involved = d.evidenceDigest?.files || [];
+    const candidates = added.filter((n) => n.code === d.code && (n.evidenceDigest?.files || []).some((f) => involved.includes(f))).map((n) => n.id).sort(compareText);
+    const likelyCause = ran && !ran.has(d.code) ? 'rule-not-run'
+      : involved.some((f) => parseErrors.has(f)) ? 'parse-error'
+        : known && involved.some((f) => !known.has(f)) ? 'files-missing'
+          : candidates.length ? 'possibly-renamed' : null;
+    return { id: d.id, code: d.code, severity: d.severity, message: d.message, ...(likelyCause ? { likelyCause } : {}), ...(likelyCause === 'possibly-renamed' ? { candidates } : {}) };
+  }).sort((a, b) => compareText(a.id, b.id));
+  return {
+    previousSnapshot: previous.repository?.snapshotId || null,
+    comparable, reasons,
+    new: ids((d) => findings[d.id].since === 'new'),
+    evidenceChanged: ids((d) => findings[d.id].since === 'evidence-changed'),
+    notDetected,
+    fixed: notDetected,
+    unchanged: [...current.keys()].filter((id) => findings[id].since === 'unchanged').length,
+  };
+}
+
+// Whether two runs measured the same way. Returns { comparable, reasons[] }:
+// comparable is null when either side has no recorded analysis context.
+export function comparability(before, after) {
+  if (!before || !after) return { comparable: null, reasons: [{ code: 'context-missing', message: `The ${before ? 'current' : 'previous'} run recorded no analysis context (written by an older version); differences cannot be attributed to code changes alone.` }] };
+  const reasons = [];
+  const add = (code, message) => reasons.push({ code, message });
+  if (before.language !== after.language) add('language-changed', `Language changed from ${before.language} to ${after.language}.`);
+  if (before.analyzer?.version !== after.analyzer?.version) add('analyzer-changed', `Analyzer version changed from ${before.analyzer?.version} to ${after.analyzer?.version}.`);
+  if (before.configDigest !== after.configDigest) add('config-changed', 'The analysis configuration changed (thresholds, include/exclude, roles, boundaries or ignored rules).');
+  const rulesBefore = before.ruleVersions || {}, rulesAfter = after.ruleVersions || {};
+  const removed = Object.keys(rulesBefore).filter((r) => !(r in rulesAfter)).sort(compareText);
+  const added = Object.keys(rulesAfter).filter((r) => !(r in rulesBefore)).sort(compareText);
+  const changed = Object.keys(rulesAfter).filter((r) => r in rulesBefore && rulesBefore[r] !== rulesAfter[r]).sort(compareText);
+  if (removed.length) add('rules-removed', `Rules that ran before did not run now: ${removed.join(', ')}.`);
+  if (added.length) add('rules-added', `Rules ran now that did not before: ${added.join(', ')}.`);
+  if (changed.length) add('rules-changed', `Rule logic changed: ${changed.join(', ')}.`);
+  const roles = (c) => (c?.excludedRoles || []).join(',');
+  if (roles(before.coverage) !== roles(after.coverage)) add('scope-changed', 'Excluded file roles changed.');
+  const newParseErrors = (after.coverage?.parseErrors || []).filter((f) => !(before.coverage?.parseErrors || []).includes(f));
+  if (newParseErrors.length) add('parse-errors', `${newParseErrors.length} file${newParseErrors.length === 1 ? '' : 's'} failed to parse this time: ${newParseErrors.slice(0, 5).join(', ')}${newParseErrors.length > 5 ? ', …' : ''}.`);
+  return { comparable: reasons.length === 0, reasons };
 }
 
 // A finding counts against a gate unless it is accepted with unchanged evidence.

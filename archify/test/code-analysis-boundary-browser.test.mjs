@@ -72,6 +72,7 @@ test('Code Analysis shows configured architecture boundaries in the overview, pr
 
   await run("[...document.querySelectorAll('#bauify-overview .bauify-item')].find(b => /depends on/.test(b.textContent)).click()");
   await wait("!document.getElementById('bauify-detail').hidden");
+  await run("document.querySelector('#bauify-detail .more-evidence').open = true");
   const problem = await run("document.getElementById('bauify-detail').innerText");
   assert.match(problem, /The rule comes from the config, not from the diagram/);
   assert.match(problem, /order\.ts \(line 1\) → ui\/button\.ts · module-scope import/);

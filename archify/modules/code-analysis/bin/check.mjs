@@ -45,6 +45,8 @@ export function parseCheckArgs(argv) {
 
 export async function runCheck(argv) {
   const { repo, options } = parseCheckArgs(argv);
+  const { ensureDependencies } = await import('./serve.mjs');
+  await ensureDependencies();
   const { extractFacts, buildGraph, evaluateGraph, loadBaseline, loadPrevious, stableJson, reviewSummary } = await import('../lib/analysis.mjs');
   const { reviewFindings, baselineFrom, isOpen } = await import('../lib/review.mjs');
   const { buildOverview } = await import('../overlay/overview.mjs');
@@ -70,7 +72,7 @@ export async function runCheck(argv) {
     return { exitCode: 0, receipt: receipt('ok', { command: 'check', action: 'update-baseline', baseline: baselineFile, entries: doc.accepted.length, kept, added: doc.accepted.length - kept, dropped: existing ? existing.accepted.length - kept : 0 }) };
   }
 
-  const review = reviewFindings(findings.diagnostics, { baseline: loadBaseline(baselineFile), previous });
+  const review = reviewFindings(findings.diagnostics, { baseline: loadBaseline(baselineFile), previous, analysis: findings.analysis, files: facts.files.map((f) => f.path) });
   const fileModule = new Map(Object.entries(graph.fileModules || {}));
   const listed = findings.diagnostics.map((d) => ({ ...d, ...(review.findings[d.id] ? { review: review.findings[d.id] } : {}), moduleIds: findingModules(d, fileModule), componentIds: [] }));
   const overview = buildOverview({ findings: listed, graph, facts, run: { rules: findings.rules, suppressed: config.ignore || [], exclude: config.exclude || [], otherLanguages, boundaries: config.boundaries || null, review } });
@@ -94,6 +96,7 @@ export async function runCheck(argv) {
       verdict: overview.verdict, counts: overview.counts,
       gate: { failOn, newOnly, ...(newOnly && !review.comparison ? { note: 'no previous run to compare with: no finding counts as new' } : {}), failing: failing.map((d) => ({ id: d.id, code: d.code, severity: d.severity, where: where(d), message: d.message })) },
       review: reviewSummary(review),
+      comparisonReasons: review.comparison ? review.comparison.reasons : [],
       staleBaseline: review.baseline ? review.baseline.stale : [],
       priorities: overview.priorities,
     }),
@@ -118,7 +121,12 @@ export function formatText(r) {
   const c = r.counts;
   lines.push(`Code analysis: ${r.verdict} — ${c.findings} finding${c.findings === 1 ? '' : 's'} (${c.error} error, ${c.warning} warning, ${c.info} info open; ${c.accepted} accepted)`);
   lines.push(`  ${r.language === 'py' ? 'Python' : 'JS/TS'} · ${r.files} files · rules: ${r.rules.join(', ')}`);
-  if (r.review.comparison) lines.push(`  Since the previous run: ${r.review.comparison.new} new, ${r.review.comparison.fixed} fixed, ${r.review.comparison.evidenceChanged} with changed evidence`);
+  if (r.review.comparison) {
+    const c = r.review.comparison;
+    lines.push(`  Since the previous run: ${c.new} new, ${c.notDetected} no longer detected, ${c.evidenceChanged} with changed evidence`);
+    if (c.comparable === false) lines.push(`  Not directly comparable: ${r.comparisonReasons.map((x) => x.message).join(' ')} "No longer detected" does not mean fixed.`);
+    else if (c.comparable === null) lines.push('  Comparability unknown: the previous run recorded no analysis context. "No longer detected" does not mean fixed.');
+  }
   if (r.review.baseline) lines.push(`  Baseline: ${r.review.baseline.accepted} accepted, ${r.review.baseline.changed} changed since accepted, ${r.review.baseline.stale} stale entr${r.review.baseline.stale === 1 ? 'y' : 'ies'}`);
   for (const s of r.staleBaseline) lines.push(`    stale: ${s.id} (${s.code}) no longer found — remove it from the baseline`);
   if (r.gate.note) lines.push(`  Note: ${r.gate.note}`);

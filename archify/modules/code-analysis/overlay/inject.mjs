@@ -30,8 +30,9 @@ import path from 'node:path';
 import { fail } from '../extract/shared/diagnostics.mjs';
 import { sourceChanges } from './source-changes.mjs';
 import { buildOverview } from './overview.mjs';
+import { buildTaskPayloads } from '../lib/task.mjs';
 
-export function buildOverlay({ ir, graph, html, map, facts = null, findings = [], sourceRoot = null, run = {} }) {
+export function buildOverlay({ ir, graph, html, map, facts = null, findings = [], findingsDocument = null, sourceRoot = null, run = {} }) {
   if (!html.includes('data-node-id=') || !html.includes('class="toolbar"')) {
     fail('overlay/not-archify-html', 'The HTML does not look like an Archify architecture artifact.', {
       evidence: { hasNodes: html.includes('data-node-id='), hasToolbar: html.includes('class="toolbar"') },
@@ -102,6 +103,7 @@ export function buildOverlay({ ir, graph, html, map, facts = null, findings = []
     edges,
     unmapped,
     findings: listed,
+    tasks: facts && findingsDocument ? buildTaskPayloads({ findings: findingsDocument, facts, review: run.review }) : {},
     overview: buildOverview({ findings: listed, graph, facts, unmapped, run }),
     snippets: sourceRoot ? collectSnippets(findings, sourceRoot, components.concat(unmapped.filter((m) => listed.some((f) => (f.moduleIds || []).includes(m.id)))), facts) : {},
   };
@@ -527,6 +529,27 @@ html[data-bauify="on"] .cards, html[data-bauify="on"] .guided-views { display: n
 }
 @media (max-width: 1000px) { #bauify-reader { width: calc(100vw - 32px); } }
 @media print { #bauify-reader { display: none; } }
+#bauify-reader button:focus-visible, #bauify-reader summary:focus-visible, #bauify-reader textarea:focus-visible { outline: 2px solid var(--backend-stroke, #159f88); outline-offset: 3px; }
+#bauify-reader h3, #bauify-reader .where, #bauify-reader .task-status { overflow-wrap: anywhere; }
+#bauify-reader .bauify-item .what, #bauify-reader .bauify-item .where { white-space: normal; overflow-wrap: anywhere; }
+#bauify-reader { overflow-wrap: anywhere; }
+#bauify-reader .ref { box-sizing: border-box; overflow-wrap: anywhere; }
+#bauify-reader .ref b { color: var(--text, #f8fafc); }
+#bauify-reader .inline-evidence { margin: 12px 0; }
+#bauify-reader .inline-evidence pre { margin: 6px 0; padding: 10px; border-radius: 6px; background: var(--bg, #0b1220); font: 12px/1.6 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+#bauify-reader .inline-evidence .evidence-line { display: block; }
+#bauify-reader .inline-evidence .focus-line, #bauify-code .ln.range-hit { background: color-mix(in srgb, var(--backend-stroke, #159f88) 12%, transparent); }
+#bauify-reader .inline-evidence .line-number { color: var(--text-muted, #94a3b8); user-select: none; }
+#bauify-reader .ai-task { margin: 16px 0; padding: 12px 0; border-top: 1px solid var(--panel-border, #1e293b); border-bottom: 1px solid var(--panel-border, #1e293b); }
+#bauify-reader .ai-task > summary { color: var(--text, #f8fafc); font-weight: 600; }
+#bauify-reader .task-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+#bauify-reader .task-actions button { font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--panel-border, #1e293b); color: var(--text, #f8fafc); background: none; cursor: pointer; }
+#bauify-reader .task-actions button:first-child { background: var(--text, #f8fafc); color: var(--panel, #0f172a); }
+#bauify-reader .task-actions button:disabled { opacity: .5; cursor: wait; }
+#bauify-reader .task-preview { display: block; box-sizing: border-box; width: 100%; min-height: 180px; max-height: 360px; resize: vertical; padding: 10px; border: 1px solid var(--panel-border, #1e293b); border-radius: 6px; color: var(--text, #f8fafc); background: var(--bg, #0b1220); font: 12px/1.6 ui-monospace, monospace; }
+#bauify-reader .coverage-notice { padding: 8px 0; color: var(--text-muted, #94a3b8); font-size: 12px; }
+#bauify-reader .relationship { margin: 16px 0; }
+@media (max-width: 600px) { html[data-bauify="on"] .toolbar #btn-preset, html[data-bauify="on"] .toolbar #btn-present { display: none; } }
 `;
 
 const JS = `
@@ -656,6 +679,7 @@ const JS = `
     panel.hidden = true; detail.hidden = true; codePane.hidden = true; setFocus([]);
     overview.querySelectorAll('.bauify-item.active').forEach(function (x) { x.classList.remove('active'); });
     overview.hidden = false;
+    var heading = overview.querySelector('h3'); if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
   }
   function esc(s) { return String(s).replace(/[&<>"']/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]; }); }
   function show(id) {
@@ -719,8 +743,8 @@ const JS = `
     var fl = (c.findings || []).concat((c.fileList || []).flatMap(function (f) { return f.findings; }));
     var seen = {}; return fl.filter(function (f) { var k = f.id || f.code + JSON.stringify(f.subject); if (seen[k]) return false; seen[k] = true; return true; });
   }
-  function ref(file, line, rest, why, tone) {
-    return '<button type="button" class="ref" data-file="' + esc(file) + '" data-line="' + line + '" data-why="' + esc(why || '') + '" data-tone="' + (tone || '') + '"><b>' + esc(short(file)) + '</b> <em>(line ' + line + ')</em>' + (rest ? ' ' + rest : '') + '</button>';
+  function ref(file, line, rest, why, tone, rangeStart, rangeEnd) {
+    return '<button type="button" class="ref" data-file="' + esc(file) + '" data-line="' + line + '" data-range-start="' + (rangeStart || '') + '" data-range-end="' + (rangeEnd || '') + '" data-why="' + esc(why || '') + '" data-tone="' + (tone || '') + '"><b>' + esc(short(file)) + '</b> <em>(line ' + line + ')</em>' + (rest ? ' ' + rest : '') + '</button>';
   }
   function nextStepHtml(f) {
     var text = f.code === 'coupling/hub' ? 'Check whether dependencies cluster by responsibility before splitting this module.'
@@ -744,8 +768,8 @@ const JS = `
     }
     if (f.code === 'complexity/function' && f.subject && f.subject.file) {
       ev += '<div class="ev" style="margin-top:4px">Where to look — click to see the code:</div>';
-      ev += ref(f.subject.file, f.subject.line, '<span>' + esc(f.subject.function) + '() starts</span> <em>· ' + plural(f.evidence.length, 'line') + '</em>', 'The function this finding measures (lines ' + f.subject.line + '–' + f.subject.endLine + ').', tone);
-      if (f.evidence.deepestLine && f.evidence.deepestLine !== f.subject.line) ev += ref(f.subject.file, f.evidence.deepestLine, '<span>deepest nesting (' + f.evidence.nesting + ' levels)</span>', 'The most deeply nested block; usually the best place to start simplifying.', tone);
+      ev += ref(f.subject.file, f.subject.line, '<span>' + esc(f.subject.function) + '() starts</span> <em>· ' + plural(f.evidence.length, 'line') + '</em>', 'The function this finding measures (lines ' + f.subject.line + '–' + f.subject.endLine + ').', tone, f.subject.line, f.subject.endLine);
+      if (f.evidence.deepestLine && f.evidence.deepestLine !== f.subject.line) ev += ref(f.subject.file, f.evidence.deepestLine, '<span>deepest nesting (' + f.evidence.nesting + ' levels)</span>', 'The most deeply nested block; usually the best place to start simplifying.', tone, f.subject.line, f.subject.endLine);
     }
     if (f.evidence && f.evidence.imports && f.evidence.imports.length) {
       var isCycle = f.code === 'coupling/import-cycle' || f.code === 'coupling/cycle';
@@ -769,7 +793,7 @@ const JS = `
     return (compact ? '' : nextStepHtml(f)) + '<div class="finding ' + esc(f.severity) + '">' + ev + '<details class="technical"><summary>Rule details and alternatives</summary><b>' + esc(f.code) + '</b> · ' + esc(f.severity) + (f.id ? ' · ' + esc(f.id) : '') + '<p>' + esc(f.message) + '</p>' + fixes + '</details></div>';
   }
   // Source excerpt for one file:line, from the windows embedded at overlay time.
-  function showCode(file, line, why, tone, full) {
+  function showCode(file, line, why, tone, full, rangeStart, rangeEnd) {
     readerPage('Source');
     var snip = (data.snippets || {})[file];
     line = Number.isInteger(line) && line > 0 ? line : null;
@@ -777,7 +801,7 @@ const JS = `
     var h = '<div class="grip"><button class="close" aria-label="Close">×</button><button type="button" class="source-back back">← ' + sourceParent + '</button><div class="k">Source · ' + (line ? 'line ' + line : (full ? 'full file' : 'file preview') + ' · no specific finding line') + '</div><h3>' + esc(file) + '</h3></div>';
     if (why) h += '<div class="why">' + esc(why) + '</div>';
     if (!snip) {
-      h += '<div class="why" style="margin-top:10px">Source lines are not embedded in this page. Restart Code Analysis to include this file and its context.</div>';
+      h += '<div class="why" style="margin-top:10px">Source is unavailable in this report. Re-analyze with the local service, or read this file in your editor.</div>';
     } else {
       var changes = snip.changes;
       var added = new Set(changes ? changes.added : []), modified = new Set(changes ? changes.modified : []);
@@ -793,6 +817,7 @@ const JS = `
       var start = full ? 0 : line ? Math.max(0, Math.min(line - 5, snip.lines.length - 9)) : 0;
       var end = full ? snip.lines.length : Math.min(snip.lines.length, start + (line ? 9 : 12));
       h += '<div class="why">Lines ' + (start + 1) + '–' + end + ' of ' + snip.lines.length + (line || full ? '' : ' · opening lines, not finding evidence') + '</div>';
+      if (rangeStart && rangeEnd) h += '<div class="why">Highlighted function: lines ' + rangeStart + '–' + rangeEnd + (full ? '' : ' · excerpt only; expand for the complete function') + '</div>';
       if (snip.lines.length > (line ? 9 : 12)) h += '<button type="button" class="source-file source-toggle">' + (full ? 'Show excerpt' : 'Show full file') + '</button>';
       h += '<pre' + (full ? '' : ' class="excerpt"') + '>';
       if (!start) h += deletion(0);
@@ -800,7 +825,7 @@ const JS = `
         if (i < start || i >= end) return;
         var n = i + 1;
         var kind = added.has(n) ? 'added' : modified.has(n) ? 'modified' : '';
-        h += '<span class="ln' + (n === line ? ' hit ' + (tone || '') : '') + (kind ? ' diff-' + kind : '') + '"' + (kind ? ' title="' + (kind === 'added' ? 'Added' : 'Modified') + ' since base commit"' : '') + '><i>' + n + '</i>' + esc(text) + '</span>';
+        h += '<span class="ln' + (rangeStart && n >= rangeStart && n <= rangeEnd ? ' range-hit' : '') + (n === line ? ' hit ' + (tone || '') : '') + (kind ? ' diff-' + kind : '') + '"' + (kind ? ' title="' + (kind === 'added' ? 'Added' : 'Modified') + ' since base commit"' : '') + '><i>' + n + '</i>' + esc(text) + '</span>';
         h += deletion(n);
       });
       h += '</pre>';
@@ -809,8 +834,8 @@ const JS = `
     codePane.hidden = false;
     document.documentElement.setAttribute('data-bauify-source', 'on');
     var sourceToggle = codePane.querySelector('.source-toggle');
-    if (sourceToggle) sourceToggle.addEventListener('click', function () { showCode(file, line, why, tone, !full); });
-    var backToSourceParent = function () { codePane.hidden = true; document.documentElement.removeAttribute('data-bauify-source'); readerPage(sourceParent); detail.querySelectorAll('.ref.active').forEach(function (x) { x.classList.remove('active'); }); };
+    if (sourceToggle) sourceToggle.addEventListener('click', function () { showCode(file, line, why, tone, !full, rangeStart, rangeEnd); });
+    var backToSourceParent = function () { codePane.hidden = true; document.documentElement.removeAttribute('data-bauify-source'); readerPage(sourceParent); var active = detail.querySelector('.ref.active'); if (active) active.focus({ preventScroll: true }); detail.querySelectorAll('.ref.active').forEach(function (x) { x.classList.remove('active'); }); };
     codePane.querySelector('.close').addEventListener('click', backToSourceParent);
     codePane.querySelector('.source-back').addEventListener('click', backToSourceParent);
     var hit = codePane.querySelector('.ln.hit');
@@ -827,10 +852,10 @@ const JS = `
     var h = '<button class="close" aria-label="Close">×</button><button class="back" type="button">← Component</button>';
     h += '<div class="k">' + esc(c.label) + '</div><h3><i class="bauify-' + ind.status + '"></i>' + esc(ind.label) + '</h3>';
     h += '<div class="level"><b>' + esc(lvl.name) + '</b> — ' + esc(ind.value) + (ind.status === 'neutral' ? '' : '<br>' + esc(lvl.text)) + '</div>';
-    h += '<div class="k">Diagram details</div>' + diagram(c, key, fl);
+    h += '<details class="relationship"><summary>Relationships and metrics</summary>' + diagram(c, key, fl) + '</details>';
     h += '<div class="k">Findings · ' + fl.length + '</div>';
     if (!fl.length) h += '<div class="ev">' + (key === 'instability' ? 'Instability measures dependency direction: out / (in + out). 0 = no outgoing dependencies, 1 = no incoming dependents. It is not a failure probability or a quality verdict.' : 'No finding for this indicator; this is not a safety guarantee.') + '</div>';
-    fl.forEach(function (f) { h += findingCard(f); });
+    fl.forEach(function (f) { h += quickHandoff(f) + evidencePreview(f) + findingCard(f) + taskHtml(f); });
     detail.innerHTML = h;
     detail.hidden = false;
     codePane.hidden = true;
@@ -838,12 +863,13 @@ const JS = `
     detail.querySelector('.close').addEventListener('click', backToComponent);
     detail.querySelector('.back').addEventListener('click', backToComponent);
     wireRefs();
+    wireTasks();
   }
   function wireRefs() {
     detail.querySelectorAll('.ref').forEach(function (el) {
       el.addEventListener('click', function () {
         detail.querySelectorAll('.ref.active').forEach(function (x) { x.classList.remove('active'); }); el.classList.add('active');
-        showCode(el.getAttribute('data-file'), parseInt(el.getAttribute('data-line'), 10), el.getAttribute('data-why'), el.getAttribute('data-tone'));
+        showCode(el.getAttribute('data-file'), parseInt(el.getAttribute('data-line'), 10), el.getAttribute('data-why'), el.getAttribute('data-tone'), false, Number(el.getAttribute('data-range-start')), Number(el.getAttribute('data-range-end')));
       });
     });
   }
@@ -880,7 +906,9 @@ const JS = `
     var ids = f.componentIds || [];
     var where = ids.length ? ids.map(function (id) { return byId[id] ? byId[id].label : id; }).join(', ') : 'not on this diagram';
     var e = entryById[f.id];
-    return where + (e && e.relatedIds.length ? ' · +' + e.relatedIds.length + ' related' : '');
+    var s = f.subject || {}, first = (f.evidence && f.evidence.imports || [])[0];
+    var path = s.file ? s.file + (s.line ? ':' + s.line : '') : first ? first.file + ':' + first.line : '';
+    return (path ? path + ' · ' : '') + where + (e && e.relatedIds.length ? ' · +' + e.relatedIds.length + ' related' : '');
   }
   function findingRow(id, n) {
     var f = findingById[id]; if (!f) return '';
@@ -888,7 +916,7 @@ const JS = `
     var badges = (r.since === 'new' ? '<span class="badge-new">new</span>' : '') +
       (r.status === 'accepted' ? '<span class="badge-accepted">accepted</span>' : r.status === 'accepted-changed' ? '<span class="badge-accepted">accepted · evidence changed</span>' : '');
     return '<button type="button" class="bauify-item ' + toneOf(f.severity) + (r.status === 'accepted' ? ' accepted' : '') + '" data-finding="' + esc(id) + '"' + (r.reason ? ' title="Accepted: ' + esc(r.reason) + '"' : '') + '>' + (n ? '<span class="n">' + n + '</span>' : '') +
-      '<b>' + esc(findingTitle(f)) + '</b> <em>' + esc(f.severity) + '</em>' + badges + '<span class="what">' + esc(findingWhat(f)) + '</span><span class="where">' + esc(findingWhere(f)) + '</span></button>';
+      '<b>' + esc(findingTitle(f)) + '</b> <em>' + esc(f.severity) + '</em>' + badges + '<span class="what">' + esc(findingWhat(f)) + '</span><span class="where">' + esc(findingWhere(f)) + '</span>' + (n && data.tasks && data.tasks[id] ? '<span class="what">' + esc(data.tasks[id].task.impact.map(function (v) { return v.statement; }).join(' ')) + '</span>' : '') + '</button>';
   }
   function coverageHtml(c) {
     if (!c) return '';
@@ -921,8 +949,10 @@ const JS = `
     var h = '';
     var c = r.comparison;
     if (c) {
-      h += '<div class="ev review-line">Since the previous analysis: ' + c.new.length + ' new · ' + c.fixed.length + ' fixed · ' + c.evidenceChanged.length + ' with changed evidence</div>';
-      if (c.fixed.length) h += '<details><summary>Fixed since the previous analysis · ' + c.fixed.length + '</summary><div class="ev">' + c.fixed.map(function (f) { return '<div>' + esc(GROUPS[f.code] || f.code) + ': ' + esc(f.message) + '</div>'; }).join('') + '</div></details>';
+      var gone = c.notDetected || c.fixed || [];
+      h += '<div class="ev review-line">Since the previous analysis: ' + c.new.length + ' new · ' + gone.length + ' no longer detected · ' + c.evidenceChanged.length + ' with changed evidence</div>';
+      if (c.comparable !== true) h += '<p class="ev comparison-notice">Results are not directly comparable: ' + esc((c.reasons || []).join(', ') || 'comparison context unavailable') + '. Missing findings do not establish a fix.</p>';
+      if (gone.length) h += '<details><summary>No longer detected · ' + gone.length + '</summary><div class="ev">' + gone.map(function (f) { return '<div>' + esc(GROUPS[f.code] || f.code) + ': ' + esc(f.message) + (f.likelyCause ? ' · ' + esc(f.likelyCause) : '') + '</div>'; }).join('') + '</div></details>';
     }
     var b = r.baseline;
     if (b) {
@@ -944,6 +974,9 @@ const JS = `
     var h = typeof window.__archifyReanalyze === 'function' ? '<button type="button" class="bauify-reanalyze" title="Read the repository again and compare with this result">Re-analyze</button>' : '';
     h += '<h3><i class="bauify-' + v.tone + '"></i>' + esc(verdictText) + '</h3>';
     h += '<div class="ev">' + esc(counts) + '</div>';
+    var checkedRules = o.coverage && o.coverage.rules && o.coverage.rules.run || [];
+    var unchecked = [['redundancy/', 'duplicate code'], ['conventions/', 'project coding conventions']].filter(function (x) { return !checkedRules.some(function (r) { return r.indexOf(x[0]) === 0; }); }).map(function (x) { return x[1]; });
+    if (unchecked.length) h += '<div class="coverage-notice">Not checked: ' + esc(unchecked.join(', ')) + '. See Coverage for the full scope.</div>';
     h += reviewHtml(o.review);
     if (o.priorities.length) {
       var picks = o.priorities.map(function (id) { return findingById[id]; }).filter(Boolean);
@@ -999,6 +1032,88 @@ const JS = `
     (f.moduleIds || []).forEach(function (id) { ((moduleInfo[id] || {}).fileList || []).forEach(function (file) { if (!files.some(function (v) { return v.path === file.path; })) files.push(file); }); });
     return { label: comps.map(function (c) { return c.label; }).join(', ') || 'not on this diagram', modules: mods, fileList: files, incoming: [], outgoing: [], findings: [f] };
   }
+  function evidencePreview(f) {
+    var captured = (data.tasks || {})[f.id];
+    var locations = captured ? captured.task.locations.filter(function (l) { return l.startLine; }).slice(0, 2) : [];
+    if (!locations.length && f.subject && f.subject.file && f.subject.line) locations = [{ file: f.subject.file, startLine: f.subject.line, endLine: f.subject.endLine }];
+    if (!locations.length) locations = (f.evidence && f.evidence.imports || []).slice(0, 2).map(function (v) { return { file: v.file, startLine: v.line, endLine: v.line }; });
+    return locations.map(function (loc) {
+      var snip = (data.snippets || {})[loc.file], focus = f.code === 'complexity/function' ? f.evidence.deepestLine || loc.startLine : loc.startLine;
+      var h = '<div class="inline-evidence">' + ref(loc.file, focus, '', 'Captured source evidence. Read the complete context before editing.', toneOf(f.severity), loc.startLine, loc.endLine);
+      if (!snip) return h + '<div class="ev">Source unavailable in this report. Open the file in your editor or re-analyze.</div></div>';
+      var start = Math.max(0, focus - 5), end = Math.min(snip.lines.length, start + 9);
+      h += '<pre aria-label="Code excerpt from ' + esc(loc.file) + '">';
+      snip.lines.slice(start, end).forEach(function (text, i) { var n = start + i + 1; h += '<span class="evidence-line' + (n === focus ? ' focus-line' : '') + '"><span class="line-number">' + n + '  </span>' + esc(text) + '</span>'; });
+      h += '</pre><div class="ev">Captured lines ' + (start + 1) + '–' + end + ' of ' + snip.lines.length + ' · excerpt only; click the path to expand.</div></div>';
+      return h;
+    }).join('');
+  }
+  function taskHtml(f) {
+    return '<details class="ai-task" data-task-id="' + esc(f.id) + '"><summary>Task preview and download</summary><p class="ev">Review the brief, then give it to your coding AI. Exporting does not modify code.</p><p class="task-status ev" role="status" aria-live="polite">Open to prepare the task.</p><div class="task-actions"><button type="button" class="task-copy" disabled>Copy AI task</button><button type="button" class="task-download" disabled>Download .md</button><button type="button" class="task-refresh">Check again</button></div><label class="ev">Task preview · select text to copy manually<textarea class="task-preview" readonly spellcheck="false" aria-label="AI task preview"></textarea></label></details>';
+  }
+  function quickHandoff(f) {
+    return '<div class="quick-handoff" data-handoff-id="' + esc(f.id) + '"><div class="task-actions"><button type="button" class="quick-copy">Copy task for AI</button></div><p class="ev handoff-status" role="status" aria-live="polite">Includes evidence, suggestions and allowed files. Paste it into your coding AI.</p></div>';
+  }
+  function wireTasks() {
+    detail.querySelectorAll('.ai-task').forEach(function (box) {
+      var id = box.getAttribute('data-task-id'), payload = null, busy = false;
+      var status = box.querySelector('.task-status'), preview = box.querySelector('.task-preview');
+      var copy = box.querySelector('.task-copy'), download = box.querySelector('.task-download'), refresh = box.querySelector('.task-refresh');
+      var quick = detail.querySelector('[data-handoff-id="' + id + '"]');
+      var quickCopy = quick && quick.querySelector('.quick-copy');
+      var say = function (text) { status.textContent = text; if (quick) quick.querySelector('.handoff-status').textContent = text; };
+      var describe = function (p) {
+        var e = p.task.evidence;
+        var labels = { valid: 'Evidence matches the current working tree.', captured: 'Snapshot only; current source has not been checked. Ask your coding AI to verify it before editing.', changed: 'Evidence changed. Re-analyze and review the current code before editing.', missing: 'A cited file is missing. Re-analyze before editing.', unverifiable: 'Evidence could not be verified. Read the cited files before editing.' };
+        return (labels[e.status] || 'Evidence status unknown.') + (e.reason ? ' ' + e.reason : '') + (e.checkedAt ? ' Checked ' + e.checkedAt + '.' : '');
+      };
+      var prepare = async function () {
+        if (busy) return null;
+        busy = true; copy.disabled = download.disabled = refresh.disabled = true;
+        if (quickCopy) quickCopy.disabled = true;
+        say('Preparing task and checking available evidence…');
+        try {
+          var note = '';
+          if (typeof window.__archifyBuildTask === 'function') {
+            try { payload = await window.__archifyBuildTask(id); }
+            catch (error) {
+              if (error.status) throw error;
+              payload = (data.tasks || {})[id];
+              note = 'Local service unavailable. ';
+            }
+          } else { payload = (data.tasks || {})[id]; note = 'Offline report. '; }
+          if (!payload) throw new Error('Task source is unavailable. Re-analyze with the local service to create this task.');
+          if (data.repository.snapshotId && payload.task.source.snapshotId && data.repository.snapshotId !== payload.task.source.snapshotId) throw new Error('The service has a newer analysis snapshot than this page. Re-analyze to refresh the displayed evidence.');
+          preview.value = payload.markdown;
+          say(note + describe(payload));
+          return payload;
+        } catch (error) {
+          payload = null; preview.value = '';
+          say('Could not prepare task: ' + error.message + ' Re-analyze if this page shows an older result, then retry.');
+          return null;
+        } finally { busy = false; copy.disabled = download.disabled = !payload; refresh.disabled = false; if (quickCopy) quickCopy.disabled = false; }
+      };
+      box.addEventListener('toggle', function () { if (box.open && !payload && !busy) prepare(); });
+      refresh.addEventListener('click', prepare);
+      var copyTask = async function () {
+        var p = await prepare(); if (!p || !box.isConnected) return;
+        try {
+          if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('Clipboard unavailable');
+          await navigator.clipboard.writeText(p.markdown);
+          say('Copied AI task. Paste it into your coding AI. ' + describe(p));
+        } catch (error) { box.open = true; preview.focus(); preview.select(); say('Automatic copy unavailable. The task text is selected; press Ctrl+C or copy it manually. ' + describe(p)); }
+      };
+      copy.addEventListener('click', copyTask);
+      if (quickCopy) quickCopy.addEventListener('click', copyTask);
+      download.addEventListener('click', async function () {
+        var p = await prepare(); if (!p || !box.isConnected) return;
+        var url = URL.createObjectURL(new Blob([p.markdown], { type: 'text/markdown;charset=utf-8' }));
+        var link = document.createElement('a'); link.href = url; link.download = p.task.taskId + '.md'; document.body.appendChild(link); link.click(); link.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        say('Download requested. ' + describe(p));
+      });
+    });
+  }
   function showFinding(id) {
     var f = findingById[id]; if (!f) return;
     readerPage('Problem');
@@ -1015,12 +1130,13 @@ const JS = `
       : f.code === 'complexity/function' ? 'Cyclomatic complexity counts independent paths through the function. A high count is a maintenance signal, not a defect.' : lvl.text;
     h += '<div class="level"><b>' + esc(lvl.name) + '</b> — ' + esc(findingWhat(f)) + '<br>' + esc(explanation) + '</div>';
     if (f.review && f.review.reason) h += '<p class="ev"><span class="badge-accepted">' + (f.review.status === 'accepted-changed' ? 'accepted · evidence changed' : 'accepted') + '</span> ' + esc(f.review.reason) + (f.review.status === 'accepted-changed' ? ' — the code behind it changed since it was accepted; review it again.' : '') + '</p>';
-    h += nextStepHtml(f);
+    h += quickHandoff(f) + '<div class="k">Code evidence</div>' + evidencePreview(f);
+    h += nextStepHtml(f) + taskHtml(f);
     if ((f.componentIds || []).length) h += '<button type="button" class="locate">Locate related components</button>';
-    else h += '<p class="ev">Not mapped to this diagram. Code evidence is still available below.</p>';
+    else h += '<p class="ev">Not mapped to this diagram. Use the code evidence above.</p>';
     var pic = f.code === 'coupling/import-cycle' || f.code === 'coupling/cycle' ? cycleDiagram(scope, [f]) : f.code === 'coupling/hub' ? hubDiagram(scope, [f]) : f.code === 'architecture/boundary' ? boundaryDiagram([f]) : f.code === 'complexity/function' ? complexityDiagram([f]) : '';
-    if (pic) h += '<div class="k">Diagram details</div>' + pic;
-    h += '<div class="k">Code evidence</div>' + findingCard(f, true);
+    if (pic) h += '<details class="relationship"><summary>Relationships and metrics</summary>' + pic + '</details>';
+    h += '<details class="more-evidence"><summary>All evidence and rule details</summary>' + findingCard(f, true) + '</details>';
     if (e && e.relatedIds.length) h += '<div class="k">Same structure, also reported as</div>' + e.relatedIds.map(function (r) { return findingRow(r); }).join('');
     detail.innerHTML = h;
     detail.hidden = false;
@@ -1032,6 +1148,8 @@ const JS = `
     if (locate) locate.addEventListener('click', function () { locateComponents(f.componentIds, true); });
     detail.querySelectorAll('[data-finding]').forEach(function (el) { el.addEventListener('click', function () { showFinding(el.getAttribute('data-finding')); }); });
     wireRefs();
+    wireTasks();
+    var heading = detail.querySelector('h3'); heading.tabIndex = -1; heading.focus({ preventScroll: true });
   }
   // Source links: GitHub-style blob/tree URLs from the origin + revision the facts were taken at.
   function repoBase() {

@@ -12,6 +12,7 @@ const testFiles = [
   'code-analysis-boundary-browser.test.mjs',
   'code-analysis-complexity-browser.test.mjs',
   'code-analysis-review-browser.test.mjs',
+  'code-analysis-task-browser.test.mjs',
   'desktop-reader-browser.test.mjs',
   'reader-layout-browser.test.mjs',
   'sequence-header-clearance.test.mjs',

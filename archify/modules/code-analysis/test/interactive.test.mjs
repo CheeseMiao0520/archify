@@ -105,3 +105,44 @@ test('serve: reads the required IR before creating output', async (t) => {
   await assert.rejects(startAnalysisView([root, '--ir', ir, '--out', out, '--language', 'ts']), SyntaxError);
   assert.equal(fs.existsSync(out), false);
 });
+
+test('serve: /task builds a checked AI task for findings of the current result only', { skip: !ARCHIFY_AVAILABLE && 'needs an Archify checkout' }, async (t) => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-task-serve-'));
+  t.after(() => fs.rmSync(out, { recursive: true, force: true }));
+  const repo = path.join(out, 'repo');
+  fs.cpSync(path.join(BAUIFY_ROOT, 'test/fixtures/py-tasks'), repo, { recursive: true });
+  const ir = path.join(out, 'arch.json');
+  fs.writeFileSync(ir, JSON.stringify({
+    schema_version: 1, diagram_type: 'architecture', meta: { title: 'py-tasks', output: 'architecture.html', quality_profile: 'standard' },
+    components: [{ id: 'app', type: 'backend', label: 'App', pos: [40, 40], size: [170, 64] }, { id: 'web', type: 'frontend', label: 'Web', pos: [300, 40], size: [170, 64] }],
+    connections: [{ from: 'web', to: 'app', label: 'calls' }],
+  }));
+  const view = await startAnalysisView([repo, '--ir', ir, '--out', path.join(out, 'view'), '--language', 'py', '--config', path.join(repo, 'analysis.config.json')]);
+  t.after(() => new Promise((resolve) => { view.server.close(resolve); view.server.closeAllConnections?.(); }));
+  const headers = { Origin: view.url, 'X-Analysis-Token': view.token, 'Content-Type': 'application/json' };
+  const post = (body, h = headers) => fetch(view.url + '/task', { method: 'POST', headers: h, body: typeof body === 'string' ? body : JSON.stringify(body) });
+
+  assert.equal((await post({ ids: ['COMP-000000000000'] }, { ...headers, 'X-Analysis-Token': 'wrong' })).status, 403);
+  assert.equal((await post({ ids: ['COMP-000000000000'] }, { ...headers, Origin: 'https://example.com' })).status, 403);
+  const early = await post({ ids: ['COMP-000000000000'] });
+  assert.equal(early.status, 409);
+  assert.equal((await early.json()).diagnostics[0].code, 'task/no-analysis');
+
+  assert.equal((await fetch(view.url + '/analyze', { method: 'POST', headers })).status, 200);
+  const findings = JSON.parse(fs.readFileSync(path.join(out, 'view/analysis/findings.json'), 'utf8'));
+  const id = findings.diagnostics.find((d) => d.code === 'complexity/function').id;
+  for (const bad of ['not json', { ids: [] }, { ids: ['../../etc/passwd'] }, { ids: 'x' }]) assert.equal((await post(bad)).status, 400, JSON.stringify(bad));
+  assert.equal((await post({ ids: ['COMP-000000000000'] })).status, 422, 'an id not in the current result is refused');
+
+  const ok = await post({ ids: [id] });
+  assert.equal(ok.status, 200);
+  const { task, markdown } = await ok.json();
+  assert.equal(task.evidence.status, 'valid');
+  assert.match(markdown, /^# Reduce the complexity of route/);
+
+  // The source changes after the analysis: the task says so instead of passing the old evidence off as current.
+  const engine = path.join(repo, 'app/engine.py');
+  fs.writeFileSync(engine, fs.readFileSync(engine, 'utf8').replace('return "help"', 'return "usage"'));
+  const changed = await (await post({ ids: [id] })).json();
+  assert.equal(changed.task.evidence.status, 'changed');
+});

@@ -2178,6 +2178,8 @@ function usage() {
   archify start <repo-root> --ir <architecture.json> [--out <dir>] [--language ts|py] [--map file] [--config file] [--baseline file] [--quality standard|showcase]
   archify code-analysis serve <repo-root> --ir <architecture.json> --out <dir> [--language ts|py] [--map file] [--config file] [--baseline file] [--quality standard|showcase]
   archify code-analysis check <repo-root> [--language ts|py] [--config file] [--baseline file] [--compare findings.json] [--out dir] [--fail-on error|warning|info|never] [--new-only] [--update-baseline] [--reason text] [--json]
+  archify code-analysis task <analysis-dir> --finding <id> [--finding <id> …] [--root <repo-root>] [--command cmd] [--format md|json] [--out file] [--require-valid]
+  archify code-analysis task --verify <task.json> --root <repo-root> [--format md|json] [--out file] [--require-valid]
   archify render <type> <input.json> [output.html] [--quality standard|showcase] [--repo-root path]
   archify compare architecture <base.json> <head.json> [output.html] [--receipt path] [--json] [--quality standard|showcase] [--repo-root path]
   archify deliver <type> <input.json> [output.html] [--json] [--open] [--quality standard|showcase] [--repo-root path]
@@ -6618,9 +6620,10 @@ try {
     case 'code-analysis': {
       // serve: deliver the authored diagram, serve it, analyze on click.
       // check: headless analysis with baseline, comparison and an exit code for CI.
-      const commands = { serve: 'serve.mjs', check: 'check.mjs' };
+      // task: an AI optimization task from a finished run, with an evidence check.
+      const commands = { serve: 'serve.mjs', check: 'check.mjs', task: 'task.mjs' };
       if (!commands[args[0]]) {
-        console.error(`archify code-analysis commands: serve, check.\n${usage()}`);
+        console.error(`archify code-analysis commands: serve, check, task.\n${usage()}`);
         process.exitCode = 1;
         break;
       }

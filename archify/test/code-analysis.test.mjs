@@ -8,7 +8,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const cli = path.join(root, 'bin/archify.mjs');
 const moduleRoot = path.join(root, 'modules/code-analysis');
 const run = args => spawnSync(process.execPath, [cli, 'code-analysis', ...args], { encoding: 'utf8' });
-test('Code Analysis has two commands, serve and check, reached through the Archify CLI', () => {
+test('Code Analysis exposes serve, check and task through the Archify CLI', () => {
   const help = run(['serve', '--help']);
   assert.equal(help.status, 0, help.stderr);
   assert.match(help.stdout, /archify code-analysis serve/);
@@ -16,9 +16,12 @@ test('Code Analysis has two commands, serve and check, reached through the Archi
   assert.equal(checkHelp.status, 0, checkHelp.stderr);
   assert.match(checkHelp.stdout, /archify code-analysis check <repo-root>/);
   assert.match(checkHelp.stdout, /Exit codes: 0 passed, 1 gate failed, 2 analysis or usage error/);
+  const taskHelp = run(['task', '--help']);
+  assert.equal(taskHelp.status, 0, taskHelp.stderr);
+  assert.match(taskHelp.stdout, /archify code-analysis task/);
   const other = run(['extract', path.join(moduleRoot, 'test/fixtures/ts-basic')]);
   assert.notEqual(other.status, 0);
-  assert.match(other.stderr, /commands: serve, check/);
+  assert.match(other.stderr, /commands: serve, check, task/);
   const missing = run(['serve', path.join(moduleRoot, 'test/fixtures/ts-basic')]);
   assert.notEqual(missing.status, 0);
   assert.match(missing.stderr, /--ir and --out/);

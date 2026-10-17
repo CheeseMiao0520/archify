@@ -125,7 +125,7 @@ test('check: exit codes follow the gate, the baseline and the comparison', () =>
     fs.writeFileSync(path.join(dir, 'app/b.py'), 'def fb():\n    return 1\n');
     const fixed = check(['.', '--language', 'py', '--baseline', 'baseline.json', '--out', 'out'], dir);
     assert.match(fixed.out, /stale: COUP-[0-9a-f]{12} \(coupling\/import-cycle\) no longer found/);
-    assert.match(fixed.out, /Since the previous run: 0 new, 1 fixed/);
+    assert.match(fixed.out, /Since the previous run: 0 new, 1 no longer detected/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

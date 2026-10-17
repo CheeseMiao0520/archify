@@ -76,7 +76,8 @@ function reviewOf(review) {
   if (!review || (!review.baseline && !review.comparison)) return null;
   return {
     baseline: review.baseline ? { entries: review.baseline.entries, accepted: review.baseline.accepted.length, changed: review.baseline.changed, stale: review.baseline.stale } : null,
-    comparison: review.comparison ? { new: review.comparison.new, fixed: review.comparison.fixed, evidenceChanged: review.comparison.evidenceChanged, unchanged: review.comparison.unchanged } : null,
+    // `fixed` is a deprecated alias of `notDetected`: a finding that is gone is not proven fixed (see lib/review.mjs).
+    comparison: review.comparison ? { comparable: review.comparison.comparable ?? null, reasons: review.comparison.reasons || [], new: review.comparison.new, notDetected: review.comparison.notDetected || review.comparison.fixed, fixed: review.comparison.notDetected || review.comparison.fixed, evidenceChanged: review.comparison.evidenceChanged, unchanged: review.comparison.unchanged } : null,
   };
 }
 

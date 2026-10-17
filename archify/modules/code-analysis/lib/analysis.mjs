@@ -28,14 +28,38 @@ export function loadConfig(explicit) {
   if (!fs.existsSync(explicit)) fail('cli/config-missing', `Config file not found: ${explicit}`, {
     subject: { option: '--config' }, evidence: { path: explicit }, supportedFixes: ['pass an existing JSON file'],
   });
-  return { ...defaults, ...JSON.parse(fs.readFileSync(explicit, 'utf8')) };
+  let custom;
+  try { custom = JSON.parse(fs.readFileSync(explicit, 'utf8')); } catch (error) {
+    fail('cli/config-invalid', `${explicit} is not valid JSON.`, { subject: { option: '--config' }, evidence: { path: explicit, reason: error.message }, supportedFixes: ['fix the JSON syntax'] });
+  }
+  if (!isPlainObject(custom)) fail('cli/config-invalid', `${explicit} must contain a JSON object.`, { subject: { option: '--config' }, evidence: { path: explicit }, supportedFixes: ['wrap the settings in { … }'] });
+  return mergeConfig(defaults, custom);
 }
+
+// Config merge rules, applied at every depth:
+//   - objects merge key by key, so `{"rules": {"complexity": {"function": {"warning": {"complexity": 30}}}}}`
+//     changes one threshold and keeps every other default;
+//   - arrays replace the default array as a whole (`exclude`, `include`, `ignore`, a role's globs):
+//     list every pattern you want, defaults included;
+//   - scalars and `null` replace the default value.
+// Rules are turned off with `ignore: ["rule/code"]`; nothing else disables a rule.
+export function mergeConfig(base, override) {
+  if (!isPlainObject(base) || !isPlainObject(override)) return clone(override);
+  const out = clone(base);
+  for (const [key, value] of Object.entries(override)) {
+    out[key] = isPlainObject(value) && isPlainObject(out[key]) ? mergeConfig(out[key], value) : clone(value);
+  }
+  return out;
+}
+
+function isPlainObject(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
+function clone(value) { return value === undefined ? undefined : JSON.parse(JSON.stringify(value)); }
 
 // Counts for receipts and the CLI summary; the full lists are in review.json.
 export function reviewSummary(review) {
   return {
     baseline: review.baseline ? { entries: review.baseline.entries, accepted: review.baseline.accepted.length, changed: review.baseline.changed.length, stale: review.baseline.stale.length } : null,
-    comparison: review.comparison ? { new: review.comparison.new.length, fixed: review.comparison.fixed.length, evidenceChanged: review.comparison.evidenceChanged.length, unchanged: review.comparison.unchanged } : null,
+    comparison: review.comparison ? { comparable: review.comparison.comparable, new: review.comparison.new.length, notDetected: review.comparison.notDetected.length, fixed: review.comparison.notDetected.length, evidenceChanged: review.comparison.evidenceChanged.length, unchanged: review.comparison.unchanged } : null,
   };
 }
 
@@ -131,12 +155,12 @@ export function validateFacts(graph, facts) {
 }
 
 // Stage 4: delivered HTML + authored IR + graph → a new HTML with the analysis layer.
-export function overlayHtml({ html, ir, graph, facts = null, findings = [], map = null, sourceRoot = null, run = {} }) {
+export function overlayHtml({ html, ir, graph, facts = null, findings = [], findingsDocument = null, map = null, sourceRoot = null, run = {} }) {
   const graphErrors = schemaErrors('module-graph', graph);
   if (graphErrors.length) fail('overlay/input-schema-invalid', 'module-graph input does not conform to its schema.', { evidence: { errors: graphErrors.slice(0, 20) }, supportedFixes: ['regenerate the module graph'] });
   validateFacts(graph, facts);
   if (sourceRoot && !fs.existsSync(sourceRoot)) fail('cli/input-invalid', `Not a directory: ${sourceRoot}`, { subject: { dir: sourceRoot }, supportedFixes: ['pass the directory that was analyzed'] });
-  return buildOverlay({ ir, graph, html, map, facts, findings, sourceRoot, run });
+  return buildOverlay({ ir, graph, html, map, facts, findings, findingsDocument, sourceRoot, run });
 }
 
 // Baseline file → validated document, or null when none was given.
@@ -174,12 +198,12 @@ export function analyzeRepository({ root, ir, html, out, language = null, config
   fs.writeFileSync(path.join(dir, 'module-graph.json'), stableJson(graph));
   const findings = evaluateGraph(graph, cfg, facts);
   fs.writeFileSync(path.join(dir, 'findings.json'), stableJson(findings));
-  const review = reviewFindings(findings.diagnostics, { baseline: loadBaseline(baseline), previous: loadPrevious(previous) });
+  const review = reviewFindings(findings.diagnostics, { baseline: loadBaseline(baseline), previous: loadPrevious(previous), analysis: findings.analysis, files: facts.files.map((f) => f.path) });
   fs.writeFileSync(path.join(dir, 'review.json'), stableJson(review));
   const irDoc = irSnapshot ?? readJsonInput(irPath, 'analysis --ir');
   const mapDoc = map ? readJsonInput(map, 'analysis --map') : null;
   const run = { rules: findings.rules, suppressed: cfg.ignore || [], exclude: cfg.exclude || [], otherLanguages, boundaries: cfg.boundaries || null, review };
-  const overlay = overlayHtml({ html: fs.readFileSync(htmlPath, 'utf8'), ir: irDoc, graph, facts, findings: findings.diagnostics, map: mapDoc, sourceRoot: absRoot, run });
+  const overlay = overlayHtml({ html: fs.readFileSync(htmlPath, 'utf8'), ir: irDoc, graph, facts, findings: findings.diagnostics, findingsDocument: findings, map: mapDoc, sourceRoot: absRoot, run });
   fs.writeFileSync(path.join(dir, 'overview.json'), stableJson(overlay.overview));
   const outHtml = path.join(dir, 'repo.analysis.html');
   fs.writeFileSync(outHtml, overlay.html);

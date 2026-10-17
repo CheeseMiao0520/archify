@@ -1,0 +1,345 @@
+{
+  "schema_version": 1,
+  "repository": {
+    "revision": null,
+    "baseRevision": null,
+    "sourceKind": "working-tree",
+    "root": ".",
+    "url": null,
+    "language": "py",
+    "adapter": "python@3.10.12",
+    "snapshotId": "9c830d088baeea0debea9ff75f55e5170077d752efc41e9f5c417d3a8286bfb6"
+  },
+  "files": [
+    {
+      "path": "app/__init__.py",
+      "loc": 0,
+      "role": "source",
+      "sourceText": ""
+    },
+    {
+      "path": "app/a.py",
+      "loc": 10,
+      "role": "source",
+      "sourceText": "\"\"\"Settings shared by the request handlers.\"\"\"\nfrom app.b import Handler\n\nDEFAULT_TIMEOUT = 30\n\n\nclass Config:\n    def __init__(self, timeout=DEFAULT_TIMEOUT):\n        self.timeout = timeout\n        self.handler = Handler(self)\n"
+    },
+    {
+      "path": "app/b.py",
+      "loc": 10,
+      "role": "source",
+      "sourceText": "\"\"\"Request handler that reads its limits from the config.\"\"\"\nfrom app.a import DEFAULT_TIMEOUT\n\n\nclass Handler:\n    def __init__(self, config):\n        self.config = config\n\n    def limit(self):\n        return self.config.timeout or DEFAULT_TIMEOUT\n"
+    },
+    {
+      "path": "app/engine.py",
+      "loc": 42,
+      "role": "source",
+      "sourceText": "\"\"\"Routes an incoming message to a handler.\"\"\"\n\n\ndef route(message, user, flags):\n    if not message:\n        return None\n    kind = message.get(\"kind\")\n    if kind == \"text\":\n        if user.get(\"muted\"):\n            return \"drop\"\n        if flags.get(\"translate\") and message.get(\"lang\") != user.get(\"lang\"):\n            return \"translate\"\n        return \"text\"\n    elif kind == \"image\":\n        if message.get(\"size\", 0) > 10_000_000:\n            return \"too-large\"\n        for tag in message.get(\"tags\", []):\n            if tag == \"nsfw\" and not user.get(\"adult\"):\n                return \"blocked\"\n        return \"image\"\n    elif kind == \"command\":\n        name = message.get(\"name\")\n        if name == \"help\":\n            return \"help\"\n        elif name == \"stop\" or name == \"quit\":\n            return \"stop\"\n        elif name == \"retry\":\n            while flags.get(\"busy\"):\n                flags[\"busy\"] = False\n            return \"retry\"\n        return \"unknown-command\"\n    elif kind == \"event\":\n        try:\n            code = int(message.get(\"code\"))\n        except (TypeError, ValueError):\n            return \"bad-event\"\n        return \"event\" if code > 0 else \"noop\"\n    return \"unsupported\"\n\n\ndef describe(result):\n    return result or \"none\"\n"
+    },
+    {
+      "path": "domain/__init__.py",
+      "loc": 0,
+      "role": "source",
+      "sourceText": ""
+    },
+    {
+      "path": "domain/model.py",
+      "loc": 9,
+      "role": "source",
+      "sourceText": "\"\"\"Order model.\"\"\"\n\n\nclass Order:\n    def __init__(self, items):\n        self.items = list(items)\n\n    def total(self):\n        return sum(item[\"price\"] for item in self.items)\n"
+    },
+    {
+      "path": "domain/order.py",
+      "loc": 8,
+      "role": "source",
+      "sourceText": "\"\"\"Order checkout.\"\"\"\nfrom domain.model import Order\nfrom ui.view import format_price\n\n\ndef checkout(items):\n    order = Order(items)\n    return format_price(order.total())\n"
+    },
+    {
+      "path": "ui/__init__.py",
+      "loc": 0,
+      "role": "source",
+      "sourceText": ""
+    },
+    {
+      "path": "ui/view.py",
+      "loc": 10,
+      "role": "source",
+      "sourceText": "\"\"\"Formatting helpers for the order screen.\"\"\"\nfrom domain.model import Order\n\n\ndef format_price(value):\n    return f\"${value:,.2f}\"\n\n\ndef render(items):\n    return format_price(Order(items).total())\n"
+    }
+  ],
+  "imports": [
+    {
+      "from": "app/a.py",
+      "specifier": "app.b",
+      "kind": "static",
+      "line": 2,
+      "resolved": true,
+      "names": [
+        "Handler"
+      ],
+      "to": "app/b.py"
+    },
+    {
+      "from": "app/b.py",
+      "specifier": "app.a",
+      "kind": "static",
+      "line": 2,
+      "resolved": true,
+      "names": [
+        "DEFAULT_TIMEOUT"
+      ],
+      "to": "app/a.py"
+    },
+    {
+      "from": "domain/order.py",
+      "specifier": "domain.model",
+      "kind": "static",
+      "line": 2,
+      "resolved": true,
+      "names": [
+        "Order"
+      ],
+      "to": "domain/model.py"
+    },
+    {
+      "from": "domain/order.py",
+      "specifier": "ui.view",
+      "kind": "static",
+      "line": 3,
+      "resolved": true,
+      "names": [
+        "*"
+      ],
+      "implicit": true,
+      "to": "ui/__init__.py"
+    },
+    {
+      "from": "domain/order.py",
+      "specifier": "ui.view",
+      "kind": "static",
+      "line": 3,
+      "resolved": true,
+      "names": [
+        "format_price"
+      ],
+      "to": "ui/view.py"
+    },
+    {
+      "from": "ui/view.py",
+      "specifier": "domain.model",
+      "kind": "static",
+      "line": 2,
+      "resolved": true,
+      "names": [
+        "*"
+      ],
+      "implicit": true,
+      "to": "domain/__init__.py"
+    },
+    {
+      "from": "ui/view.py",
+      "specifier": "domain.model",
+      "kind": "static",
+      "line": 2,
+      "resolved": true,
+      "names": [
+        "Order"
+      ],
+      "to": "domain/model.py"
+    }
+  ],
+  "symbols": [
+    {
+      "file": "app/a.py",
+      "name": "Handler",
+      "kind": "import",
+      "line": 2
+    },
+    {
+      "file": "app/a.py",
+      "name": "DEFAULT_TIMEOUT",
+      "kind": "variable",
+      "line": 4
+    },
+    {
+      "file": "app/a.py",
+      "name": "Config",
+      "kind": "class",
+      "line": 7
+    },
+    {
+      "file": "app/b.py",
+      "name": "DEFAULT_TIMEOUT",
+      "kind": "import",
+      "line": 2
+    },
+    {
+      "file": "app/b.py",
+      "name": "Handler",
+      "kind": "class",
+      "line": 5
+    },
+    {
+      "file": "app/engine.py",
+      "name": "route",
+      "kind": "function",
+      "line": 4
+    },
+    {
+      "file": "app/engine.py",
+      "name": "describe",
+      "kind": "function",
+      "line": 41
+    },
+    {
+      "file": "domain/model.py",
+      "name": "Order",
+      "kind": "class",
+      "line": 4
+    },
+    {
+      "file": "domain/order.py",
+      "name": "Order",
+      "kind": "import",
+      "line": 2
+    },
+    {
+      "file": "domain/order.py",
+      "name": "format_price",
+      "kind": "import",
+      "line": 3
+    },
+    {
+      "file": "domain/order.py",
+      "name": "checkout",
+      "kind": "function",
+      "line": 6
+    },
+    {
+      "file": "ui/view.py",
+      "name": "Order",
+      "kind": "import",
+      "line": 2
+    },
+    {
+      "file": "ui/view.py",
+      "name": "format_price",
+      "kind": "function",
+      "line": 5
+    },
+    {
+      "file": "ui/view.py",
+      "name": "render",
+      "kind": "function",
+      "line": 9
+    }
+  ],
+  "functions": [
+    {
+      "file": "app/a.py",
+      "name": "__init__",
+      "qualname": "Config.__init__",
+      "line": 8,
+      "endLine": 10,
+      "complexity": 1,
+      "nesting": 0,
+      "deepestLine": 8
+    },
+    {
+      "file": "app/b.py",
+      "name": "__init__",
+      "qualname": "Handler.__init__",
+      "line": 6,
+      "endLine": 7,
+      "complexity": 1,
+      "nesting": 0,
+      "deepestLine": 6
+    },
+    {
+      "file": "app/b.py",
+      "name": "limit",
+      "qualname": "Handler.limit",
+      "line": 9,
+      "endLine": 10,
+      "complexity": 2,
+      "nesting": 0,
+      "deepestLine": 9
+    },
+    {
+      "file": "app/engine.py",
+      "name": "route",
+      "qualname": "route",
+      "line": 4,
+      "endLine": 38,
+      "complexity": 20,
+      "nesting": 3,
+      "deepestLine": 18
+    },
+    {
+      "file": "app/engine.py",
+      "name": "describe",
+      "qualname": "describe",
+      "line": 41,
+      "endLine": 42,
+      "complexity": 2,
+      "nesting": 0,
+      "deepestLine": 41
+    },
+    {
+      "file": "domain/model.py",
+      "name": "__init__",
+      "qualname": "Order.__init__",
+      "line": 5,
+      "endLine": 6,
+      "complexity": 1,
+      "nesting": 0,
+      "deepestLine": 5
+    },
+    {
+      "file": "domain/model.py",
+      "name": "total",
+      "qualname": "Order.total",
+      "line": 8,
+      "endLine": 9,
+      "complexity": 2,
+      "nesting": 0,
+      "deepestLine": 8
+    },
+    {
+      "file": "domain/order.py",
+      "name": "checkout",
+      "qualname": "checkout",
+      "line": 6,
+      "endLine": 8,
+      "complexity": 1,
+      "nesting": 0,
+      "deepestLine": 6
+    },
+    {
+      "file": "ui/view.py",
+      "name": "format_price",
+      "qualname": "format_price",
+      "line": 5,
+      "endLine": 6,
+      "complexity": 1,
+      "nesting": 0,
+      "deepestLine": 5
+    },
+    {
+      "file": "ui/view.py",
+      "name": "render",
+      "qualname": "render",
+      "line": 9,
+      "endLine": 10,
+      "complexity": 1,
+      "nesting": 0,
+      "deepestLine": 9
+    }
+  ],
+  "calls": [],
+  "unresolved": {
+    "external": 0,
+    "outside": 0,
+    "unknown": 0,
+    "opaque": 0
+  }
+}

@@ -11,6 +11,9 @@ import * as importCycle from './rules/coupling/import-cycle.mjs';
 import * as boundary from './rules/architecture/boundary.mjs';
 import * as complexity from './rules/complexity/function.mjs';
 import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+
+const PACKAGE = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 export const RULES = [importCycle, cycle, hub, boundary, complexity];
 
@@ -35,7 +38,29 @@ export function evaluate(graph, config = {}, facts = null) {
     repository: graph.repository,
     rules: active.map((r) => r.code),
     summary: { ...summary, suppressed: suppressedCount },
+    analysis: analysisContext({ graph, config, facts, active, suppressed }),
     diagnostics,
+  };
+}
+
+// What a run's findings depend on besides the source itself. Two runs are
+// directly comparable only when these match: a finding that disappears after
+// a rule was switched off, a threshold raised, the scan scope changed or a file
+// stopped parsing was not fixed. lib/review.mjs compares two of these.
+export function analysisContext({ graph, config = {}, facts = null, active = RULES, suppressed = new Set(config.ignore || []) }) {
+  const excludedRoles = new Set(graph?.excluded?.roles || []);
+  const { schema_version: _ignored, ...settings } = config || {};
+  return {
+    analyzer: { name: PACKAGE.name, version: PACKAGE.version },
+    language: graph?.repository?.language ?? null,
+    adapter: graph?.repository?.adapter ?? null,
+    configDigest: sha256(JSON.stringify(canonical(settings))),
+    ruleVersions: Object.fromEntries(active.filter((r) => !suppressed.has(r.code)).map((r) => [r.code, r.version ?? 1]).sort(([a], [b]) => compareText(a, b))),
+    coverage: {
+      files: facts ? facts.files.filter((f) => !excludedRoles.has(f.role)).length : null,
+      excludedRoles: [...excludedRoles].sort(compareText),
+      parseErrors: facts?.parse_errors ? facts.parse_errors.map((e) => e.path).sort(compareText) : [],
+    },
   };
 }
 

@@ -69,6 +69,9 @@ test('Code Analysis shows complex Python functions in the overview, problem page
 
   await run("[...document.querySelectorAll('#bauify-overview .bauify-item')].find(b => /dispatch/.test(b.textContent)).click()");
   await wait("!document.getElementById('bauify-detail').hidden");
+  assert.equal(await run("document.querySelector('#bauify-detail .relationship').open"), false);
+  assert.ok(await run("document.querySelector('#bauify-detail .inline-evidence pre').textContent.includes('if kind == 0:')"));
+  await run("document.querySelector('#bauify-detail .more-evidence').open = true");
   const problem = await run("document.getElementById('bauify-detail').innerText");
   assert.match(problem, /A high count is a maintenance signal, not a defect/);
   assert.match(problem, /router\.py \(line 1\) dispatch\(\) starts/);
