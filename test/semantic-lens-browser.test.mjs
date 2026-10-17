@@ -144,6 +144,19 @@ test('Semantic Lens preserves selection, legend preview and panel contracts', {
   await t.test('trusted buttons, selection transitions, return values and three cleanup operations stay distinct', async () => {
     await load(); await click('#btn-semantic-lens');
     await run(`lensWait(()=>document.activeElement.matches('#semantic-lens-kinds button'))`);
+    const composition = await run(`(() => {
+      const before = document.activeElement;
+      return ['ArrowDown', 'Home', 'End', 'Escape'].map(key => {
+        const event = new KeyboardEvent('keydown', {key, bubbles:true, cancelable:true, isComposing:true});
+        before.dispatchEvent(event);
+        return {key, prevented:event.defaultPrevented, focused:document.activeElement===before, open:Archify.semanticLens.isOpen()};
+      });
+    })()`);
+    assert.deepEqual(composition, ['ArrowDown', 'Home', 'End', 'Escape'].map(key => ({key, prevented:false, focused:true, open:true})));
+    assert.deepEqual(await run(`(()=>{Archify.guide.open();const panel=document.getElementById('diagram-guide'),event=new KeyboardEvent('keydown',{key:'?',bubbles:true,cancelable:true,isComposing:true});panel.dispatchEvent(event);return {prevented:event.defaultPrevented,open:!panel.hidden};})()`),{prevented:false,open:true});
+    await run('Archify.guide.close()');
+    await click('#btn-semantic-lens');
+    await run(`lensWait(()=>document.activeElement.matches('#semantic-lens-kinds button'))`);
     const initialKind = await run('document.activeElement.dataset.kind');
     assert.equal(typeof initialKind, 'string');
     assert.deepEqual(await run(`(()=>{const before=document.activeElement.dataset.kind,event=new KeyboardEvent('keydown',{key:'End',bubbles:true,cancelable:true,shiftKey:true});document.activeElement.dispatchEvent(event);return {prevented:event.defaultPrevented,focus:document.activeElement.dataset.kind,before};})()`),{prevented:false,focus:initialKind,before:initialKind});

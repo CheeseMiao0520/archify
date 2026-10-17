@@ -167,8 +167,22 @@ test('Finder preserves search, keyboard, contextual Route selection and cleanup'
     const reset = await snapshot('default-restored'); assert.equal(reset.context, 'focus'); assert.equal(reset.results.length, reset.count);
   });
 
+  await t.test('IME commit sentinel remains unhandled', async () => {
+    await load(); await key('/', 'Slash', 191); await opened(); await search('API Server');
+    const result = await run(`(() => {const input=document.getElementById('node-finder-input'); const e=new KeyboardEvent('keydown',{key:'Enter',keyCode:229,isComposing:false,bubbles:true,cancelable:true}); input.dispatchEvent(e); return {code:e.keyCode,open:Archify.finder.isOpen(),prevented:e.defaultPrevented};})()`);
+    assert.deepEqual(result,{code:229,open:true,prevented:false});
+  });
+  await t.test('composing Escape preserves overlay focus after frames', async () => {
+    await load('architecture',{width:1280,height:900});
+    await run(`(() => {localStorage.setItem('archify-rail-placement','right');localStorage.setItem('archify-rail-collapsed','0');Archify.readerLayout.schedule();return true;})()`);
+    await run('Archify.readerLayout.whenStable()');
+    await key('/', 'Slash',191); await opened();
+    const result=await run(`(async()=>{const input=document.getElementById('node-finder-input');const before=document.documentElement.getAttribute('data-reader-rail');const e=new KeyboardEvent('keydown',{key:'Escape',isComposing:true,bubbles:true,cancelable:true});input.dispatchEvent(e);await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));return {before,after:document.documentElement.getAttribute('data-reader-rail'),focus:document.activeElement.id,open:Archify.finder.isOpen(),prevented:e.defaultPrevented};})()`);
+    assert.equal(result.before,'overlay');assert.equal(result.after,'overlay');assert.equal(result.focus,'node-finder-input');assert.equal(result.open,true);assert.equal(result.prevented,false);
+  });
   await t.test('trusted keyboard navigation, selection and Escape preserve focus boundaries', async () => {
     await load();
+    assert.deepEqual(await run(`(()=>{const event=new KeyboardEvent('keydown',{key:'/',bubbles:true,cancelable:true,isComposing:true});document.dispatchEvent(event);return {prevented:event.defaultPrevented,open:Archify.finder.isOpen()};})()`),{prevented:false,open:false});
     await key('/', 'Slash', 191); await opened();
     assert.deepEqual(await run(`(()=>{const input=document.getElementById('node-finder-input'),event=new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true,shiftKey:true});input.dispatchEvent(event);return {prevented:event.defaultPrevented,focus:document.activeElement.id};})()`),{prevented:false,focus:'node-finder-input'});
     await key('ArrowDown', 'ArrowDown', 40);
