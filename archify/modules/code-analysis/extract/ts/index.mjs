@@ -3,7 +3,7 @@
 // exported symbols and calls stay empty until M2.
 import path from 'node:path';
 import ts from 'typescript';
-import { classifyRole, lineCount, listFiles, snapshotTree, toPosix } from '../shared/files.mjs';
+import { classifyRole, lineCount, listFiles, snapshotTree, toPosix, listPackageMarkers } from '../shared/files.mjs';
 import { matcher } from '../shared/glob.mjs';
 import { snapshotHost } from './snapshot-host.mjs';
 import { describeRepository } from '../shared/git.mjs';
@@ -80,6 +80,7 @@ export function extract(root, config) {
     schema_version: 1,
     repository: { ...repo, language: 'ts', adapter: `typescript@${ts.version}` },
     files: fileRecords,
+    packageMarkers: listPackageMarkers(absRoot, config),
     imports,
     symbols: [],
     calls: [],
