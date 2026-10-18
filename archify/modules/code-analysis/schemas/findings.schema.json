@@ -29,7 +29,7 @@
         "analyzer": { "type": "object", "additionalProperties": false, "required": ["name", "version"], "properties": { "name": { "type": "string" }, "version": { "type": "string" } } },
         "language": { "type": ["string", "null"] },
         "adapter": { "type": ["string", "null"] },
-        "configDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "sha256 of the effective (merged) configuration, schema_version excluded." },
+        "configDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "sha256 of the effective (merged) configuration in its key order, schema_version excluded." },
         "ruleVersions": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 1 }, "description": "Rules that ran (suppressed rules excluded) and the version of their logic." },
         "coverage": {
           "type": "object",
@@ -50,7 +50,7 @@
         "additionalProperties": false,
         "required": ["id", "code", "dimension", "severity", "confidence", "message", "subject", "evidence", "supportedFixes"],
         "properties": {
-          "id": { "type": "string", "pattern": "^[A-Z]{2,4}-[0-9a-f]{12}$" },
+          "id": { "type": "string", "pattern": "^[A-Z]{2,4}-(?:[0-9a-f]{12}|[0-9]{4,})$", "description": "Stable id: dimension prefix + 12 hex digits of a hash of the rule and subject. Findings written before stable ids used a position number (COUP-0001); those stay valid schema-v1 documents but their ids cannot be matched across runs." },
           "code": { "type": "string", "pattern": "^[a-z-]+/[a-z-]+$" },
           "dimension": { "enum": ["coupling", "architecture", "complexity", "redundancy", "error-handling", "impact", "ai-smell"] },
           "severity": { "enum": ["error", "warning", "info"] },

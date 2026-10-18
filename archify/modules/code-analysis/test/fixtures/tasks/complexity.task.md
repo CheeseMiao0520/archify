@@ -87,7 +87,7 @@ Modify:
 
 ## Done when
 
-- `route` is below the configured thresholds (complexity < 15, nesting < 5), or the remaining branching is explained as inherent.
+- `route` is below the level at which the rule reports at all (complexity < 15 and nesting < 5), or the remaining branching is explained as inherent.
 - A re-analysis with the same language and configuration reports no new finding in the files changed, and its comparison is marked comparable.
 - The project checks that cover the changed code pass (see verification).
 
@@ -105,4 +105,4 @@ Modify:
 ## Analysis context
 
 - Language: py (python@3.10.12), analyzed root: `.`, source: working-tree
-- Snapshot: `9c830d088baeea0debea9ff75f55e5170077d752efc41e9f5c417d3a8286bfb6`, config `20c48a7be08b`, analyzer @archify/code-analysis 0.1.0-dev.1
+- Snapshot: `9c830d088baeea0debea9ff75f55e5170077d752efc41e9f5c417d3a8286bfb6`, config `324b819276b8`, analyzer @archify/code-analysis 0.1.0-dev.1

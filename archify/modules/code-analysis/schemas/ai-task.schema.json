@@ -8,7 +8,7 @@
   "required": ["schema_version", "kind", "taskId", "title", "findings", "source", "locations", "facts", "impact", "suggestions", "scope", "preserve", "acceptance", "verification", "toConfirm", "evidence", "instructions"],
   "$defs": {
     "sha": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-    "findingId": { "type": "string", "pattern": "^[A-Z]{2,4}-[0-9a-f]{12}$" },
+    "findingId": { "type": "string", "pattern": "^[A-Z]{2,4}-(?:[0-9a-f]{12}|[0-9]{4,})$" },
     "status": { "enum": ["captured", "valid", "changed", "missing", "unverifiable"] },
     "segment": {
       "type": "object",
@@ -73,6 +73,7 @@
           "endLine": { "type": "integer", "minimum": 1 },
           "symbol": { "type": "string" },
           "focusLine": { "type": "integer", "minimum": 1, "description": "For a function: the line of its deepest nesting." },
+          "capturedOccurrences": { "type": "integer", "minimum": 2, "description": "Present when the cited lines occur more than once in the captured file; a match elsewhere is then ambiguous, not a move." },
           "note": { "type": "string" },
           "sha256": { "oneOf": [{ "$ref": "#/$defs/sha" }, { "type": "null" }], "description": "Hash of lines startLine..endLine joined with \\n; null when the text was not captured or there is no range." },
           "excerpt": {

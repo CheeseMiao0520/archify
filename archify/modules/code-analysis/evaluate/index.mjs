@@ -54,7 +54,10 @@ export function analysisContext({ graph, config = {}, facts = null, active = RUL
     analyzer: { name: PACKAGE.name, version: PACKAGE.version },
     language: graph?.repository?.language ?? null,
     adapter: graph?.repository?.adapter ?? null,
-    configDigest: sha256(JSON.stringify(canonical(settings))),
+    // Key order is kept, not sorted: boundary layers and module groups are first-match
+    // maps, so reordering them can change which layer or group owns a file. Reordering
+    // any key therefore reads as a config change, which errs toward "not comparable".
+    configDigest: sha256(JSON.stringify(settings)),
     ruleVersions: Object.fromEntries(active.filter((r) => !suppressed.has(r.code)).map((r) => [r.code, r.version ?? 1]).sort(([a], [b]) => compareText(a, b))),
     coverage: {
       files: facts ? facts.files.filter((f) => !excludedRoles.has(f.role)).length : null,

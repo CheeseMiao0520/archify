@@ -30,7 +30,7 @@
     },
     "language": "py",
     "adapter": "python@3.10.12",
-    "configDigest": "20c48a7be08b42a02d47181a9f4c996b4a386b50632100c711610a690385f095",
+    "configDigest": "324b819276b800bdabf528ab74208d2c7b906330003b9c94627a196856f6d4a4",
     "ruleVersions": {
       "architecture/boundary": 1,
       "complexity/function": 1,
@@ -118,6 +118,16 @@
         "threshold": {
           "complexity": 15,
           "nesting": 5
+        },
+        "thresholds": {
+          "info": {
+            "complexity": 15,
+            "nesting": 5
+          },
+          "warning": {
+            "complexity": 25,
+            "nesting": 6
+          }
         },
         "complexity": 20,
         "nesting": 3,

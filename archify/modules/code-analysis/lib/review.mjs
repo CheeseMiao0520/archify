@@ -29,6 +29,8 @@
 //   rule-not-run   the rule did not run this time
 //   files-missing  a file it was about is no longer analyzed (deleted, renamed, excluded)
 //   parse-error    a file it was about failed to parse this time
+// A previous run written before stable ids (COUP-0001 style) is still read; its
+// comparison carries the reason `legacy-ids` and is never comparable.
 //   possibly-renamed  a new finding of the same rule covers the same files (a renamed
 //                  function, a cycle that gained a file); `candidates` lists their ids
 // `fixed` is kept as a deprecated alias of `notDetected` (same entries) for
@@ -74,8 +76,13 @@ export function reviewFindings(diagnostics, { baseline = null, previous = null, 
   };
 }
 
+const LEGACY_ID = /^[A-Z]{2,4}-[0-9]{4,}$/;
+
 function comparisonOf({ previous, before, current, findings, ids, analysis, files }) {
   const { comparable, reasons } = comparability(previous.analysis || null, analysis);
+  // Position-numbered ids (before stable ids) never match a current id: every finding
+  // would read as new and every old one as no longer detected.
+  if ([...before.keys()].some((id) => LEGACY_ID.test(id))) reasons.push({ code: 'legacy-ids', message: 'The previous run used position-numbered finding ids, which cannot be matched to the current stable ids; new and no-longer-detected lists are not meaningful for this comparison.' });
   const ran = analysis ? new Set(Object.keys(analysis.ruleVersions)) : null;
   const known = files ? new Set(files) : null;
   const parseErrors = new Set(analysis?.coverage?.parseErrors || []);
@@ -91,7 +98,7 @@ function comparisonOf({ previous, before, current, findings, ids, analysis, file
   }).sort((a, b) => compareText(a.id, b.id));
   return {
     previousSnapshot: previous.repository?.snapshotId || null,
-    comparable, reasons,
+    comparable: reasons.some((r) => r.code === 'legacy-ids') ? false : comparable, reasons,
     new: ids((d) => findings[d.id].since === 'new'),
     evidenceChanged: ids((d) => findings[d.id].since === 'evidence-changed'),
     notDetected,
@@ -108,6 +115,8 @@ export function comparability(before, after) {
   const add = (code, message) => reasons.push({ code, message });
   if (before.language !== after.language) add('language-changed', `Language changed from ${before.language} to ${after.language}.`);
   if (before.analyzer?.version !== after.analyzer?.version) add('analyzer-changed', `Analyzer version changed from ${before.analyzer?.version} to ${after.analyzer?.version}.`);
+  // The extractor (Python or TypeScript version) decides what parses and how imports resolve.
+  if (before.adapter !== after.adapter) add('adapter-changed', `Extractor changed from ${before.adapter} to ${after.adapter}.`);
   if (before.configDigest !== after.configDigest) add('config-changed', 'The analysis configuration changed (thresholds, include/exclude, roles, boundaries or ignored rules).');
   const rulesBefore = before.ruleVersions || {}, rulesAfter = after.ruleVersions || {};
   const removed = Object.keys(rulesBefore).filter((r) => !(r in rulesAfter)).sort(compareText);

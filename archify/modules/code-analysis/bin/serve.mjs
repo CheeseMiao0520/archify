@@ -203,7 +203,7 @@ export async function startAnalysisView(argv) {
     } catch { return send(400, JSON.stringify({ error: 'request could not be read' })); }
     let ids;
     try { ({ ids } = JSON.parse(body || '{}')); } catch { return send(400, JSON.stringify({ error: 'request body must be JSON: {"ids": [...]}' })); }
-    if (!Array.isArray(ids) || !ids.length || ids.length > 20 || !ids.every((id) => typeof id === 'string' && /^[A-Z]{2,4}-[0-9a-f]{12}$/.test(id))) return send(400, JSON.stringify({ error: 'ids must list 1–20 finding ids' }));
+    if (!Array.isArray(ids) || !ids.length || ids.length > 20 || !ids.every((id) => typeof id === 'string' && /^[A-Z]{2,4}-(?:[0-9a-f]{12}|[0-9]{4,})$/.test(id))) return send(400, JSON.stringify({ error: 'ids must list 1–20 finding ids' }));
     if (pending) return fail409('task/analysis-running', 'An analysis is running; build the task when it has finished.', ['retry after the analysis completes']);
     if (!fs.existsSync(path.join(analysisDir, 'findings.json'))) return fail409('task/no-analysis', 'Run the analysis before building a task.', ['click Code Analysis first']);
     try {

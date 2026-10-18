@@ -56,7 +56,8 @@ export async function runCheck(argv) {
   const out = options['--out'] ? path.resolve(options['--out']) : null;
   const previousFile = options['--compare'] ? path.resolve(options['--compare']) : out ? path.join(out, 'findings.json') : null;
   if (options['--compare'] && !fs.existsSync(previousFile)) fail('cli/input-invalid', `Not a file: ${options['--compare']}`, { subject: { option: '--compare' }, supportedFixes: ['pass the findings.json of an earlier run'] });
-  const previous = loadPrevious(previousFile);
+  // An explicit --compare must be readable; the automatic one in --out is optional.
+  const previous = loadPrevious(previousFile, { strict: Boolean(options['--compare']) });
 
   const { facts, config, otherLanguages } = extractFacts(root, { language: options['--language'] || null, config: options['--config'] || null });
   const graph = buildGraph(facts, config);

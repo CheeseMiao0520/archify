@@ -21,7 +21,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { rangeDigest, splitLines } from './task.mjs';
+import { findRanges, rangeDigest, splitLines } from './task.mjs';
 
 const RANK = { valid: 0, unverifiable: 1, changed: 2, missing: 3 };
 
@@ -42,8 +42,28 @@ export function readInside(root, rel) {
   if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return { status: 'unverifiable', reason: 'file resolves outside the analysis root' };
   try {
     if (!fs.statSync(real).isFile()) return { status: 'missing', reason: 'path is no longer a file' };
-    return { status: 'ok', text: fs.readFileSync(real, 'utf8') };
+    return { status: 'ok', text: decodeSource(fs.readFileSync(real), rel) };
   } catch (error) { return { status: 'unverifiable', reason: `file cannot be read (${error.code || error.message})` }; }
+}
+
+// Decode a file the way the extractor did. Python files honour a PEP 263
+// coding declaration in their first two lines (tokenize.detect_encoding);
+// everything else is read as UTF-8. An encoding Node cannot decode falls back
+// to UTF-8, which at worst reports the evidence as changed, never as valid.
+const PYTHON_CODECS = { latin_1: 'latin1', 'latin-1': 'latin1', iso_8859_1: 'iso-8859-1', l1: 'latin1', cp1252: 'windows-1252', 'windows-1252': 'windows-1252', utf_8: 'utf-8', utf8: 'utf-8', 'utf-8': 'utf-8', 'utf-8-sig': 'utf-8' };
+
+export function decodeSource(buffer, rel) {
+  if (!/\.pyi?$/i.test(rel) || (buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf)) return buffer.toString('utf8');
+  const head = buffer.subarray(0, 512).toString('latin1').split(/\r?\n/).slice(0, 2);
+  let declared = null;
+  for (const line of head) {
+    const match = line.match(/^[ \t\f]*#.*?coding[:=][ \t]*([-\w.]+)/);
+    if (match) { declared = match[1].toLowerCase(); break; }
+    if (!/^[ \t\f]*(#.*)?$/.test(line)) break; // only a blank or comment first line lets the second declare it
+  }
+  if (!declared) return buffer.toString('utf8');
+  const label = PYTHON_CODECS[declared] || PYTHON_CODECS[declared.replace(/-/g, '_')] || declared.replace(/_/g, '-');
+  try { return new TextDecoder(label).decode(buffer); } catch { return buffer.toString('utf8'); }
 }
 
 // Python decodes a UTF-8 BOM away; Node keeps it. Hash both forms so the
@@ -57,20 +77,21 @@ export function checkLocation(loc, current) {
   if (!loc.sha256 || !Number.isInteger(loc.startLine)) return { status: 'unverifiable', reason: loc.kind === 'file' ? 'no line evidence to compare' : 'source text was not captured' };
   if (current.status !== 'ok') return { status: current.status, reason: current.reason };
   const length = loc.endLine - loc.startLine + 1;
+  let ambiguous = false;
   for (const text of variants(current.text)) {
     const lines = splitLines(text);
     if (loc.endLine <= lines.length && rangeDigest(lines, loc.startLine, loc.endLine) === loc.sha256) return { status: 'valid' };
-    // Moved: the same lines elsewhere in the file (code above was edited). Prefer the nearest match.
-    const matches = [];
-    for (let start = 1; start + length - 1 <= lines.length; start += 1) {
-      if (rangeDigest(lines, start, start + length - 1) === loc.sha256) matches.push(start);
-    }
-    if (matches.length) {
-      const start = matches.sort((a, b) => Math.abs(a - loc.startLine) - Math.abs(b - loc.startLine) || a - b)[0];
+    // Moved: the same lines once elsewhere in the file (code above was edited). Only an
+    // unambiguous match counts: if the block occurred more than once when it was captured,
+    // or occurs more than once now, a match may be a twin of the cited code, not the code itself.
+    const matches = findRanges(lines, length, loc.sha256);
+    if (matches.length === 1 && (loc.capturedOccurrences || 1) === 1) {
+      const start = matches[0];
       return { status: 'valid', currentStartLine: start, currentEndLine: start + length - 1, reason: `unchanged, moved from line ${loc.startLine} to ${start}` };
     }
+    if (matches.length) ambiguous = true;
   }
-  return { status: 'changed', reason: 'cited lines differ from the analysis snapshot' };
+  return { status: 'changed', reason: ambiguous ? 'cited lines are no longer at their position, and identical code elsewhere in the file cannot be told apart from them' : 'cited lines differ from the analysis snapshot' };
 }
 
 // Recompute a finding's evidenceDigest from the current files, the way
@@ -107,7 +128,13 @@ export function verifyTask(task, root, { now = new Date() } = {}) {
     const matches = digestMatches(f.evidenceDigest, readFile, fn ? [fn.currentStartLine, fn.currentEndLine] : null);
     let status = located.length ? worst(located.map((l) => l.status)) : 'unverifiable';
     let reason = own.find((l) => l.status === status && l.reason)?.reason || null;
-    if (status === 'valid' && matches === false) { status = 'changed'; reason = 'the cited lines are unchanged, but other code this finding was computed from changed; re-run the analysis to confirm it still applies'; }
+    // A citation that could not be read is not covered by the others being unchanged;
+    // only a digest recomputed over all the finding's files can vouch for it.
+    const unread = own.filter((l) => l.status === 'unverifiable' && l.kind !== 'file');
+    if (status === 'valid' && unread.length && matches !== true) {
+      status = 'unverifiable';
+      reason = `${unread.length} cited location${unread.length === 1 ? '' : 's'} could not be checked (${unread[0].reason})`;
+    } else if (status === 'valid' && matches === false) { status = 'changed'; reason = 'the cited lines are unchanged, but other code this finding was computed from changed; re-run the analysis to confirm it still applies'; }
     else if (!located.length && matches === true) { status = 'valid'; reason = 'the files this finding was computed from are unchanged'; }
     else if (!located.length && matches === false) { status = own.some((l) => readFile(l.file).status === 'missing') || f.evidenceDigest?.files?.some((x) => readFile(x).status === 'missing') ? 'missing' : 'changed'; reason = 'the files this finding was computed from changed'; }
     else if (status === 'valid' && matches === null) reason = f.evidenceDigest ? 'cited lines unchanged; the finding digest could not be recomputed' : 'cited lines unchanged; the finding has no evidence digest';

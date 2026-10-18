@@ -55,7 +55,13 @@ const PRESERVE = {
 };
 
 const ACCEPTANCE = {
-  'complexity/function': (d) => [`\`${d.subject.function}\` is below the configured thresholds (complexity < ${d.evidence.threshold.complexity}, nesting < ${d.evidence.threshold.nesting}), or the remaining branching is explained as inherent.`],
+  'complexity/function': (d) => {
+    // The finding disappears only below the info level; a warning's own threshold is higher.
+    const floor = d.evidence.thresholds?.info || (d.severity === 'info' ? d.evidence.threshold : null);
+    return [floor
+      ? `\`${d.subject.function}\` is below the level at which the rule reports at all (complexity < ${floor.complexity} and nesting < ${floor.nesting}), or the remaining branching is explained as inherent.`
+      : `\`${d.subject.function}\` is no longer reported by complexity/function (below its info thresholds in the analysis config; this ${d.severity} was reported at complexity ≥ ${d.evidence.threshold.complexity} or nesting ≥ ${d.evidence.threshold.nesting}), or the remaining branching is explained as inherent.`];
+  },
   'coupling/import-cycle': () => ['The files no longer import each other in a cycle (re-analysis no longer reports this import cycle).'],
   'coupling/cycle': () => ['The modules no longer depend on each other in a cycle (re-analysis no longer reports this module cycle).'],
   'coupling/hub': (d) => [`Fan-in or fan-out of the module falls below the configured threshold (fan-in ${d.evidence.threshold.fanIn}, fan-out ${d.evidence.threshold.fanOut}), or the split is explained.`],
@@ -209,6 +215,10 @@ export function withExcerpt(loc, lines) {
   if (loc.kind === 'file' || !Number.isInteger(loc.startLine)) return { ...loc, sha256: null, excerpt: null };
   if (!lines || loc.endLine > lines.length || loc.startLine < 1) return { ...loc, sha256: null, excerpt: null };
   const sha256 = rangeDigest(lines, loc.startLine, loc.endLine);
+  // How often the same lines occur in the captured file. More than once (two
+  // identical methods, a repeated import line) means a later match elsewhere
+  // cannot be taken as this location having moved.
+  const capturedOccurrences = countOccurrences(lines, loc.endLine - loc.startLine + 1, sha256);
   const segments = [];
   const push = (a, b) => {
     a = Math.max(1, a); b = Math.min(lines.length, b);
@@ -229,7 +239,21 @@ export function withExcerpt(loc, lines) {
   } else push(loc.startLine - EXCERPT.context, loc.endLine + EXCERPT.context);
   const omitted = [];
   for (let i = 1; i < segments.length; i += 1) omitted.push({ startLine: segments[i - 1].endLine + 1, endLine: segments[i].startLine - 1 });
-  return { ...loc, sha256, excerpt: { segments, omitted, complete: !omitted.length } };
+  return { ...loc, sha256, ...(capturedOccurrences > 1 ? { capturedOccurrences } : {}), excerpt: { segments, omitted, complete: !omitted.length } };
+}
+
+// Start lines of every range of `length` lines whose digest is `sha`.
+export function findRanges(lines, length, sha, firstLine = null) {
+  const starts = [];
+  for (let start = 1; start + length - 1 <= lines.length; start += 1) {
+    if (firstLine !== null && lines[start - 1] !== firstLine) continue;
+    if (rangeDigest(lines, start, start + length - 1) === sha) starts.push(start);
+  }
+  return starts;
+}
+
+function countOccurrences(lines, length, sha) {
+  return findRanges(lines, length, sha).length;
 }
 
 export function rangeDigest(lines, startLine, endLine) {
@@ -271,7 +295,7 @@ function keyEvidence(d) {
   const ev = d.evidence || {};
   const pick = (keys) => Object.fromEntries(keys.filter((k) => ev[k] !== undefined).map((k) => [k, ev[k]]));
   switch (d.code) {
-    case 'complexity/function': return pick(['complexity', 'nesting', 'length', 'deepestLine', 'threshold']);
+    case 'complexity/function': return pick(['complexity', 'nesting', 'length', 'deepestLine', 'threshold', 'thresholds']);
     case 'coupling/import-cycle': return { ...pick(['kind', 'path', 'totalImports', 'lazyImports']), ...(ev.risk ? { loading: ev.risk.loading } : {}) };
     case 'coupling/cycle': return pick(['kind', 'path', 'totalImports']);
     case 'coupling/hub': return pick(['fanIn', 'fanOut', 'instability', 'threshold']);
