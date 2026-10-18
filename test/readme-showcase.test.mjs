@@ -1,11 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillRoot = path.resolve(__dirname, '..', 'archify');
@@ -186,6 +188,93 @@ test('README motion proof is compact, looping, and backed by current gallery art
     assert.equal(scene.artifactSha256, sha256(artifact), `${scene.id}: source artifact drift; rebuild README showcase`);
     assert.match(scene.receipt, /9\/9 checks/);
   }
+});
+
+test('Windows command lookup and ffmpeg launch keep their boundary diagnostics', async () => {
+  const showcase = await import(pathToFileURL(path.join(repoRoot, 'scripts', 'build-readme-showcase.mjs')).href);
+  const selected = String.raw`C:\Tools\ffmpeg.EXE`;
+  const lookup = showcase.commandPath('ffmpeg', () => ({
+    status: 0,
+    stdout: `\r\n${selected}\r\nC:\\Other\\ffmpeg.exe\r\n`,
+  }), 'win32');
+  assert.equal(lookup, selected);
+  assert.equal(showcase.commandPath('ffmpeg', () => ({
+    status: 1,
+    stdout: '',
+    error: new Error('where failed'),
+  }), 'win32'), null);
+  assert.throws(
+    () => showcase.launchFfmpeg(selected, ['-version'], () => ({
+      status: null,
+      stderr: '',
+      error: Object.assign(new Error('spawn ENOENT'), { code: 'ENOENT' }),
+    })),
+    /ffmpeg failed:\s*spawn ENOENT/,
+  );
+});
+
+function fakeChrome({ exitBeforeStop = false, closeOn = null } = {}) {
+  const child = new EventEmitter();
+  child.exitCode = null;
+  child.signalCode = null;
+  child.stderr = new PassThrough();
+  child.stdout = new PassThrough();
+  child.stdio = [null, child.stdout, child.stderr, new PassThrough(), new PassThrough()];
+  child.kill = (signal) => {
+    child.signalCode = signal;
+    if (closeOn === signal) {
+      child.exitCode = null;
+      queueMicrotask(() => child.emit('close', null, signal));
+    }
+    return true;
+  };
+  if (exitBeforeStop) {
+    child.exitCode = 0;
+    child.emit('close', 0, null);
+  }
+  return child;
+}
+
+test('showcase shutdown clears its timer and bounds a forced stop', async () => {
+  const showcase = await import(pathToFileURL(path.join(repoRoot, 'scripts', 'build-readme-showcase.mjs')).href);
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-showcase-profile-'));
+  const started = Date.now();
+  await showcase.stopChrome(fakeChrome({ exitBeforeStop: true }), profile);
+  assert.ok(Date.now() - started < 1000, 'an already exited browser must not wait for the losing timer');
+  fs.rmSync(profile, { recursive: true, force: true });
+
+  const retained = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-showcase-profile-'));
+  const forced = fakeChrome();
+  await assert.rejects(
+    () => showcase.stopChrome(forced, retained, 20),
+    new RegExp(`Chrome did not exit; profile retained at ${retained.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
+  );
+  assert.equal(forced.signalCode, 'SIGKILL');
+  assert.equal(fs.existsSync(retained), true);
+  fs.rmSync(retained, { recursive: true, force: true });
+
+  const graceful = fakeChrome({ closeOn: 'SIGTERM' });
+  const gracefulStarted = Date.now();
+  await showcase.stopChrome(graceful, profile);
+  assert.equal(graceful.signalCode, 'SIGTERM');
+  assert.ok(Date.now() - gracefulStarted < 1000, 'a prompt close must cancel the shutdown timer');
+});
+
+test('showcase navigation failure cancels its unused load waiter', async () => {
+  const showcase = await import(pathToFileURL(path.join(repoRoot, 'scripts', 'build-readme-showcase.mjs')).href);
+  const child = fakeChrome();
+  const cdp = new showcase.PipeCdp(child);
+  const loaded = cdp.waitFor('Page.loadEventFired', 'session');
+  let rejected = false;
+  loaded.catch(() => { rejected = true; });
+  const originalWrite = child.stdio[3].write.bind(child.stdio[3]);
+  child.stdio[3].write = () => { throw new Error('navigation pipe closed'); };
+  await assert.rejects(() => cdp.send('Page.navigate', { url: 'about:blank' }, 'session'), /navigation pipe closed/);
+  loaded.cancel();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(rejected, false);
+  child.stdio[3].write = originalWrite;
+  cdp.failAll(new Error('test finished'));
 });
 
 test('every README header links to the other languages', () => {
@@ -447,4 +536,47 @@ test('Star History publishing advances the data branch without a force push', ()
   } finally {
     fs.rmSync(fixture, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   }
+});
+
+
+test('showcase CLI runs through a filesystem alias while imports remain inert', (t) => {
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-showcase-alias-'));
+  t.after(() => fs.rmSync(scratch, {recursive:true, force:true}));
+  const script = path.join(repoRoot, 'scripts/build-readme-showcase.mjs');
+  const alias = path.join(scratch, 'showcase.mjs');
+  try { fs.symlinkSync(script, alias, 'file'); }
+  catch (error) {
+    if (process.platform === 'win32' && ['EPERM','EACCES'].includes(error.code)) {
+      t.skip('Windows host does not permit creating file symlinks'); return;
+    }
+    throw error;
+  }
+  // A deliberately empty tool search path makes actual main() fail quickly,
+  // without launching a browser or generating a GIF.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toLowerCase() !== 'path'));
+  env.PATH = '';
+  const direct = spawnSync(process.execPath, [script], {env, encoding:'utf8'});
+  const linked = spawnSync(process.execPath, [alias], {env, encoding:'utf8'});
+  assert.equal(direct.status, 1, direct.stderr);
+  assert.equal(linked.status, 1, 'alias must execute main, not silently succeed');
+  assert.match(linked.stderr, /ffmpeg|Chrome or Chromium is required/);
+  const imported = spawnSync(process.execPath, ['--input-type=module','--eval', `await import(${JSON.stringify(pathToFileURL(alias).href)})`], {env,encoding:'utf8'});
+  assert.equal(imported.status, 0, imported.stderr);
+});
+
+
+test('outer capture cleanup retains a live Chrome profile and cleans ordinary failures', async () => {
+  const showcase = await import(pathToFileURL(path.join(repoRoot, 'scripts/build-readme-showcase.mjs')).href);
+  let retained;
+  await assert.rejects(showcase.withCaptureDirectory(async root => {
+    retained = root;
+    const profile = path.join(root, 'profile'); fs.mkdirSync(profile);
+    await showcase.stopChrome(fakeChrome(), profile, 5);
+  }), /Chrome did not exit; profile retained/);
+  try { assert.equal(fs.existsSync(path.join(retained, 'profile')), true); }
+  finally { fs.rmSync(retained, {recursive:true, force:true}); }
+  let removed;
+  const original = new Error('capture failed');
+  await assert.rejects(showcase.withCaptureDirectory(async root => {removed=root; throw original;}), error => error===original);
+  assert.equal(fs.existsSync(removed), false);
 });

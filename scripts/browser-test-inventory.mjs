@@ -42,6 +42,7 @@ export const browserTestFiles = [
   'lifecycle-note-contrast-browser.test.mjs',
   'sequence-segment-contrast-browser.test.mjs',
   'bottom-node-index-browser.test.mjs',
+  'explainer-browser.test.mjs',
   'code-analysis-browser.test.mjs',
   'code-analysis-boundary-browser.test.mjs',
   'code-analysis-complexity-browser.test.mjs',
