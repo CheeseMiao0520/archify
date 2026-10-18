@@ -1,0 +1,10 @@
+{
+  "templateVersion": 1,
+  "repository": "tt-a1i/archify",
+  "number": 988,
+  "author": "tt-a1i",
+  "title": "fix(website): retain Guide keyboard focus and expose selected filters",
+  "mergedAt": "2026-10-18T03:33:56Z",
+  "mergeCommit": "7983390d9f1836617ff04c5b1766088637aed7fc",
+  "url": "https://github.com/tt-a1i/archify/pull/988"
+}
