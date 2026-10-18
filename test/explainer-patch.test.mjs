@@ -5,7 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { scanHtml } from '../archify/explainer/check.mjs';
-import { unpackPageBundle } from '../archify/explainer/page-bundle.mjs';
+import { createHash } from 'node:crypto';
+import { preparePanelPatch } from '../archify/explainer/patch.mjs';
+import { packPageBundle, unpackPageBundle } from '../archify/explainer/page-bundle.mjs';
 import { compileExplainerDiagram } from '../archify/explainer/diagrams.mjs';
 const cli=path.resolve('archify/bin/archify.mjs');
 const run=args=>spawnSync(process.execPath,[cli,...args],{encoding:'utf8',maxBuffer:64*1024*1024,env:{...process.env,ARCHIFY_UPDATE_CHECK_DISABLED:'1'}});
@@ -91,4 +93,42 @@ test('panel patch quality override validates every native child from frozen inpu
   for(const child of Object.values(patched.preparedDiagrams.diagrams)){assert.equal(child.checks.check.composition.profile,'showcase');assert.equal(child.checks.check.ok,true);assert.match(child.html,/data-quality-profile="showcase"/);}
   assert.deepEqual(patched.dependencies.find(dep=>dep.id==='second-diagram'),{...previous.dependencies.find(dep=>dep.id==='second-diagram'),retained:true});
   const check=run(['check',output,'--json','--require-provenance']);assert.equal(check.status,0,check.stdout+check.stderr);
+});
+
+
+test('panel patch across directories retains resource origins for subsequent edits',t=>{
+  const dir=fs.realpathSync(temp(t)),source=path.join(dir,'source'),out=path.join(dir,'out'),moved=path.join(dir,'moved','deep');
+  for(const folder of [source,out,moved])fs.mkdirSync(folder,{recursive:true});
+  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a8XcAAAAASUVORK5CYII=','base64');
+  fs.writeFileSync(path.join(source,'asset.png'),png);
+  const doc=fixture();doc.panels[1].blocks.push({id:'retained-image',type:'image',path:'asset.png',alt:'Retained image'});
+  const input=path.join(source,'draft.json'),artifact=path.join(out,'page.html'),replacement=path.join(dir,'replacement.json');
+  fs.writeFileSync(input,JSON.stringify(doc));
+  const delivered=run(['deliver','explainer',input,artifact,'--json']);assert.equal(delivered.status,0,delivered.stdout+delivered.stderr);
+  const next={...doc.panels[0],title:'Changed title'};fs.writeFileSync(replacement,JSON.stringify(next));
+  const relocated=path.join(moved,'page.html');
+  const first=run(['patch','explainer',artifact,'first',replacement,relocated,'--json']);assert.equal(first.status,0,first.stdout+first.stderr);
+  next.blocks=[...next.blocks,{id:'new-image',type:'image',path:'asset.png',alt:'New image'}];fs.writeFileSync(replacement,JSON.stringify(next));
+  const output=path.join(out,'final.html');
+  const second=run(['patch','explainer',relocated,'first',replacement,output,'--json']);assert.equal(second.status,0,second.stdout+second.stderr);
+  const result=read(output);
+  assert.equal(path.resolve(out,result.sourcePath),input);assert.equal(path.resolve(out,result.baseDir),source);
+  for(const id of ['retained-image','new-image']){
+    assert.equal(path.resolve(out,result.dependencies.find(entry=>entry.id===id).path),path.join(source,'asset.png'));
+    assert.deepEqual(Buffer.from(result.preparedSources.assets[id].contentBase64,'base64'),png);
+  }
+  const checked=run(['check',output,'--json','--require-provenance']);assert.equal(checked.status,0,checked.stdout+checked.stderr);
+});
+
+
+test('a page without its source directory can patch prose but cannot read unrelated output-local assets',async t=>{
+  const dir=temp(t),{artifact}=deliver(dir),bundle=read(artifact),replacementPath=path.join(dir,'replacement.json');
+  bundle.sourcePath=null;bundle.baseDir=null;
+  bundle.digest=createHash('sha256').update(JSON.stringify({...bundle,digest:undefined})).digest('hex');
+  fs.writeFileSync(artifact,fs.readFileSync(artifact,'utf8').replace(/(<script type="application\/json" id="archify-explainer-prepared">)[\s\S]*?(<\/script>)/,(_,open,close)=>open+JSON.stringify(packPageBundle(bundle))+close));
+  const panel={...fixture().panels[0],title:'Updated prose'};fs.writeFileSync(replacementPath,JSON.stringify(panel));
+  const result=await preparePanelPatch({artifactPath:artifact,panelId:'first',replacementPath});assert.equal(result.bundle.baseDir,null);
+  fs.writeFileSync(path.join(dir,'asset.png'),'An unrelated file beside the HTML');
+  panel.blocks.push({id:'new-image',type:'image',path:'asset.png',alt:'New image'});fs.writeFileSync(replacementPath,JSON.stringify(panel));
+  await assert.rejects(preparePanelPatch({artifactPath:artifact,panelId:'first',replacementPath}),{message:'Local images require an input directory.'});
 });

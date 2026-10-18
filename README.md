@@ -77,6 +77,24 @@ Then continue: “Add authentication”, “Highlight the cache-miss path”, or
 
 [Choose your agent](https://archify.si/start.html?agent=cursor&type=architecture) · [Installation details and update checks](#quick-start)
 
+## Ask a question, get a one-page answer
+
+Not every answer is one diagram. Ask your agent to answer as a page and Archify builds an **explainer**: the conclusion first, then one panel per question, with tables, steps, charts, code and validated diagrams.
+
+[![An explainer page: the answer first, then steps beside the sequence diagram they walk through](docs/assets/explainer-tls-en.png)](https://archify.si/cases/explainer/tls-first-visit.html)
+
+- **Conclusion first.** The answer and its reasons lead; every panel takes one question.
+- **Diagrams that explain.** Steps sit beside the diagram they walk through and light its parts as you read. Click any node to open the full interactive view.
+- **Easy to check.** Claims cite numbered sources; repository excerpts are pinned to a commit and open in a source card.
+- **Easy to share.** One HTML file with four styles and light or dark themes. Export a PNG, WebP or JPG long image, or print to PDF. Ask about any panel to get a follow-up your agent can use to revise just that panel.
+
+```text
+Use Archify to answer as one page: our API's P99 went from 80 ms to 600 ms
+while the mean barely moved. What is the likely cause, and how should we investigate?
+```
+
+Live examples: [First HTTPS visit](https://archify.si/cases/explainer/tls-first-visit.html) · [P99 latency (Chinese)](https://archify.si/cases/explainer/p99-tail-latency.html) · [How Archify finalize keeps the last good file, read from this repository (Chinese)](https://archify.si/cases/explainer/finalize-delivery.html) · [First rental checklist (Chinese)](https://archify.si/cases/explainer/first-rental.html)
+
 <a id="sponsors"></a>
 
 ## ❤️ Sponsors
