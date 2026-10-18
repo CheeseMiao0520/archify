@@ -22,7 +22,7 @@ test('explainer CLI binds original draft bytes through validate, deliver and str
   assert.equal(JSON.parse(validation.stdout).candidate.sha256,sha(fs.readFileSync(input)));
   const delivery=run(['deliver','explainer',input,output,'--json']);assert.equal(delivery.status,0,delivery.stdout+delivery.stderr);
   const receipt=JSON.parse(delivery.stdout);assert.equal(receipt.specification.sha256,sha(fs.readFileSync(input)));assert.equal(receipt.artifact.sha256,sha(fs.readFileSync(output)));
-  const frozen=bundle(output);assert.equal(frozen.sourceText,fs.readFileSync(input,'utf8'));assert.equal(frozen.sourcePath,input);
+  const frozen=bundle(output);assert.equal(frozen.sourceText,fs.readFileSync(input,'utf8'));assert.equal(path.isAbsolute(frozen.sourcePath),false);assert.equal(fs.realpathSync(path.resolve(path.dirname(output),frozen.sourcePath)),fs.realpathSync(input));
   const check=run(['check',output,'--json','--require-provenance']);assert.equal(check.status,0,check.stdout+check.stderr);assert.equal(JSON.parse(check.stdout).deliveryReceiptId,receipt.receiptId);
 });
 
