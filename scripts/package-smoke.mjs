@@ -55,7 +55,62 @@ function runExpectFailure(args, options = {}) {
   return result.stdout;
 }
 
-try {
+async function verifyPackagedExplainer() {
+  // Exercise the installed parser, preparation, native diagram runtime, reader
+  // assets, document checker and patcher through public CLI calls outside cwd.
+  const explainerInput = path.join(scratch, 'package-explainer.md');
+  const explainerOutput = path.join(scratch, 'package-explainer.html');
+  const explainerText = '# How does the request move? {#package-explainer}\n\nThe API sends the request to Redis.\n\n'
+    + '## What is the route? {#route}\n\nRead the [API](node:request.api) before following the request.\n\n'
+    + '@sequence id=request\n| actor api | API | backend |\n| actor redis | Redis | database |\n| api | redis | GET key |\n\n'
+    + '## What can change? {#notes}\n\nThis panel can be revised independently.\n';
+  fs.writeFileSync(explainerInput, explainerText);
+  const explainerOptions = { cwd: scratch, env: { ...process.env, ARCHIFY_UPDATE_CHECK_DISABLED: '1' } };
+  const validateExplainer = JSON.parse(run(['validate', 'explainer', explainerInput, '--json'], explainerOptions));
+  if (!validateExplainer.ok || validateExplainer.type !== 'explainer' || !validateExplainer.candidate?.sha256) {
+    throw new Error('packaged explainer did not validate the authored parser input');
+  }
+  const deliveredExplainer = JSON.parse(run(['deliver', 'explainer', explainerInput, explainerOutput, '--json'], explainerOptions));
+  const checkedExplainer = JSON.parse(run(['check', explainerOutput, '--require-provenance', '--json'], explainerOptions));
+  if (!deliveredExplainer.ok || !checkedExplainer.ok || checkedExplainer.deliveryReceiptId !== deliveredExplainer.receiptId) {
+    throw new Error('packaged explainer delivery did not bind its strict checker receipt');
+  }
+  const { scanHtml } = await import(pathToFileURL(path.join(skillRoot, 'explainer/check.mjs')).href);
+  const preparedExplainer = file => {
+    const payload = scanHtml(fs.readFileSync(file, 'utf8')).scripts.find(script => script.attrs.id === 'archify-explainer-prepared');
+    return JSON.parse(payload?.text || 'null');
+  };
+  const originalExplainer = preparedExplainer(explainerOutput);
+  const requestDiagram = originalExplainer?.preparedDiagrams?.diagrams?.request;
+  if (originalExplainer?.sourceText !== explainerText || requestDiagram?.checks?.check?.ok !== true
+      || !requestDiagram.semantic.nodes.some(node => node.id === 'api')
+      || !requestDiagram.semantic.nodes.some(node => node.id === 'redis')
+      || !requestDiagram.semantic.edges.some(edge => edge.from === 'api' && edge.to === 'redis')) {
+    throw new Error('packaged explainer lost authored text or native semantic graph evidence');
+  }
+  const replacementPanel = path.join(scratch, 'package-replacement.md');
+  const patchedExplainerOutput = path.join(scratch, 'package-explainer-patched.html');
+  fs.writeFileSync(replacementPanel, '## What can change? {#notes}\n\nThe selected panel has updated content.\n');
+  const patchedExplainer = JSON.parse(run(['patch', 'explainer', explainerOutput, 'notes', replacementPanel, patchedExplainerOutput, '--json'], explainerOptions));
+  const patchedPrepared = preparedExplainer(patchedExplainerOutput);
+  if (!patchedExplainer.ok || patchedExplainer.command !== 'patch'
+      || patchedPrepared.document.panels[1].blocks[0].text !== 'The selected panel has updated content.'
+      || JSON.stringify(patchedPrepared.document.panels[0]) !== JSON.stringify(originalExplainer.document.panels[0])
+      || patchedPrepared.preparedDiagrams.diagrams.request.sha256 !== requestDiagram.sha256) {
+    throw new Error('packaged explainer patch changed an untouched native diagram or failed to replace its panel');
+  }
+  run(['check', patchedExplainerOutput, '--require-provenance', '--json'], explainerOptions);
+  const browserUnavailable = JSON.parse(runExpectFailure(['browser-check', explainerOutput, '--require-provenance', '--json'], {
+    ...explainerOptions, env: { ...explainerOptions.env, ARCHIFY_CHROME: path.join(scratch, 'missing-explainer-chrome') },
+  }));
+  if (browserUnavailable.status !== 'skipped' || browserUnavailable.chrome?.status !== 'unavailable') {
+    throw new Error('packaged explainer browser runtime did not report the explicit unavailable browser');
+  }
+  process.stdout.write('packaged explainer parser, native graph, delivery, strict check and panel patch passed without dependencies\n');
+
+}
+
+async function verifyPackage() {
   if (!fs.existsSync(cli)) throw new Error(`packaged CLI not found at ${cli}`);
   requireAbsent('node_modules');
   requireAbsent('package-lock.json');
@@ -65,6 +120,11 @@ try {
   requireAbsent('.hive');
   requireAbsent('.workbuddy');
 
+  if (process.argv.includes('--explainer-only')) {
+    await verifyPackagedExplainer();
+    process.stdout.write(`explainer package smoke passed on ${process.platform} (${skillRoot})\n`);
+    return;
+  }
   const packageLicensePath = path.join(skillRoot, 'LICENSE');
   if (!fs.existsSync(packageLicensePath)) {
     throw new Error('packaged skill is missing LICENSE');
@@ -137,7 +197,7 @@ try {
 
   const skill = fs.readFileSync(path.join(skillRoot, 'SKILL.md'), 'utf8');
   const skillReferences = [...skill.matchAll(
-    /`((?:assets|bin|examples|recipes|references|renderers|schemas|scripts)\/[^`\s]+)`/g,
+    /`((?:assets|bin|examples|explainer|recipes|references|renderers|schemas|scripts)\/[^`\s]+)`/g,
   )]
     .map((match) => match[1])
     .filter((reference) => !/[<>{}*\[\]]/.test(reference));
@@ -181,6 +241,8 @@ try {
       throw new Error('deployment package validation omitted the engineering profile receipt');
     }
   }
+
+  await verifyPackagedExplainer();
 
   const workflowLayout = JSON.parse(run([
     'validate', 'workflow', path.join(skillRoot, 'examples', fixtures[1][1]),
@@ -372,6 +434,10 @@ try {
   }
 
   process.stdout.write(`package smoke passed on ${process.platform} (${skillRoot})\n`);
+}
+
+try {
+  await verifyPackage();
 } finally {
   fs.rmSync(scratch, { recursive: true, force: true });
 }

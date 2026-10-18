@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process';
+import { isExplainerHtml } from '../explainer/check.mjs';
+import { EXPLAINER_VIEWPORTS, inspectExplainerBrowser, explainerObservation, explainerObservationDiagnostics } from '../explainer/browser-check.mjs';
 import { createOwnedTempDirectory } from '../renderers/shared/owned-temp-directory.mjs';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -187,7 +189,7 @@ function targetSidecarNamespace(directory, component) {
   throw error;
 }
 
-function evidenceSidecarPaths(artifactPath, { outDir, command = 'visual-check', capture = true } = {}) {
+function evidenceSidecarPaths(artifactPath, { outDir, command = 'visual-check', capture = true, captureViewports = CAPTURE_VIEWPORTS } = {}) {
   let artifact = path.resolve(artifactPath);
   try {
     // Existing aliases, including Windows 8.3 spellings, must share the
@@ -218,7 +220,7 @@ function evidenceSidecarPaths(artifactPath, { outDir, command = 'visual-check', 
     } : namespaceStem.options,
   );
   const base = path.join(directory, `${stem}.${command}`);
-  const screenshots = (capture ? CAPTURE_VIEWPORTS : []).flatMap(({ width, height }) => THEMES.map((theme) => ({
+  const screenshots = (capture ? captureViewports : []).flatMap(({ width, height }) => THEMES.map((theme) => ({
     width,
     height,
     theme,
@@ -1390,6 +1392,7 @@ class PipeCdp {
     this.writtenBytes = 0;
     this.pending = new Map();
     this.waiters = [];
+    this.subscribers = new Set();
     this.writePipe = child.stdio[3];
     this.readPipe = child.stdio[4];
     this.readPipe.setEncoding('utf8');
@@ -1446,6 +1449,7 @@ class PipeCdp {
         else pending.resolve(message.result || {});
         continue;
       }
+      for (const subscriber of this.subscribers) subscriber(message);
       for (const waiter of [...this.waiters]) {
         if (waiter.method !== message.method) continue;
         if (waiter.sessionId && waiter.sessionId !== message.sessionId) continue;
@@ -1454,6 +1458,11 @@ class PipeCdp {
         waiter.resolve(message.params || {});
       }
     }
+  }
+
+  subscribe(callback) {
+    this.subscribers.add(callback);
+    return () => this.subscribers.delete(callback);
   }
 
   send(method, params = {}, sessionId = undefined, timeoutMs = 15000) {
@@ -1622,6 +1631,7 @@ export class ChromeVisualBrowser {
       const created = await this.cdp.send('Target.createTarget', { url: 'about:blank' });
       target = { targetId: created.targetId };
     }
+    this.targetId = target.targetId;
     const attached = await this.cdp.send('Target.attachToTarget', {
       targetId: target.targetId,
       flatten: true,
@@ -1629,6 +1639,20 @@ export class ChromeVisualBrowser {
     await this.cdp.send('Page.enable', {}, attached.sessionId);
     await this.cdp.send('Runtime.enable', {}, attached.sessionId);
     return attached.sessionId;
+  }
+
+  async resetPage() {
+    await this.sessionPromise;
+    const previousTarget = this.targetId;
+    const created = await this.cdp.send('Target.createTarget', { url: 'about:blank' });
+    const attached = await this.cdp.send('Target.attachToTarget', { targetId: created.targetId, flatten: true });
+    await this.cdp.send('Page.enable', {}, attached.sessionId);
+    await this.cdp.send('Runtime.enable', {}, attached.sessionId);
+    this.targetId = created.targetId;
+    this.sessionPromise = Promise.resolve(attached.sessionId);
+    if (previousTarget) await this.cdp.send('Target.closeTarget', { targetId: previousTarget });
+    await this.cdp.send('Target.activateTarget', { targetId: this.targetId });
+    await this.cdp.send('Page.bringToFront', {}, attached.sessionId);
   }
 
   async inspect({ artifactPath, width, height, theme, screenshotPath, writeScreenshot }) {
@@ -2360,9 +2384,9 @@ function publishReceiptOnly(artifactPath, outputs, receipt, ownership) {
 function persistBrowserEvidenceFailure(
   artifactPath,
   failure,
-  { outDir, compareSidecarParents = sameParent, ownership, command = 'visual-check', capture = true } = {},
+  { outDir, compareSidecarParents = sameParent, ownership, command = 'visual-check', capture = true, captureViewports = CAPTURE_VIEWPORTS } = {},
 ) {
-  const outputs = evidenceSidecarPaths(artifactPath, { outDir, command, capture });
+  const outputs = evidenceSidecarPaths(artifactPath, { outDir, command, capture, captureViewports });
   const directory = resolveSidecarDirectory(artifactPath, outputs, compareSidecarParents);
   const capturedArtifact = readRegularFileContents(artifactPath, {
     subject: 'failure-artifact',
@@ -2439,8 +2463,12 @@ async function runBrowserEvidence({
     throw regularFileCaptureError('The visual-check artifact', capturedArtifact);
   }
   const artifactBytes = capturedArtifact.content.buffer;
+  const explainer = isExplainerHtml(artifactBytes.toString('utf8'));
+  const inspectionViewports = explainer ? EXPLAINER_VIEWPORTS : VISUAL_CHECK_VIEWPORTS;
+  const captureViewports = explainer ? EXPLAINER_VIEWPORTS : CAPTURE_VIEWPORTS;
+  const observe = explainer ? explainerObservation : observation;
   try {
-  const outputs = evidenceSidecarPaths(artifact, { outDir, command, capture });
+  const outputs = evidenceSidecarPaths(artifact, { outDir, command, capture, captureViewports });
   const directory = resolveSidecarDirectory(artifact, outputs, compareSidecarParents);
   const receipt = baseReceipt({
     artifactPath: artifact,
@@ -2449,6 +2477,11 @@ async function runBrowserEvidence({
     chrome: { status: 'not-checked', executable: null },
     deliveryProvenance, command, capture,
   });
+  if (explainer) {
+    receipt.family = 'explainer';
+    receipt.viewportPolicy = 'explainer-desktop-v1';
+    receipt.containment.policy = 'horizontal-containment-readable-document-scroll';
+  }
   if (!directory.ok) {
     receipt.error = directory.error;
     receipt.diagnostics = [directory.diagnostic];
@@ -2489,7 +2522,7 @@ async function runBrowserEvidence({
         evidence: { reason: error.message },
         supportedFixes: ['retry after resolving the reported staging filesystem error'],
       })],
-    }, { outDir, compareSidecarParents, ownership, command, capture }) };
+    }, { outDir, compareSidecarParents, ownership, command, capture, captureViewports }) };
   }
   const verifyInspectionArtifact = () => {
     const entry = ownership.stagedEntries.get(artifact);
@@ -2505,7 +2538,7 @@ async function runBrowserEvidence({
       artifact: { path: artifact, sha256: sha256(artifactBytes), bytes: artifactBytes.byteLength },
       provenance: error.deliveryProvenance?.status, error: error.message,
       diagnostics: error.archifyDiagnostics || [],
-    }, { outDir, compareSidecarParents, ownership, command, capture }) };
+    }, { outDir, compareSidecarParents, ownership, command, capture, captureViewports }) };
   }
 
   const resolvedChrome = chromePath || resolveChrome();
@@ -2551,10 +2584,11 @@ async function runBrowserEvidence({
     ]));
 
     try {
-      for (const viewport of VISUAL_CHECK_VIEWPORTS) {
+      const inspect = (options) => explainer ? inspectExplainerBrowser(browser, options) : browser.inspect(options);
+      for (const viewport of inspectionViewports) {
         const key = screenshotKey(viewport.width, viewport.height, 'light');
         const screenshot = screenshotsByKey.get(key);
-        const metrics = await browser.inspect({
+        const metrics = await inspect({
           artifactPath: inspectionArtifact,
           ...viewport,
           theme: 'light',
@@ -2574,12 +2608,12 @@ async function runBrowserEvidence({
             }
           }
         }
-        observations.set(key, observation({ ...viewport, theme: 'light', metrics }));
+        observations.set(key, observe({ ...viewport, theme: 'light', metrics }));
       }
-      for (const viewport of CAPTURE_VIEWPORTS) {
+      for (const viewport of captureViewports) {
         const key = screenshotKey(viewport.width, viewport.height, 'dark');
         const screenshot = screenshotsByKey.get(key);
-        const metrics = await browser.inspect({
+        const metrics = await inspect({
           artifactPath: inspectionArtifact,
           ...viewport,
           theme: 'dark',
@@ -2597,7 +2631,7 @@ async function runBrowserEvidence({
             throw new Error('The staged visual-check screenshot changed after capture.');
           }
         }
-        observations.set(key, observation({ ...viewport, theme: 'dark', metrics }));
+        observations.set(key, observe({ ...viewport, theme: 'dark', metrics }));
       }
 
     } finally {
@@ -2614,7 +2648,7 @@ async function runBrowserEvidence({
       throw regularFileCaptureError(`The delivered artifact changed while ${command} was running`, artifactVerification);
     }
 
-    receipt.containment.viewports = VISUAL_CHECK_VIEWPORTS.map(({ width, height }) => (
+    receipt.containment.viewports = inspectionViewports.map(({ width, height }) => (
       observations.get(screenshotKey(width, height, 'light'))
     ));
     receipt.readability.viewports = receipt.containment.viewports.map((entry) => ({ ...entry }));
@@ -2635,7 +2669,7 @@ async function runBrowserEvidence({
     const containmentPass = allObservations.every((entry) => entry.ok);
     const readabilityPass = receipt.readability.viewports.every((entry) => entry.readabilityOk);
     const viewerChromePass = allObservations.every((entry) => entry.viewerChromeOk);
-    receipt.diagnostics = observationDiagnostics({
+    receipt.diagnostics = (explainer ? explainerObservationDiagnostics : observationDiagnostics)({
       artifact,
       allObservations,
       readabilityObservations: receipt.readability.viewports, command,
@@ -2648,8 +2682,18 @@ async function runBrowserEvidence({
       receipt.captures.status = 'pass';
       receipt.captures.contactSheet = path.basename(outputs.contactSheet);
     }
-    receipt.status = containmentPass && themeStatePass && readabilityPass && viewerChromePass ? 'pass' : 'fail';
-    receipt.ok = containmentPass && themeStatePass && readabilityPass && viewerChromePass;
+    if (explainer) {
+      receipt.containment.viewports = allObservations.map(entry => ({ ...entry }));
+      receipt.readability.viewports = allObservations.map(entry => ({ ...entry }));
+      receipt.viewerChrome.viewports = allObservations.map(entry => ({ ...entry }));
+      receipt.commonQa = { status: allObservations.every(e => e.consoleErrors.length === 0 && e.duplicateIds.length === 0 && e.keyboardIssues.length === 0 && e.keyboardTraversal?.ok) ? 'pass' : 'fail', observations: allObservations.map(e => ({width:e.width,theme:e.theme,ok:e.consoleErrors.length===0&&e.duplicateIds.length===0&&e.keyboardIssues.length===0&&e.keyboardTraversal?.ok===true})) };
+      receipt.interactions = { status: allObservations.every(e => e.interactionFailures.length === 0) ? 'pass' : 'fail', observations: allObservations.map(e => ({width:e.width,theme:e.theme,ok:e.interactionFailures.length===0,failures:e.interactionFailures})) };
+      receipt.references = { status: allObservations.every(e => e.references.length === 0) ? 'pass' : 'fail', observations: allObservations.map(e => ({width:e.width,theme:e.theme,ok:e.references.length===0,failures:e.references})) };
+      receipt.noJavaScript = { status: allObservations.every(e => e.noJavaScript.every(n => n.ok)) ? 'pass' : 'fail', observations: allObservations.map(e => ({width:e.width,theme:e.theme,ok:e.noJavaScript.every(n=>n.ok),states:e.noJavaScript})) };
+      receipt.print = { status: allObservations.every(e => e.print.ok) ? 'pass' : 'fail', observations: allObservations.map(e => ({width:e.width,...e.print})) };
+    }
+    receipt.ok = containmentPass && themeStatePass && readabilityPass && viewerChromePass && (!explainer || receipt.diagnostics.length === 0);
+    receipt.status = receipt.ok ? 'pass' : 'fail';
     if (capture) writeStagedEvidence(ownership, outputs.contactSheet, contactSheetHtml({
       artifactPath: artifact,
       receipt,
@@ -2712,7 +2756,7 @@ async function runBrowserEvidence({
       receipt: persistBrowserEvidenceFailure(artifact, receipt, {
         outDir,
         compareSidecarParents,
-        ownership, command, capture,
+        ownership, command, capture, captureViewports,
       }),
     };
   }

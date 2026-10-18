@@ -1,0 +1,94 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { scanHtml } from '../archify/explainer/check.mjs';
+import { unpackPageBundle } from '../archify/explainer/page-bundle.mjs';
+import { compileExplainerDiagram } from '../archify/explainer/diagrams.mjs';
+const cli=path.resolve('archify/bin/archify.mjs');
+const run=args=>spawnSync(process.execPath,[cli,...args],{encoding:'utf8',maxBuffer:64*1024*1024,env:{...process.env,ARCHIFY_UPDATE_CHECK_DISABLED:'1'}});
+const read=file=>unpackPageBundle(JSON.parse(scanHtml(fs.readFileSync(file,'utf8')).scripts.find(s=>s.attrs.id==='archify-explainer-prepared').text));
+const manifest=file=>JSON.parse(scanHtml(fs.readFileSync(file,'utf8')).scripts.find(s=>s.attrs.id==='explainer-manifest').text);
+function temp(t){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'archify-explainer-patch-test-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return dir;}
+function fixture(){return {schema_version:1,diagram_type:'explainer',meta:{id:'patch-document',title:'What can change?',locale:'en'},answer:{summary:'One stable panel can be replaced.'},panels:[{id:'first',title:'What changes?',blocks:[{id:'first-text',type:'prose',text:'This text may change.'}]},{id:'second',title:'What stays?',blocks:[{id:'second-text',type:'prose',text:'This text remains exactly the same.'}]}],sources:[]};}
+function deliver(dir,doc=fixture(),options=[]){const input=path.join(dir,'author.json'),artifact=path.join(dir,'original.html');fs.writeFileSync(input,JSON.stringify(doc,null,2)+'\n');const result=run(['deliver','explainer',input,artifact,...options,'--json']);assert.equal(result.status,0,result.stdout+result.stderr);return {input,artifact};}
+
+test('panel patch preserves original source outside target token range',t=>{
+  const dir=temp(t),{artifact}=deliver(dir),previous=read(artifact),replacement=path.join(dir,'replacement.json'),output=path.join(dir,'patched.html');
+  const next={...previous.document.panels[0],title:'What changed?',blocks:[{id:'first-text',type:'prose',text:'The selected panel has new content.'}]};
+  const replacementText=JSON.stringify(next,null,2);fs.writeFileSync(replacement,replacementText);
+  const result=run(['patch','explainer',artifact,'first',replacement,output,'--json']);assert.equal(result.status,0,result.stdout+result.stderr);
+  const patched=read(output),range=previous.sourceMap['/panels/0'];assert.equal(patched.sourceText,previous.sourceText.slice(0,range.start)+replacementText+previous.sourceText.slice(range.end));
+  assert.deepEqual(patched.document.panels[1],previous.document.panels[1]);assert.deepEqual(patched.document.meta,previous.document.meta);assert.notEqual(patched.source.sha256,previous.source.sha256);
+  const receipt=JSON.parse(result.stdout);
+  assert.equal(receipt.original.revision,manifest(artifact).revision);assert.equal(receipt.revision,manifest(output).revision);
+  assert.equal(receipt.original.sourceSha256,previous.source.sha256);assert.equal(receipt.sourceSha256,patched.source.sha256);
+  assert.notEqual(receipt.revision,receipt.sourceSha256);
+  const check=run(['check',output,'--json','--require-provenance']);assert.equal(check.status,0,check.stdout+check.stderr);
+});
+
+test('panel patch rejects missing target and changed identity without overwriting existing output',t=>{
+  const dir=temp(t),{artifact}=deliver(dir),replacement=path.join(dir,'replacement.json'),output=path.join(dir,'patched.html');fs.writeFileSync(output,'last good output');
+  fs.writeFileSync(replacement,JSON.stringify({...fixture().panels[0],id:'foreign-panel'}));
+  for(const id of ['missing','first']){const result=run(['patch','explainer',artifact,id,replacement,output,'--json']);assert.equal(result.status,1);const failure=JSON.parse(result.stdout);assert.ok(failure.diagnostics[0].code.startsWith('explainer/patch-'));assert.equal(fs.readFileSync(output,'utf8'),'last good output');}
+  fs.writeFileSync(replacement,Buffer.from([0xff]));const invalidBytes=run(['patch','explainer',artifact,'first',replacement,output,'--json']);assert.equal(invalidBytes.status,1);assert.equal(JSON.parse(invalidBytes.stdout).diagnostics[0].code,'explainer/patch-source-encoding');assert.equal(fs.readFileSync(output,'utf8'),'last good output');
+});
+
+test('panel patch retains contained resources when unchanged original files are unavailable',t=>{
+  const dir=temp(t),doc=fixture(),assetPath=path.join(dir,'asset.png');const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a8XcAAAAASUVORK5CYII=','base64');fs.writeFileSync(assetPath,png);
+  doc.panels[0].blocks.push({id:'first-image',type:'image',path:'asset.png',alt:'Contained original image'});
+  const {artifact,input}=deliver(dir,doc),previous=read(artifact),replacement=path.join(dir,'replacement.json'),output=path.join(dir,'patched.html');
+  const next=structuredClone(doc.panels[0]);next.blocks[0].text='Only the prose changes.';fs.writeFileSync(replacement,JSON.stringify(next));fs.unlinkSync(assetPath);fs.unlinkSync(input);
+  const result=run(['patch','explainer',artifact,'first',replacement,output,'--json']);assert.equal(result.status,0,result.stdout+result.stderr);
+  const patched=read(output);assert.deepEqual(patched.preparedSources.assets['first-image'],previous.preparedSources.assets['first-image']);assert.equal(patched.dependencies[0].retained,true);
+  const checked=run(['check',output,'--json','--require-provenance']);assert.equal(checked.status,0,checked.stdout+checked.stderr);
+});
+
+test('restricted author draft panel patch preserves other authored text and stable panel IDs',t=>{
+  const dir=temp(t),input=path.join(dir,'author.md'),artifact=path.join(dir,'original.html'),replacement=path.join(dir,'replacement.md'),output=path.join(dir,'patched.html');
+  const draft='# What changes? {#patch-document}\n\nOne panel changes.\n\n## Why? {#first}\n\nOld paragraph.\n\n## What stays? {#second}\n\nPreserve this paragraph exactly.\n';fs.writeFileSync(input,draft);
+  const delivery=run(['deliver','explainer',input,artifact,'--json']);assert.equal(delivery.status,0,delivery.stdout+delivery.stderr);
+  fs.writeFileSync(replacement,'## Why? {#first}\n\nNew paragraph.\n\n');const patched=run(['patch','explainer',artifact,'first',replacement,output,'--json']);assert.equal(patched.status,0,patched.stdout+patched.stderr);
+  assert.equal(read(output).sourceText,draft.replace('Old paragraph.','New paragraph.'));assert.equal(read(output).document.panels[1].id,'second');
+});
+
+test('panel patch applies explicit strict writing checks before publishing',t=>{
+  const dir=temp(t),{artifact}=deliver(dir),replacement=path.join(dir,'replacement.json'),output=path.join(dir,'patched.html');fs.writeFileSync(output,'last good output');
+  const next=fixture().panels[0];next.blocks[0].text='We will perform an analysis of each and every request.';fs.writeFileSync(replacement,JSON.stringify(next));
+  const strict=run(['patch','explainer',artifact,'first',replacement,output,'--writing','strict','--json']);assert.equal(strict.status,1);assert.ok(JSON.parse(strict.stdout).diagnostics.some(d=>d.code.startsWith('explainer/writing-')&&d.severity==='error'));assert.equal(fs.readFileSync(output,'utf8'),'last good output');
+  const off=run(['patch','explainer',artifact,'first',replacement,output,'--writing','off','--json']);assert.equal(off.status,0,off.stdout+off.stderr);assert.equal(read(output).writingMode,'off');
+});
+
+test('panel patch retains source evidence when a changed diagram shares its source id',t=>{
+  const dir=temp(t),doc=fixture();
+  const git=(...args)=>{const result=spawnSync('git',['-C',dir,...args],{encoding:'utf8'});assert.equal(result.status,0,result.stderr);return result.stdout.trim();};
+  git('init');git('config','user.name','Explainer Test');git('config','user.email','explainer@example.test');git('remote','add','origin','https://github.com/example/explainer');
+  fs.writeFileSync(path.join(dir,'code.js'),'export const value = 3;\n');git('add','.');git('commit','-m','Fixture');
+  doc.meta.repository={url:'https://github.com/example/explainer',revision:git('rev-parse','HEAD')};
+  doc.panels[0].blocks.push({id:'shared',type:'diagram',diagramType:'architecture',spec:compileExplainerDiagram('architecture',['api | API | backend','redis | Redis | database','api > redis | Read'],{id:'native',quality:'standard'})});
+  doc.panels[1].blocks.push({id:'snippet',type:'code',source:'shared'});doc.sources=[{id:'shared',title:'Shared code',path:'code.js',lines:[1,1]}];
+  const {artifact}=deliver(dir,doc,['--repo-root',dir]),previous=read(artifact),replacement=path.join(dir,'replacement.json'),output=path.join(dir,'patched.html');
+  const next=structuredClone(doc.panels[0]);next.blocks[1].spec.meta.title='Changed diagram title';fs.writeFileSync(replacement,JSON.stringify(next));
+  const result=run(['patch','explainer',artifact,'first',replacement,output,'--json']);assert.equal(result.status,0,result.stdout+result.stderr);
+  const patched=read(output),source=patched.dependencies.find(dep=>dep.kind==='repository' && dep.id==='shared');
+  assert.deepEqual(source,{...previous.dependencies.find(dep=>dep.kind==='repository' && dep.id==='shared'),retained:true});
+  assert.equal(patched.dependencies.filter(dep=>dep.id==='shared').length,2);assert.equal(patched.dependencies.find(dep=>dep.kind==='diagram-spec' && dep.id==='shared').retained,false);
+  assert.deepEqual(patched.preparedSources.sources.shared,previous.preparedSources.sources.shared);
+  const check=run(['check',output,'--json','--require-provenance']);assert.equal(check.status,0,check.stdout+check.stderr);
+});
+
+test('panel patch quality override validates every native child from frozen inputs',t=>{
+  const dir=temp(t),doc=fixture(),native=compileExplainerDiagram('architecture',['api | API | backend','redis | Redis | database','api > redis | Read'],{id:'native',quality:'standard'});
+  doc.panels[0].blocks.push({id:'first-diagram',type:'diagram',diagramType:'architecture',spec:native});
+  fs.writeFileSync(path.join(dir,'second.architecture.json'),JSON.stringify(native,null,2)+'\n');
+  doc.panels[1].blocks.push({id:'second-diagram',type:'diagram',diagramType:'architecture',source:'second.architecture.json'});
+  const {artifact}=deliver(dir,doc),previous=read(artifact),replacement=path.join(dir,'replacement.json'),output=path.join(dir,'patched.html');
+  const next=structuredClone(doc.panels[0]);next.blocks[0].text='The selected panel has new prose.';fs.writeFileSync(replacement,JSON.stringify(next));fs.unlinkSync(path.join(dir,'second.architecture.json'));
+  const result=run(['patch','explainer',artifact,'first',replacement,output,'--quality','showcase','--json']);assert.equal(result.status,0,result.stdout+result.stderr);
+  const patched=read(output);assert.equal(patched.quality,'showcase');assert.deepEqual(patched.document.panels[1],previous.document.panels[1]);
+  for(const child of Object.values(patched.preparedDiagrams.diagrams)){assert.equal(child.checks.check.composition.profile,'showcase');assert.equal(child.checks.check.ok,true);assert.match(child.html,/data-quality-profile="showcase"/);}
+  assert.deepEqual(patched.dependencies.find(dep=>dep.id==='second-diagram'),{...previous.dependencies.find(dep=>dep.id==='second-diagram'),retained:true});
+  const check=run(['check',output,'--json','--require-provenance']);assert.equal(check.status,0,check.stdout+check.stderr);
+});
