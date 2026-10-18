@@ -25,7 +25,7 @@ const defaultDebounceMs = 400;
 const defaultPollMs = 800;
 const defaultStopGraceMs = 3000;
 const defaultStopKillMs = 750;
-const diagramTypes = new Set(['architecture', 'workflow', 'sequence', 'dataflow', 'lifecycle']);
+const diagramTypes = new Set(['architecture', 'workflow', 'sequence', 'dataflow', 'lifecycle', 'erd', 'tree', 'class', 'timeline', 'waterfall']);
 let previewCommitSequence = 0;
 
 function sha256(value) {
@@ -391,6 +391,7 @@ export async function startPreview(options) {
   let stopKillTimer;
   let child;
   let stopping = false;
+  let forceStopping = false;
   let stopped = false;
   let serverClosing = false;
   let serverClosed = false;
@@ -402,6 +403,7 @@ export async function startPreview(options) {
   let pendingBuild = false;
   let artifactBuffer = null;
   const clients = new Set();
+  const sockets = new Set();
   const state = {
     schemaVersion: 1,
     status: 'checking',
@@ -493,6 +495,14 @@ export async function startPreview(options) {
     res.end('Not found');
   });
 
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.once('close', () => sockets.delete(socket));
+    // A connection event already queued when force-stop begins must not keep
+    // server.close() waiting after the current sockets have been destroyed.
+    if (forceStopping) socket.destroy();
+  });
+
   try {
     await new Promise((resolve, reject) => {
       server.once('error', reject);
@@ -561,12 +571,16 @@ export async function startPreview(options) {
   }
 
   async function stop({ force = false } = {}) {
+    if (force) forceStopping = true;
     if (!stopping) {
       stopping = true;
       clearTimeout(debounceTimer);
       clearInterval(pollTimer);
       watcher?.close();
       closeServer();
+    }
+    if (forceStopping) {
+      for (const socket of sockets) socket.destroy();
     }
     if (child && force) {
       clearTimeout(stopGraceTimer);
@@ -933,7 +947,7 @@ export async function runPreview(options) {
   console.log(`watching ${preview.input}`);
   console.log(`output ${preview.output}`);
   if (preview.opener && preview.opener.status !== 'opened') {
-    console.error(`Could not open the preview (${preview.opener.status}). Open it manually: ${preview.url}`);
+    console.error(`Could not open the preview (${preview.opener.status}). ${preview.opener.failure?.reason || 'Open it manually.'} Target: ${preview.url}`);
   }
 
   let signalCount = 0;

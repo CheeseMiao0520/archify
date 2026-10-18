@@ -4,7 +4,7 @@ import path from 'node:path';
 import { applyTemplate, renderCards, esc } from './utils.mjs';
 import { validateSchema } from './validator.mjs';
 import { verifyRepositoryEvidence } from './repository-evidence.mjs';
-import { installRendererDiagnosticBoundary, throwDiagnosticError, throwDiagnosticProblems } from './diagnostics.mjs';
+import { installRendererDiagnosticBoundary, throwDiagnosticError, throwDiagnosticProblems, recordDiagnostic } from './diagnostics.mjs';
 import { validateEngineeringProfile } from './engineering-profiles.mjs';
 import {
   resolveOutputPath,
@@ -18,11 +18,28 @@ import {
   removeOwnedRegularFile,
   verifyAtomicOutput,
 } from './atomic-output.mjs';
+import { resolveLocale, translateMessage, registerLocale, localeDiagnostics } from './i18n.mjs';
 import { prepareDiagramBrandMarks } from './brand-marks.mjs';
-import { resolveLocale, translateMessage } from './i18n.mjs';
 
 const outputPathGuards = new Map();
 let renderCandidateSequence = 0;
+
+// meta.locale is renderer-owned Viewer UI, not authored content. Each message
+// resolves as: valid meta.translations value → bundled catalog enrolled in
+// locales/manifest.json → English (see i18n.mjs). Every fallback is disclosed
+// by human renderers on stderr. Diagnostic JSON mode records warnings without
+// mixing text into failure receipts; validate/deliver disclose them publicly.
+function applyLocaleTranslations(diagramType, diagram) {
+  const locale = diagram.meta?.locale;
+  if (!locale) return;
+  registerLocale(locale, diagram.meta.translations);
+  for (const diagnostic of localeDiagnostics(diagramType, diagram.meta)) {
+    recordDiagnostic(diagnostic);
+    if (process.env.ARCHIFY_DIAGNOSTIC_FORMAT !== 'json') {
+      console.warn(`archify: ${diagnostic.message}`);
+    }
+  }
+}
 
 // Common CLI head: node render-<type>.mjs [input.json] [output.html]
 // Keep this synchronous because callers also use it to establish the guarded
@@ -62,8 +79,8 @@ export function loadDiagram({ rendererDir, diagramType, defaultExample, argv = p
   const authoredOutput = diagram?.meta?.output;
   if (authoredOutput !== undefined) validateAuthoredOutputPath(authoredOutput);
   validateSchema(diagramType, diagram);
-  validateGuidedViews(diagramType, diagram);
-  validateRelationshipIds(diagramType, diagram);
+  applyLocaleTranslations(diagramType, diagram);
+  validateCrossCollectionContracts(diagramType, diagram);
   validateEngineeringProfile(diagramType, diagram);
   const sourceEvidence = verifyRepositoryEvidence(diagramType, diagram, process.env.ARCHIFY_REPO_ROOT);
   const template = fs.readFileSync(path.join(skillRoot, 'assets/template.html'), 'utf8');
@@ -93,7 +110,7 @@ export async function loadDiagramWithBrandMarks(options) {
   return loaded;
 }
 
-const START_TYPES = new Set(['architecture', 'workflow', 'sequence', 'dataflow', 'lifecycle']);
+const START_TYPES = new Set(['architecture', 'workflow', 'sequence', 'dataflow', 'lifecycle', 'erd', 'tree', 'class', 'timeline', 'waterfall']);
 
 function isFilesystemError(error) {
   return typeof error?.code === 'string'
@@ -223,7 +240,6 @@ export function writeDiagram({ outPath, template, diagramType, meta, svg, cards,
     cards: renderCards(cards),
     locale: meta.locale,
     visualPreset: meta.visual_preset || 'classic',
-    guidedViews: meta.views || [],
     sourceEvidence,
   });
   let candidatePath;
@@ -291,6 +307,11 @@ const SEMANTIC_COLLECTIONS = {
   sequence: 'participants',
   dataflow: 'nodes',
   lifecycle: 'states',
+  erd: 'entities',
+  tree: 'nodes',
+  class: 'types',
+  timeline: 'events',
+  waterfall: 'spans',
 };
 
 const RELATIONSHIP_COLLECTIONS = {
@@ -299,6 +320,8 @@ const RELATIONSHIP_COLLECTIONS = {
   sequence: 'messages',
   dataflow: 'flows',
   lifecycle: 'transitions',
+  erd: 'relationships',
+  class: 'relationships',
 };
 
 // Relationship IDs are optional for backwards compatibility, but once an
@@ -327,43 +350,16 @@ export function validateRelationshipIds(diagramType, diagram) {
   }
 }
 
-// JSON Schema keeps the view object bounded; this pass checks facts that span
-// collections. Keeping it here makes the same contract apply to all five
-// renderers, including the zero-install standalone-validator path.
-export function validateGuidedViews(diagramType, diagram) {
-  const views = diagram.meta?.views;
-  if (!Array.isArray(views) || views.length === 0) return;
-  const collection = SEMANTIC_COLLECTIONS[diagramType];
-  const semanticIds = new Set((diagram[collection] || []).map((item) => item.id));
-  const seen = new Set();
-  const problems = [];
-
-  views.forEach((view, index) => {
-    if (seen.has(view.id)) problems.push(`/meta/views/${index}/id duplicates view id ${JSON.stringify(view.id)}`);
-    seen.add(view.id);
-    const seenFocus = new Set();
-    (view.focus || []).forEach((id, focusIndex) => {
-      if (seenFocus.has(id)) {
-        problems.push(`/meta/views/${index}/focus/${focusIndex} duplicates semantic id ${JSON.stringify(id)}`);
-      }
-      seenFocus.add(id);
-      if (!semanticIds.has(id)) {
-        problems.push(`/meta/views/${index}/focus/${focusIndex} references unknown semantic id ${JSON.stringify(id)}`);
-      }
-    });
-  });
-
-  if (problems.length) {
-    throwDiagnosticProblems('Guided view validation failed', problems, {
-      code: 'guided-view/invalid',
-      subject: { diagramType, collection: 'meta.views' },
-    });
-  }
+// Share relationship-ID semantic checks between the loader
+// and workflow compiler without performing filesystem operations (see #429).
+export function validateCrossCollectionContracts(diagramType, diagram) {
+  validateRelationshipIds(diagramType, diagram);
 }
 
 // Accessible name for the generated diagram SVG.
 export function svgRootAttrs(meta, explicitQualityProfile) {
-  const animation = meta.animation === 'trace' ? ' data-animation="trace"' : '';
+  // Motion is a Viewer capability for every diagram; Live/Still controls playback.
+  const animation = ' data-animation="trace"';
   const preset = ` data-preset="${esc(meta.visual_preset || 'classic')}"`;
   const engineeringProfile = meta.engineering_profile
     ? ` data-engineering-profile="${esc(meta.engineering_profile)}"`
@@ -383,10 +379,9 @@ export function svgAccessibleText(meta, kind) {
 }
 
 export function animateAttr(meta, kind, step) {
-  if (meta.animation !== 'trace') return '';
   // Ambient trace must finish inside the fixed six-second WebM capture. The
   // cap affects visual delay only; authored order and semantic identity stay
-  // untouched in the JSON, DOM, Story, and relationship contracts.
+  // untouched in the JSON, DOM, and relationship contracts.
   const safeStep = Number.isFinite(step) && step >= 0 ? Math.min(12, Math.floor(step)) : 0;
   return ` data-animate="${kind}" style="--step:${safeStep}"`;
 }

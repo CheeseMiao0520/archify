@@ -1,0 +1,168 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Automatic route and text recovery",
+    "locale": "zh-CN",
+    "output": "output.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "intake",
+      "label": "字字 → 字字字字"
+    },
+    {
+      "id": "fetch",
+      "label": "字字字字 ↓"
+    },
+    {
+      "id": "compute",
+      "label": "字字字 ↓ 字字"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "lane": "intake",
+      "col": 1,
+      "type": "cloud",
+      "label": "④ 字字字字字",
+      "sublabel": "xxxxx/{xxxxxxxxxx}",
+      "yOffset": 50
+    },
+    {
+      "id": "n1",
+      "lane": "fetch",
+      "col": 2,
+      "type": "cloud",
+      "label": "⑤ 字字字字 xxxxxxx",
+      "sublabel": "xxxxx / xxxxxx / 字字 / 字字",
+      "yOffset": -50
+    },
+    {
+      "id": "n2",
+      "lane": "fetch",
+      "col": 4,
+      "type": "security",
+      "label": "字字字字字",
+      "sublabel": "xxxxxxx + xxxx；字字",
+      "yOffset": -50
+    },
+    {
+      "id": "n3",
+      "lane": "fetch",
+      "col": 2,
+      "type": "backend",
+      "label": "⑥ 字字 xxx 字字",
+      "sublabel": "xxxxxxx 字字字字字 11 字",
+      "yOffset": 50
+    },
+    {
+      "id": "n4",
+      "lane": "fetch",
+      "col": 3,
+      "type": "cloud",
+      "label": "⑦ 字字字字 xxxxxxx",
+      "sublabel": "字字 xxxx；字字 xxxxxxx",
+      "yOffset": -50
+    },
+    {
+      "id": "n5",
+      "lane": "fetch",
+      "col": 3,
+      "type": "cloud",
+      "label": "⑧ 字字 xxxxx 字字",
+      "sublabel": "xxxxxxx 字字字字",
+      "tag": "字字字字 111 字",
+      "yOffset": 50
+    },
+    {
+      "id": "n6",
+      "lane": "compute",
+      "col": 4,
+      "type": "security",
+      "label": "⑨ 字字字字字",
+      "sublabel": "xxxxxxxxx / xxxxxxxxxx / xxxxxxxxxxx",
+      "yOffset": -100
+    },
+    {
+      "id": "n7",
+      "lane": "compute",
+      "col": 4,
+      "type": "backend",
+      "label": "⑩ 字字字字字字",
+      "sublabel": "字字字字字字；xxxx 字字",
+      "yOffset": 0
+    },
+    {
+      "id": "n8",
+      "lane": "compute",
+      "col": 5,
+      "type": "backend",
+      "label": "⑫ 字字字字",
+      "sublabel": "字字 + 字字 + xxxxxxxx",
+      "yOffset": -50
+    },
+    {
+      "id": "n9",
+      "lane": "fetch",
+      "col": 4,
+      "type": "security",
+      "label": "xxxxx 字字字字字",
+      "sublabel": "xxxxxxx；字字字字字字",
+      "yOffset": 50
+    }
+  ],
+  "edges": [
+    {
+      "id": "n0-n1",
+      "from": "n0",
+      "to": "n1",
+      "role": "main",
+      "variant": "default",
+      "label": "字字"
+    },
+    {
+      "id": "n1-n2",
+      "from": "n1",
+      "to": "n2",
+      "role": "error",
+      "variant": "security",
+      "label": "字字字字"
+    },
+    {
+      "id": "n2-n3",
+      "from": "n2",
+      "to": "n3",
+      "role": "return",
+      "variant": "dashed",
+      "label": "字字"
+    },
+    {
+      "id": "n4-n5",
+      "from": "n4",
+      "to": "n5",
+      "role": "main",
+      "variant": "default",
+      "label": "字字 / 字字字字字"
+    },
+    {
+      "id": "n5-n9",
+      "from": "n5",
+      "to": "n9",
+      "role": "error",
+      "variant": "security",
+      "label": "字字 / 111 字字字"
+    },
+    {
+      "id": "n9-n6",
+      "from": "n9",
+      "to": "n6",
+      "role": "return",
+      "variant": "dashed",
+      "label": "字字",
+      "route": "auto"
+    }
+  ]
+}

@@ -43,6 +43,7 @@ function fixture() {
     'archify/renderers/shared/portable-path.mjs',
     'archify/renderers/shared/sidecar-path.mjs',
     'integrations/deepseek-harness/scripts/release-source.mjs',
+    'integrations/deepseek-harness/scripts/pack.mjs',
   ];
   for (const relative of contractFiles) {
     const target = path.join(checkout, ...relative.split('/'));
@@ -154,6 +155,7 @@ test('pack stages adapter inputs from the fixture HEAD despite dirty and untrack
     fs.writeFileSync(releasePath, `${JSON.stringify(release, null, 2)}\n`);
     fs.appendFileSync(adapterPath(checkout, 'cordis.patch.yml'), `\n# ${dirtyMarker}\n`);
     fs.appendFileSync(adapterPath(checkout, 'README.md'), `\n${dirtyMarker}\n`);
+    fs.appendFileSync(adapterPath(checkout, 'PACKAGE_README.md'), `\n${dirtyMarker}\n`);
     fs.writeFileSync(adapterPath(checkout, 'lib/index.js'), `// ${dirtyMarker}\n`);
     fs.writeFileSync(adapterPath(checkout, 'lib/untracked-dirty.mjs'), dirtyMarker);
 
@@ -164,14 +166,15 @@ test('pack stages adapter inputs from the fixture HEAD despite dirty and untrack
     assert.equal(fs.existsSync(out), true);
 
     const packageRoot = unpack(out, root);
-    for (const relative of ['package.json', 'release.json', 'cordis.patch.yml', 'README.md', 'lib/index.js']) {
+    for (const relative of ['package.json', 'release.json', 'cordis.patch.yml', 'README.md', 'CHANGELOG.md', 'lib/index.js']) {
       assert.deepEqual(
         fs.readFileSync(path.join(packageRoot, ...relative.split('/'))),
-        headBlob(checkout, head, relative),
+        headBlob(checkout, head, relative === 'README.md' ? 'PACKAGE_README.md' : relative),
         `packed adapter input differs from fixture HEAD: ${relative}`,
       );
     }
     assert.equal(fs.existsSync(path.join(packageRoot, 'lib', 'untracked-dirty.mjs')), false);
+    assert.equal(fs.existsSync(path.join(packageRoot, 'PACKAGE_README.md')), false);
     const packedText = fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8')
       + fs.readFileSync(path.join(packageRoot, 'release.json'), 'utf8')
       + fs.readFileSync(path.join(packageRoot, 'cordis.patch.yml'), 'utf8')
@@ -332,6 +335,76 @@ test('pack rejects committed adapter paths that collide by normalization and cas
     assert.notEqual(result.status, 0);
     assert.match(`${result.stderr}\n${result.stdout}`, /collide under portable filesystem semantics/i);
     assert.equal(fs.existsSync(out), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('pack accepts committed exact-SemVer dshVersion values including prereleases', () => {
+  const { root, checkout } = fixture();
+  try {
+    const releasePath = adapterPath(checkout, 'release.json');
+    for (const dshVersion of ['0.1.2-rc.2', '1.0.0', '2.0.0-alpha.1+build.5']) {
+      const release = JSON.parse(fs.readFileSync(releasePath, 'utf8'));
+      release.dshVersion = dshVersion;
+      fs.writeFileSync(releasePath, `${JSON.stringify(release, null, 2)}\n`);
+      commitFixture(checkout, `test: pin exact dshVersion ${dshVersion}`);
+      const { out, result } = pack(checkout, root);
+      assert.equal(result.status, 0, `${dshVersion}: ${result.stderr || result.stdout}`);
+      assert.equal(fs.existsSync(out), true, dshVersion);
+      fs.rmSync(out, { force: true });
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('pack rejects a committed non-SemVer dshVersion before any install or pack step', () => {
+  const { root, checkout } = fixture();
+  try {
+    const releasePath = adapterPath(checkout, 'release.json');
+    const hostileVersions = [
+      'npm:attacker-pkg@1.0.0',
+      'jsr:attacker-pkg@1.0.0',
+      '^0.1.2',
+      '0.1.2 || 1.0.0',
+      'latest',
+      'file:../payload',
+      './payload',
+      'https://example.invalid/payload.tgz',
+      'github:attacker/repo',
+    ];
+    for (const dshVersion of hostileVersions) {
+      const release = JSON.parse(fs.readFileSync(releasePath, 'utf8'));
+      release.dshVersion = dshVersion;
+      fs.writeFileSync(releasePath, `${JSON.stringify(release, null, 2)}\n`);
+      commitFixture(checkout, `test: pin hostile dshVersion ${dshVersion}`);
+      const { out, result } = pack(checkout, root);
+      assert.notEqual(result.status, 0, dshVersion);
+      assert.match(`${result.stderr}\n${result.stdout}`, /dshVersion must be an exact SemVer version/);
+      assert.equal(fs.existsSync(out), false, dshVersion);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('pack rejects a committed adapter manifest declaring scripts and leaves no target tarball', () => {
+  const { root, checkout } = fixture();
+  try {
+    const marker = path.join(root, 'lifecycle-marker');
+    const manifestPath = adapterPath(checkout, 'package.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.scripts = { prepack: `touch ${JSON.stringify(marker)}`, postpack: `touch ${JSON.stringify(marker)}.post` };
+    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    commitFixture(checkout, 'test: commit adapter lifecycle scripts');
+
+    const { out, result } = pack(checkout, root);
+    assert.notEqual(result.status, 0);
+    assert.match(`${result.stderr}\n${result.stdout}`, /must not declare npm scripts/);
+    assert.equal(fs.existsSync(out), false);
+    assert.equal(fs.existsSync(marker), false, 'prepack must not execute');
+    assert.equal(fs.existsSync(`${marker}.post`), false, 'postpack must not execute');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

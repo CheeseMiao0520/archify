@@ -4,20 +4,101 @@ All notable changes are documented here. Format loosely follows [Keep a Changelo
 
 ## [Unreleased]
 
+> Development identity: `v3.1.1-dev.1`. Not a stable release.
+
+### Fixed
+
+- **Workflow migration semantic contracts (#497).** Layout planning no longer checks full-topology requirements against a temporary graph with routed edges removed. Migrated documents retain their authored contracts and must pass complete validation before publication.
+
+- **Timeline 时区刻度（#926）。** 刻度按显示时区在各真实时刻的 UTC 偏移对齐，修复跨夏令时后日刻度漂移到 01:00／23:00、半小时跳变后小时刻度漂移的问题。回拨的重复时刻保持独立，跳过的小时或日期不生成虚构刻度；事件时间、标签精度、时间轴比例与断轴规则保持不变。
+
+### Changed
+- **发布后的开发基线。** 在已发布的 3.1.0 代码和验证产物基础上开启 3.1.1-dev.1 开发周期，同步开发身份与可重现的示例、比较图和网站产物。稳定更新清单继续指向已发布的 3.1.0；本次不创建发布或更改已发布版本。
+
+## [3.1.0] — 2026-10-14
+
+### Release highlights
+- **Ten diagram types.** ERD, Class/interface, Tree, Timeline and Waterfall join Architecture, Workflow, Sequence, Dataflow and Lifecycle, with typed JSON, source evidence and standalone Viewer exports.
+- **Live by default.** Each diagram type uses a matching motion choreography; readers can switch to Still. Motion remains separate from authored topology and export geometry.
+- **Readable authoring and recovery.** Bounded route/label coordination, clearer node cards, wrapped Sequence notes, main-path Lifecycle layouts, long-page radar navigation and executable geometry diagnostics reduce avoidable repair work.
+- **Verified delivery and portability.** Finalize reports input, artifact and browser gates separately; repository evidence, atomic delivery, clipboard/export continuity and Windows path handling fail closed with actionable diagnostics.
+- **Guide and handoff.** Concise artifact-first delivery and a localized optional GitHub link inside the reader-opened Guide.
+
+### Known limitations
+- Large Sequence diagrams may require readable page scrolling; floating controls can overlap content at some initial viewport positions.
+- Some complex Dataflow inputs share visual corridors; long Class generic types can wrap awkwardly. Automatic validation does not establish perceptual quality.
+- Waterfall durations need recorded trace evidence to be called measured; author-supplied illustrative values remain labelled.
+- The independently published DSH plugin remains pinned to Archify 3.0.1. Synchronization requires a separate plugin release and host acceptance; the 3.1.0 Skill release does not update it.
+
+### Added
+- **Traditional Chinese (Taiwan) Viewer catalog.** `meta.locale: "zh-TW"` now selects a bundled catalog covering all 487 Viewer keys with Taiwan terminology (for example 循序圖, 資料流, 匯出, 檢視), instead of falling back to English. Enrollment is data only: `locales/zh-TW.json` plus one manifest entry. `zh-Hant` and `zh-HK` remain distinct, unbundled tags.
+- **GitLab source links.** Repository evidence on gitlab.com, or on a self-managed host declared with `provider: "gitlab"`, now generates revision-pinned web links (`/-/blob/<revision>/<path>#L<a>-<b>`, `/-/tree/<revision>`) instead of requiring `link_mode: "local-only"`. Nested groups are accepted, SSH and HTTPS origins on the same host match, paths compare case-insensitively, and cited Markdown line ranges open the plain view. Verification is unchanged and `local-only` remains available.
+
+### Fixed
+
+- **ER 图主干桥接隔离（#896）。** 自动总线不再跨越、接触或覆盖无关关系及其他已生成的桥接；检查包含双方实际描边宽度（含显式 `width`），存在冲突时保留分离的主干段，避免校验通过的图看起来多出关系。实体位置、显式途经点、关系基数及正常共享主干保持不变。
+
+- **WebM 录制失败清理 (#622)。** 画布、捕获流、编码器启动、逐帧绘制或停止失败时，录制 Promise 现在会拒绝并释放已创建的流、临时 URL、动画帧和定时器；晚到的编码事件不能再将失败录制报告为成功。正常编码与最佳努力的最终片段 flush 行为保持不变。
+
+- **类图混合关系的主干冲突（#791）。** 自动继承／实现主干会检查组外路线的端口、走廊和交叉；冲突组回退到独立路由，避免依赖箭头被继承三角覆盖或实线覆盖实现虚线。无冲突主干、显式几何及关系语义保持不变；空 `via: []` 与省略路径点统一处理，避免合法输入在回退后产生非法斜线。
+- **SVG 路径检查（#641）。** 统一解析关系线和结构边界的 `M/L/H/V/Q/Z` 路径，正确保留子路径与闭合语义；截断参数、非法数值和不支持的命令现在有限失败并给出定位诊断，避免检查挂起、漏检或虚构跨子路径线段。非共线 `Q` 前后的直线保留真实连续性，避免虚假交叉、标签遮挡和漏检；曲线采样点不会增加微线段预算。普通有效产物的 9 项检查保持不变。
+- **Inactive brand icon declarations.** Capture ignores icon markup in comments, raw text (including `noscript` for `text/html`), quoted attributes and templates, so inactive page edits cannot replace the selected image or break its pinned digest. Complete link attributes keep quoted delimiters and distinguish `href` from `data-href`; XHTML `noscript` discovery and links after empty elements are preserved. Old pins to inactive markup may require inspecting and explicitly recapturing the intended icon; digest checking remains enforced.
+- **Brand ICO data bounds (#585).** Capture and pinned re-fetches reject empty, directory-overlapping or out-of-bounds image ranges in ICO directory entries, while preserving valid PNG/DIB payloads and normal icon fallback.
+
+### Changed
+- **Pending DSH 1.0.0 bundle synchronized to stable Archify 3.0.1.** The immutable source includes the post-tag Skill installation fix (#704), with both packaged version identities verified. Isolated acceptance verifies the published 0.1.0 upgrade path on DSH 0.1.2-rc.1 and keeps mutating example checks outside pnpm store hard links. Archify releases now record a DSH sync or explicit deferral decision. The plugin remains unpublished; public installation still uses DSH plugin 0.1.0 with Archify 2.14.0 until a separate verified release.
+- **Bundled Viewer catalogs selected by `meta.locale`.** `archify/locales/manifest.json` enrolls package-owned catalogs (`en`, `zh-CN`, `es`, `ko`); English and Simplified Chinese moved from renderer tuples into the same data. Each message resolves as valid `meta.translations` value → selected bundled catalog → English, so a one-key override keeps the rest of the language. Enrolling another language is a data-only change. Catalogs load relative to the installed package, never from the working directory, and standalone HTML still embeds only the resolved Viewer messages. (#588)
+- **Intentional differences from 3.0.1.** Locale-only `es`/`ko` now render Spanish/Korean UI instead of English. A partial `meta.translations` (including for `zh-CN`) now falls through to the same-language bundled catalog before English; in 3.0.1 every unsupplied key became English. Equivalent tag casing such as `zh-cn` selects the bundled catalog and emits its canonical tag; region and script variants such as `zh-Hant` still fall back to English. An unbundled tag whose translations are all unusable now falls back to English `lang` as well. Omitted-locale, `en`, `zh-CN`, and complete-catalog inputs render unchanged.
+- **Locale diagnostics.** `i18n/translation-coverage` now reports the final resolved coverage and lists missing keys with their English source text; rejected overrides (unknown keys, placeholder mismatches) are reported separately as `i18n/invalid-translation` and keep the lower-priority message. Passing `validate --json`, `deliver`, and `finalize` receipts now carry these `i18n/*` warnings in `diagnostics[]` (gates and exit codes are unchanged); previously `finalize` did not surface them at all.
+
+## [3.0.1] — 2026-09-28
+
+### Changed
+- **Update reminders at final delivery.** `finalize` and standalone `deliver` now carry a bounded stable-release check in human output and full/compact receipts. A known newer release appears once in each task's final response until the user upgrades or explicitly snoozes it for seven days or ignores that exact release. The old acknowledgement command remains a no-op, so it cannot silently hide an update. The checker reuses the fixed official manifest, validated cache, and path protections; slow or offline checks never block diagram delivery. No automatic installation or diagram-output change is introduced.
+
+## [3.0.0] — 2026-09-28
+
+### Upgrading from 2.x
+
+- The Viewer has a redesigned reader layout. Guided/story views and ordinary share-card exports have been removed; use the diagram overview, Route, Lens and canonical exports. Already generated standalone HTML keeps its embedded viewer.
+- Existing schema-v1 diagram inputs remain supported. Lifecycle schema v2 is the recommended path for newly authored lifecycle diagrams; migration is not required to keep rendering v1 inputs.
+- English and Simplified Chinese remain built in. Supply `meta.translations` for other Viewer languages; authored node and message text is separate from Viewer UI translation.
+- Stable release identity is now `v3.0.0`; the previous `2.17.0-dev.1` identity was a development candidate, not a stable release.
+
 ### Improved reading
 
+- **Sequence width review.** `finalize` now reports measured unused right-hand space when fixed participant columns crowd one side of a wide canvas. New unpinned candidates get a bounded `column_fit: "spread"` repair step; explicit fixed and legacy layouts keep their geometry, and the advice adds no validation warning or failure.
+- **Lifecycle schema v2.** New lifecycle diagrams render one row per lane on a shared `col` 0–4 grid, so a state placed under the state it leaves gets a straight transition. The renderer sizes the canvas, widens column gaps for same-row labels, opens row gaps for the tracks their routes need, and routes automatic transitions with a dedicated orthogonal grid router (parallel reciprocal pairs, crossing-minimized tracks, corridor and outer-loop detours). Row titles move to a vertical left gutter, the implied phase rail is replaced by authored transitions, and state text is one step larger. Schema v1 files keep their exact state geometry.
+- **Lifecycle marks and legend.** Start states get a UML initial marker and states without outgoing transitions a double border, both explained in the legend; decision no longer shares failure's red, and success is green. The lifecycle type sigil moves to the top-left like every other mode.
+- **Whole diagram on the first screen.** With notes below the diagram, the adaptive reader now fits the complete diagram and its controls into the viewport down to the renderer's readable text floor, instead of holding primary labels at 12px and scrolling tall diagrams off a laptop screen; zoom restores detail.
+- **Sequence legend matches the drawing.** The legend sits 12px below all timeline content and may wrap into that room (an auto-sized canvas grows for it; a too-short authored showcase canvas fails with the exact height), lifelines stop above the legend instead of running through it, message labels take their line's legend color (gray lines keep readable muted text), and the legend names the emphasis variant "main request" / "主路径请求" and the default variant "message" / "普通消息".
+- **Readable source badges.** The Viewer's source badge is larger, fully opaque, sized to its text, and placed left of the brand mark; lifecycle, workflow, and data-flow label layout now reserve its width, so it no longer covers sigils or labels.
 - Showcase sequence message names use larger primary type and matching label plates; real browser readability checks now include message labels.
-
-> Development identity: `v2.17.0-dev.1`. Not a stable release.
+- **Clearer Architecture layouts.** Authoring defaults now classify each relationship (main path, branch or store, return, second entrance, fan-out) before placement, with a measured side length for fan-out ports. A passing `finalize` receipt with crossings adds node-move `hints`, backed by new `routeReview` evidence (`sharedNode` on crossings, `crowdedSides` when a side faces more neighbours than it has ports); the Skill allows one bounded, position-only repair for crossings. Automatic routing steps fan-out siblings into free parallel channels and reaches a blocked row of neighbours through one vertical side instead of wrapping around it.
 
 ### Added
 - **Hermes Agent community opt-in.** `integrations/hermes-agent` is a Skill-only directory plugin: it registers the existing Node Archify `SKILL.md` for Hermes. The documented install is `hermes skills install skills-sh/tt-a1i/archify/archify -y` (published GitHub Skill). A checkout symlink remains the local-dev path. Hermes still runs `node bin/archify.mjs`. This is not an official Nous product and is not an agent-switcher target.
 - **GitHub Copilot agent-switcher target.** The Start page agent switcher, README EN/ZH quick start, and landing copy add `github-copilot` alongside `cursor`, `codex`, `claude-code`, and `opencode`. It installs the same checked Skill and zero-dependency renderers via `npx skills add tt-a1i/archify --skill archify --agent github-copilot ...`; no vendor-specific fork, renderer, or schema behavior was added.
 - **Repository evidence for every diagram type (#59).** `meta.repository` and node `sources` are now accepted by Workflow, Sequence, Data Flow, and Lifecycle as well as Architecture, and `--repo-root` reaches `render`, `validate`, `deliver`, and `preview` for all five. Each mode authors sources on its own node collection (`components`, `nodes`, `participants`, `states`) while verification is unchanged: Git top level, origin match, commit, blob, path containment, and line bounds all still have to hold, GitHub, Gitee, and `link_mode: "local-only"` repositories behave identically in every mode, and the verified payload stays keyed by node id. Architecture output is unchanged and the `repository-evidence/type-unsupported` diagnostic is removed as unreachable.
 
+### Changed
+- **Japanese entry point under the same maintenance contract.** `README_JA.md` joins the language switcher and every README parity check: brand mark and demo-section placement, the animated proof and demo deep links, share-card and real-repository proofs, the update-awareness disclosure, the Hermes Agent and DSH installation rows, the self-hosted Star History ending, and release-identity validation of the version badge, the Japanese development marker, and the Raven manual-ZIP boundary. The switcher check is now driven by one per-language table, so a future language is added in one place.
+
 ### Fixed
+- **Node clearance at the solver's exact minimum (#583).** `rectsOverlap` now compares separations with the same `0.0001` numeric tolerance the route and layout geometry already uses, so a column the layout solver separated by exactly its minimum no longer reads as overlapping because of float rounding. Genuine closeness still reports; a shortfall an author could act on remains well outside the tolerance.
+- **Lifecycle transition notes (#549).** Notes render when the transition label is omitted or empty, with matching route-space reservations and collision checks; existing label-only and label-plus-note layouts retain their behavior.
+- **Brand content-encoding negotiation (#514).** Capture and pinned re-fetches request identity encoding and reject unexpected encoded response bodies before parsing or hashing, with the coding error preserved if favicon fallback also fails.
+- **Escaped brand icon URLs (#454).** Favicon discovery decodes basic named and numeric HTML character references once before URL resolution, preserving percent escapes and the existing network and digest checks.
+- **Brand HTML head boundaries.** Favicon capture ignores apparent head endings inside comments, raw text and quoted attributes while retaining bounded, streaming head reads.
 - **Conservative VS15 text-width estimates.** Text-presentation selectors retain the base character's estimated width instead of forcing every sequence to one unit. This prevents wide labels, including CJK text whose font ignores VS15, from passing layout checks at half their estimated width. Actual glyph widths remain font-dependent; some text-presentation labels may now need more space. VS16 emoji estimates and text without selectors are unchanged.
 - **Readable renderer failures.** `render` and direct renderer entry points format classified input, schema, layout, and output failures without Node stacks. Filesystem failures identify the failing operation instead of labelling output errors as unreadable input; successful artifact bytes and existing validation/delivery receipt formats remain unchanged.
+- **Preview forced shutdown (#453).** A second Ctrl-C closes unfinished HTTP connections as well as active delivery processes, allowing staging cleanup while preserving the last verified artifact.
+
+### Localization (#457)
+- **Spanish as reusable translation data.** The 437 existing Spanish messages now live in `archify/examples/locales/es.json`, supplied through `meta.translations` like other additional languages. English and Simplified Chinese remain built in. Spanish-only `meta.locale: "es"` inputs from earlier dev builds need the catalog added before rerendering; otherwise they receive the existing English fallback warning. Already generated HTML keeps its embedded Spanish UI. The Spanish built-in was not shipped in v2.16.0.
+- **`meta.translations`: renderer-owned Viewer UI in any language, as data (#457, #458, #499).** `meta.locale` now accepts any well-formed language tag; `en` and `zh-CN` remain built-in catalogs, and any other locale is localized by supplying `meta.translations`, an object mapping the renderer's canonical message keys to translated strings whose `{placeholder}` tokens match the English source. A key that is missing, unrecognized, or has mismatched placeholders falls back to its English string instead of breaking the render, and `validate`/`render`/`deliver` report the resulting coverage to stderr. Adding a language is now a data change, not a renderer or schema-enum change. `examples/locales/ko.json` carries a complete, checked-in Korean catalog (437/437 current keys) as the worked example — originally proposed as a third hard-coded locale in #457/#458 and independently in #499, folded here into the shared mechanism at the maintainer's direction, credit to both contributors. `examples/locales/fr.partial.json` is a small, deliberately partial French catalog demonstrating that a second, previously unsupported language needs only translation data. A locale with no built-in catalog and no `meta.translations` falls back entirely to the English Viewer chrome and `<html lang="en">`, with the fallback disclosed on stderr; only a malformed locale tag fails schema validation. Font bundling for Hangul glyph coverage (D2Coding, Pretendard) is tracked separately from this mechanism.
+
+### Fixed
 - **Architecture Delta baseline arrowheads (#433).** Removed and rerouted baseline relationships retain their marker definitions in the composed Delta SVG, preserving their authored direction alongside current relationships.
 - **Compare rollback recovery (#438).** If restoring a previous output fails, compare preserves its recovery directory and reports backup-to-target paths instead of deleting the remaining backups during cleanup.
 - **固定提交的来源校验 (#420)。** 校验忽略本地 Git replacement refs，始终读取指定提交的原始对象，避免替换后的文件或行范围造成误接受或误拒绝；保留原有来源链接、诊断与用户 Git 配置。

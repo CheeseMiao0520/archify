@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "Interface extension and dependency"
+  },
+  "types": [
+    {
+      "id": "base",
+      "label": "Base",
+      "kind": "interface",
+      "row": 0,
+      "col": 1
+    },
+    {
+      "id": "left",
+      "label": "Left",
+      "kind": "interface",
+      "row": 1,
+      "col": 0
+    },
+    {
+      "id": "right",
+      "label": "Right",
+      "kind": "interface",
+      "row": 1,
+      "col": 2
+    },
+    {
+      "id": "impl",
+      "label": "Impl",
+      "kind": "class",
+      "row": 2,
+      "col": 1
+    }
+  ],
+  "relationships": [
+    {
+      "from": "left",
+      "to": "base",
+      "kind": "inheritance"
+    },
+    {
+      "from": "right",
+      "to": "base",
+      "kind": "inheritance"
+    },
+    {
+      "from": "impl",
+      "to": "base",
+      "kind": "dependency"
+    }
+  ]
+}

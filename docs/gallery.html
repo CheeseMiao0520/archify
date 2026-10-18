@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="generator" content="archify gallery 2.17.0-dev.1">
+  <meta name="generator" content="archify gallery 3.1.1-dev.1">
   <title>Archify Proof Lab — Generated Diagram Gallery</title>
   <meta name="description" content="A generated gallery of validated, self-contained Archify diagrams. Every preview links to its exact JSON source and interactive HTML artifact.">
   <meta name="theme-color" content="#eff2f1">
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'><polygon points='14,2 26,8 26,20 14,26 2,20 2,8' fill='%23083344' stroke='%2322d3ee' stroke-width='1.5'/><circle cx='14' cy='15' r='2.5' fill='%2322d3ee'/></svg>">
+  <link rel="icon" type="image/svg+xml" href="assets/archify-mark.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,400&family=Inter:wght@400;450;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -226,14 +226,17 @@
 
   <nav class="site-nav" aria-label="Primary navigation">
     <a class="nav-logo" href="./" aria-label="Back to Archify home">
-      <span class="nav-logo-text">Archify</span>
+      <img class="nav-logo-text brand-lockup" src="assets/archify-lockup-light.svg" alt="Archify" width="117" height="32">
       <span class="nav-logo-path" data-en="/ proof lab" data-zh="/ 验证作品集">/ proof lab</span>
     </a>
     <div class="nav-right">
+      <div class="nav-links">
       <a class="nav-link" href="guide.html" data-en="Guide" data-zh="场景指南">Guide</a>
       <a class="nav-link" href="gallery.html" aria-current="page" data-en="Proof Lab" data-zh="验证作品集">Proof Lab</a>
       <a class="nav-link" href="start.html" data-en="Start" data-zh="快速上手">Start</a>
-      <a class="nav-link" href="https://github.com/tt-a1i/archify" target="_blank" rel="noopener">GitHub</a>
+      <a class="nav-link" href="community.html" data-en="Community" data-zh="社区包">Community</a>
+      <a class="nav-link nav-github" href="https://github.com/tt-a1i/archify" target="_blank" rel="noopener"><svg class="nav-star" viewBox="0 0 16 16" aria-hidden="true"><path d="M 8 1.6 l 1.9 3.9 l 4.3 0.6 l -3.1 3 l 0.7 4.3 L 8 11.4 l -3.8 2 l 0.7 -4.3 l -3.1 -3 l 4.3 -0.6 Z"/></svg>GitHub</a>
+      </div>
       <button class="btn-lang" id="language" type="button" aria-label="Switch language">中文</button>
       <a class="btn btn-primary nav-cta" href="start.html" data-en="Install Skill" data-zh="安装技能">Install Skill</a>
     </div>
@@ -248,8 +251,8 @@
           <p class="hero-copy" data-en="Every frame below is a live Archify artifact—not a mockup. Each one is regenerated from versioned JSON IR, checked for structural integrity, and linked to the exact source that produced it." data-zh="下面每一帧都是可运行的 Archify 成品，不是效果图。它们全部由版本化 JSON IR 重新生成、经过结构检查，并链接到产生它的精确源数据。">Every frame below is a live Archify artifact—not a mockup. Each one is regenerated from versioned JSON IR, checked for structural integrity, and linked to the exact source that produced it.</p>
         </div>
         <div class="proof-board" aria-label="Gallery quality summary">
-          <div class="proof-row"><span class="proof-value">11</span><span class="proof-label" data-en="scenario proofs<br>from real IR" data-zh="个场景成品<br>来自真实 IR">scenario proofs<br>from real IR</span></div>
-          <div class="proof-row"><span class="proof-value">99</span><span class="proof-label" data-en="structural checks<br>passed" data-zh="项结构检查<br>全部通过">structural checks<br>passed</span></div>
+          <div class="proof-row"><span class="proof-value">12</span><span class="proof-label" data-en="scenario proofs<br>from real IR" data-zh="个场景成品<br>来自真实 IR">scenario proofs<br>from real IR</span></div>
+          <div class="proof-row"><span class="proof-value">108</span><span class="proof-label" data-en="structural checks<br>passed" data-zh="项结构检查<br>全部通过">structural checks<br>passed</span></div>
           <div class="proof-row"><span class="proof-value proof-status">PASS</span><span class="proof-label" data-en="generated from<br>source of truth" data-zh="从源数据<br>自动生成">generated from<br>source of truth</span></div>
         </div>
       </div>
@@ -258,12 +261,13 @@
     <section class="controls" aria-label="Gallery controls">
       <div class="shell controls-inner">
         <div class="filter-group" role="group" aria-label="Filter diagrams by type">
-          <button class="filter-button" type="button" data-filter="all" aria-pressed="true" data-en="All / 11" data-zh="全部配方 / 11">All / 11</button>
+          <button class="filter-button" type="button" data-filter="all" aria-pressed="true" data-en="All / 12" data-zh="全部配方 / 12">All / 12</button>
           <button class="filter-button" type="button" data-filter="architecture" aria-pressed="false" data-en="Architecture" data-zh="架构图">Architecture</button>
           <button class="filter-button" type="button" data-filter="workflow" aria-pressed="false" data-en="Workflow" data-zh="工作流">Workflow</button>
           <button class="filter-button" type="button" data-filter="sequence" aria-pressed="false" data-en="Sequence" data-zh="时序图">Sequence</button>
           <button class="filter-button" type="button" data-filter="dataflow" aria-pressed="false" data-en="Data flow" data-zh="数据流">Data flow</button>
           <button class="filter-button" type="button" data-filter="lifecycle" aria-pressed="false" data-en="Lifecycle" data-zh="生命周期">Lifecycle</button>
+          <button class="filter-button" type="button" data-filter="erd" aria-pressed="false" data-en="Entity-relationship" data-zh="实体关系图">Entity-relationship</button>
         </div>
         <div class="controls-actions">
           <button class="filter-button" id="preview-theme" type="button">Preview: dark</button>
@@ -275,15 +279,15 @@
     <section class="gallery-section" id="gallery">
       <div class="shell">
         <div class="section-intro">
-          <h2 data-en="Five lenses. Eleven real stories." data-zh="五种视角，十一个真实故事。">Five lenses. Eleven real stories.</h2>
-          <p data-en="Every scenario has named reader views with a path-aware Story Trail, shareable navigation, dark/light rendering, self-contained export, and a machine-readable quality receipt." data-zh="每个场景都有能辨别真实方向的 Story Trail 命名视图、可分享导航、深浅主题、自包含导出和机器可读质量凭证。">Every scenario has named reader views with a path-aware Story Trail, shareable navigation, dark/light rendering, self-contained export, and a machine-readable quality receipt.</p>
+          <h2 data-en="Six lenses. Twelve real stories." data-zh="六种视角，十二个真实故事。">Six lenses. Twelve real stories.</h2>
+          <p data-en="Every scenario has focus, reach, and path exploration, shareable links, dark/light rendering, self-contained export, and a machine-readable quality receipt." data-zh="每个场景都支持聚焦、上下游与路径探索、可分享链接、深浅主题、自包含导出和机器可读质量凭证。">Every scenario has focus, reach, and path exploration, shareable links, dark/light rendering, self-contained export, and a machine-readable quality receipt.</p>
         </div>
         <div class="gallery-grid" id="gallery-grid">
           <article class="showcase-card is-featured" id="proof-agent-tool-call" data-proof-id="agent-tool-call" data-type="workflow" style="--accent:#047857">
             <header class="card-header">
               <div class="card-index">01</div>
               <div class="card-title-wrap">
-                <div class="card-kicker">Workflow / 12 nodes / 3 views · play</div>
+                <div class="card-kicker">Workflow / 12 nodes</div>
                 <h3 class="card-title" data-en="Agent Tool Call" data-zh="智能体工具调用">Agent Tool Call</h3>
               </div>
               <div class="card-mode">signal-flow + trace</div>
@@ -298,10 +302,10 @@
                 <div class="receipt-cell"><span class="receipt-label">Artifact</span><span class="receipt-value ok">9/9 pass</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Composition</span><span class="receipt-value ok" title="0 crossings · 0 border runs · 0 micro segments · 0 cramped turns">SHOWCASE · PASS</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Graph</span><span class="receipt-value">12N · 11E</span></div>
-                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="59b0736cf66456cec937ce33cc2d8702fc973459a09bd07bbe7fdadc5ea78ef3">59b0736cf664</span></div>
+                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="fdc0975c069e0353800a1958036d3e24f2630811da9eac5a8dd6d4942d84f31a">fdc0975c069e</span></div>
               </div>
               <div class="card-actions">
-                <a class="card-link primary" href="gallery/artifacts/agent-tool-call.workflow.html?present=1&amp;play=1#view=happy-path" target="_blank" rel="noopener" data-en="Play named chapter ↗" data-zh="播放命名章节 ↗">Play named chapter ↗</a>
+                <a class="card-link primary" href="gallery/artifacts/agent-tool-call.workflow.html#focus=planner" target="_blank" rel="noopener" data-en="Explore focus ↗" data-zh="探索聚焦路径 ↗">Explore focus ↗</a>
                 <a class="card-link" href="gallery/artifacts/agent-tool-call.workflow.html" target="_blank" rel="noopener" data-en="Full artifact" data-zh="完整成品">Full artifact</a>
                 <a class="card-link" href="gallery/sources/agent-tool-call.workflow.json" target="_blank" rel="noopener">JSON IR</a>
                 <a class="card-link create-link" href="start.html?type=workflow&amp;source=gallery" data-en="Create this type" data-zh="按此类型开始">Create this type</a>
@@ -312,7 +316,7 @@
             <header class="card-header">
               <div class="card-index">02</div>
               <div class="card-title-wrap">
-                <div class="card-kicker">Architecture / 12 nodes / 3 views · play</div>
+                <div class="card-kicker">Architecture / 12 nodes</div>
                 <h3 class="card-title" data-en="Production Deployment Ownership" data-zh="生产部署与归属">Production Deployment Ownership</h3>
               </div>
               <div class="card-mode">blueprint + trace</div>
@@ -328,10 +332,10 @@
                 <div class="receipt-cell"><span class="receipt-label">Artifact</span><span class="receipt-value ok">9/9 pass</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Composition</span><span class="receipt-value ok" title="0 crossings · 0 border runs · 0 micro segments · 0 cramped turns">SHOWCASE · PASS</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Graph</span><span class="receipt-value">12N · 12E</span></div>
-                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="66156f04b6a048feb0d0d7c63a3dfa3afa8daddff883679a5d0d082e8a0b48ca">66156f04b6a0</span></div>
+                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="bab5aa4aab63abbe867c415306750b9382939161da46139300d12c0a54c8c62b">bab5aa4aab63</span></div>
               </div>
               <div class="card-actions">
-                <a class="card-link primary" href="gallery/artifacts/production-deployment.architecture.html?present=1&amp;play=1#view=request-boundary" target="_blank" rel="noopener" data-en="Play named chapter ↗" data-zh="播放命名章节 ↗">Play named chapter ↗</a>
+                <a class="card-link primary" href="gallery/artifacts/production-deployment.architecture.html#focus=gateway" target="_blank" rel="noopener" data-en="Explore focus ↗" data-zh="探索聚焦路径 ↗">Explore focus ↗</a>
                 <a class="card-link" href="gallery/artifacts/production-deployment.architecture.html" target="_blank" rel="noopener" data-en="Full artifact" data-zh="完整成品">Full artifact</a>
                 <a class="card-link" href="gallery/sources/production-deployment.architecture.json" target="_blank" rel="noopener">JSON IR</a>
                 <a class="card-link create-link" href="start.html?type=architecture&amp;source=gallery" data-en="Create this type" data-zh="按此类型开始">Create this type</a>
@@ -342,7 +346,7 @@
             <header class="card-header">
               <div class="card-index">03</div>
               <div class="card-title-wrap">
-                <div class="card-kicker">Sequence / 7 nodes / 3 views · play</div>
+                <div class="card-kicker">Sequence / 7 nodes</div>
                 <h3 class="card-title" data-en="Cache Miss Request" data-zh="缓存未命中请求">Cache Miss Request</h3>
               </div>
               <div class="card-mode">classic + trace</div>
@@ -357,10 +361,10 @@
                 <div class="receipt-cell"><span class="receipt-label">Artifact</span><span class="receipt-value ok">9/9 pass</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Composition</span><span class="receipt-value ok" title="0 crossings · 0 border runs · 0 micro segments · 0 cramped turns">SHOWCASE · PASS</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Graph</span><span class="receipt-value">7N · 12E</span></div>
-                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="ff09c5d5b7aad90651b27cc7e59d356ff3a3986b2c457224cc5848004f3298fa">ff09c5d5b7aa</span></div>
+                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="252f687dbe79fbf9fb4402d24c974b3c1e56d761f773d2093ad61493dd7d349c">252f687dbe79</span></div>
               </div>
               <div class="card-actions">
-                <a class="card-link primary" href="gallery/artifacts/cache-miss.sequence.html?present=1&amp;play=1#view=cache-fallback" target="_blank" rel="noopener" data-en="Play named chapter ↗" data-zh="播放命名章节 ↗">Play named chapter ↗</a>
+                <a class="card-link primary" href="gallery/artifacts/cache-miss.sequence.html#focus=redis" target="_blank" rel="noopener" data-en="Explore focus ↗" data-zh="探索聚焦路径 ↗">Explore focus ↗</a>
                 <a class="card-link" href="gallery/artifacts/cache-miss.sequence.html" target="_blank" rel="noopener" data-en="Full artifact" data-zh="完整成品">Full artifact</a>
                 <a class="card-link" href="gallery/sources/cache-miss-request.sequence.json" target="_blank" rel="noopener">JSON IR</a>
                 <a class="card-link create-link" href="start.html?type=sequence&amp;source=gallery" data-en="Create this type" data-zh="按此类型开始">Create this type</a>
@@ -371,7 +375,7 @@
             <header class="card-header">
               <div class="card-index">04</div>
               <div class="card-title-wrap">
-                <div class="card-kicker">Workflow / 10 nodes / 3 views · play</div>
+                <div class="card-kicker">Workflow / 10 nodes</div>
                 <h3 class="card-title" data-en="Release Delivery Workflow" data-zh="研发交付流程">Release Delivery Workflow</h3>
               </div>
               <div class="card-mode">classic + trace</div>
@@ -386,10 +390,10 @@
                 <div class="receipt-cell"><span class="receipt-label">Artifact</span><span class="receipt-value ok">9/9 pass</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Composition</span><span class="receipt-value ok" title="0 crossings · 0 border runs · 0 micro segments · 0 cramped turns">SHOWCASE · PASS</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Graph</span><span class="receipt-value">10N · 10E</span></div>
-                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="ccbaf889e2df6077cd23e528aca1a6ddb811a57cb1944428291448e09f26174a">ccbaf889e2df</span></div>
+                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="5c3a84b8f25f62a8d52c157b50fa8ce500fb851bcab3bcd52b7f7a6cfbf3605b">5c3a84b8f25f</span></div>
               </div>
               <div class="card-actions">
-                <a class="card-link primary" href="gallery/artifacts/release-delivery.workflow.html?present=1&amp;play=1#view=approval-to-production" target="_blank" rel="noopener" data-en="Play named chapter ↗" data-zh="播放命名章节 ↗">Play named chapter ↗</a>
+                <a class="card-link primary" href="gallery/artifacts/release-delivery.workflow.html#focus=approval" target="_blank" rel="noopener" data-en="Explore focus ↗" data-zh="探索聚焦路径 ↗">Explore focus ↗</a>
                 <a class="card-link" href="gallery/artifacts/release-delivery.workflow.html" target="_blank" rel="noopener" data-en="Full artifact" data-zh="完整成品">Full artifact</a>
                 <a class="card-link" href="gallery/sources/release-delivery.workflow.json" target="_blank" rel="noopener">JSON IR</a>
                 <a class="card-link create-link" href="start.html?type=workflow&amp;source=gallery" data-en="Create this type" data-zh="按此类型开始">Create this type</a>
@@ -400,7 +404,7 @@
             <header class="card-header">
               <div class="card-index">05</div>
               <div class="card-title-wrap">
-                <div class="card-kicker">Workflow / 11 nodes / 3 views · play</div>
+                <div class="card-kicker">Workflow / 11 nodes</div>
                 <h3 class="card-title" data-en="Incident Response Runbook" data-zh="事故处置 Runbook">Incident Response Runbook</h3>
               </div>
               <div class="card-mode">signal-flow + trace</div>
@@ -415,10 +419,10 @@
                 <div class="receipt-cell"><span class="receipt-label">Artifact</span><span class="receipt-value ok">9/9 pass</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Composition</span><span class="receipt-value ok" title="0 crossings · 0 border runs · 0 micro segments · 0 cramped turns">SHOWCASE · PASS</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Graph</span><span class="receipt-value">11N · 10E</span></div>
-                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="b70efacfce055e3cd54e533757ac5204434bbc24d17c8ac363561eb020453338">b70efacfce05</span></div>
+                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="62fb9fa3426015c82fd357d570ee0f86e35fbf630ba852697f512dbf0fcabb4c">62fb9fa34260</span></div>
               </div>
               <div class="card-actions">
-                <a class="card-link primary" href="gallery/artifacts/incident-response.workflow.html?present=1&amp;play=1#view=mitigate-and-verify" target="_blank" rel="noopener" data-en="Play named chapter ↗" data-zh="播放命名章节 ↗">Play named chapter ↗</a>
+                <a class="card-link primary" href="gallery/artifacts/incident-response.workflow.html#focus=triage" target="_blank" rel="noopener" data-en="Explore focus ↗" data-zh="探索聚焦路径 ↗">Explore focus ↗</a>
                 <a class="card-link" href="gallery/artifacts/incident-response.workflow.html" target="_blank" rel="noopener" data-en="Full artifact" data-zh="完整成品">Full artifact</a>
                 <a class="card-link" href="gallery/sources/incident-response.workflow.json" target="_blank" rel="noopener">JSON IR</a>
                 <a class="card-link create-link" href="start.html?type=workflow&amp;source=gallery" data-en="Create this type" data-zh="按此类型开始">Create this type</a>
@@ -429,7 +433,7 @@
             <header class="card-header">
               <div class="card-index">06</div>
               <div class="card-title-wrap">
-                <div class="card-kicker">Data flow / 10 nodes / 3 views · play</div>
+                <div class="card-kicker">Data flow / 10 nodes</div>
                 <h3 class="card-title" data-en="Product Analytics" data-zh="产品分析数据流">Product Analytics</h3>
               </div>
               <div class="card-mode">classic + trace</div>
@@ -444,10 +448,10 @@
                 <div class="receipt-cell"><span class="receipt-label">Artifact</span><span class="receipt-value ok">9/9 pass</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Composition</span><span class="receipt-value ok" title="0 crossings · 0 border runs · 0 micro segments · 0 cramped turns">SHOWCASE · PASS</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Graph</span><span class="receipt-value">10N · 10E</span></div>
-                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="40a2a779072454e19d5df48e46ae422eebbf680d94b41fc93da11e5c4fc2e278">40a2a7790724</span></div>
+                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="622fe3ca711c25659db5add27ba609b299eaf42f80cec90005447043131aef06">622fe3ca711c</span></div>
               </div>
               <div class="card-actions">
-                <a class="card-link primary" href="gallery/artifacts/product-analytics.dataflow.html?present=1&amp;play=1#view=consent-boundary" target="_blank" rel="noopener" data-en="Play named chapter ↗" data-zh="播放命名章节 ↗">Play named chapter ↗</a>
+                <a class="card-link primary" href="gallery/artifacts/product-analytics.dataflow.html#focus=consent" target="_blank" rel="noopener" data-en="Explore focus ↗" data-zh="探索聚焦路径 ↗">Explore focus ↗</a>
                 <a class="card-link" href="gallery/artifacts/product-analytics.dataflow.html" target="_blank" rel="noopener" data-en="Full artifact" data-zh="完整成品">Full artifact</a>
                 <a class="card-link" href="gallery/sources/product-analytics.dataflow.json" target="_blank" rel="noopener">JSON IR</a>
                 <a class="card-link create-link" href="start.html?type=dataflow&amp;source=gallery" data-en="Create this type" data-zh="按此类型开始">Create this type</a>
@@ -458,7 +462,7 @@
             <header class="card-header">
               <div class="card-index">07</div>
               <div class="card-title-wrap">
-                <div class="card-kicker">Sequence / 7 nodes / 3 views · play</div>
+                <div class="card-kicker">Sequence / 7 nodes</div>
                 <h3 class="card-title" data-en="Async Job Roundtrip" data-zh="异步任务往返链路">Async Job Roundtrip</h3>
               </div>
               <div class="card-mode">signal-flow + trace</div>
@@ -473,10 +477,10 @@
                 <div class="receipt-cell"><span class="receipt-label">Artifact</span><span class="receipt-value ok">9/9 pass</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Composition</span><span class="receipt-value ok" title="0 crossings · 0 border runs · 0 micro segments · 0 cramped turns">SHOWCASE · PASS</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Graph</span><span class="receipt-value">7N · 14E</span></div>
-                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="16489c3e61f4733b398ffee6cc5b969f5fd82cb1462d0b007c441632b2497e07">16489c3e61f4</span></div>
+                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="3370a2ec08d50224e8a5f85d1d34166f37ea641576ca134f067d684baaf48549">3370a2ec08d5</span></div>
               </div>
               <div class="card-actions">
-                <a class="card-link primary" href="gallery/artifacts/async-job-roundtrip.sequence.html?present=1&amp;play=1#view=work-and-retry" target="_blank" rel="noopener" data-en="Play named chapter ↗" data-zh="播放命名章节 ↗">Play named chapter ↗</a>
+                <a class="card-link primary" href="gallery/artifacts/async-job-roundtrip.sequence.html#focus=queue" target="_blank" rel="noopener" data-en="Explore focus ↗" data-zh="探索聚焦路径 ↗">Explore focus ↗</a>
                 <a class="card-link" href="gallery/artifacts/async-job-roundtrip.sequence.html" target="_blank" rel="noopener" data-en="Full artifact" data-zh="完整成品">Full artifact</a>
                 <a class="card-link" href="gallery/sources/async-job-roundtrip.sequence.json" target="_blank" rel="noopener">JSON IR</a>
                 <a class="card-link create-link" href="start.html?type=sequence&amp;source=gallery" data-en="Create this type" data-zh="按此类型开始">Create this type</a>
@@ -487,7 +491,7 @@
             <header class="card-header">
               <div class="card-index">08</div>
               <div class="card-title-wrap">
-                <div class="card-kicker">Data flow / 12 nodes / 3 views · play</div>
+                <div class="card-kicker">Data flow / 12 nodes</div>
                 <h3 class="card-title" data-en="Order Event-stream Topology" data-zh="订单事件流拓扑">Order Event-stream Topology</h3>
               </div>
               <div class="card-mode">signal-flow + trace</div>
@@ -502,10 +506,10 @@
                 <div class="receipt-cell"><span class="receipt-label">Artifact</span><span class="receipt-value ok">9/9 pass</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Composition</span><span class="receipt-value ok" title="0 crossings · 0 border runs · 0 micro segments · 0 cramped turns">SHOWCASE · PASS</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Graph</span><span class="receipt-value">12N · 12E</span></div>
-                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="db560447724f04e9b1b8606999d95a4b7560d54f939d10319254789ffd37e366">db560447724f</span></div>
+                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="e4557dd7d1671f2045bca4e3fbd5453e62e4738835de8c017089bd1ec7316d3d">e4557dd7d167</span></div>
               </div>
               <div class="card-actions">
-                <a class="card-link primary" href="gallery/artifacts/event-stream.dataflow.html?present=1&amp;play=1#view=order-transit" target="_blank" rel="noopener" data-en="Play named chapter ↗" data-zh="播放命名章节 ↗">Play named chapter ↗</a>
+                <a class="card-link primary" href="gallery/artifacts/event-stream.dataflow.html#focus=orders" target="_blank" rel="noopener" data-en="Explore focus ↗" data-zh="探索聚焦路径 ↗">Explore focus ↗</a>
                 <a class="card-link" href="gallery/artifacts/event-stream.dataflow.html" target="_blank" rel="noopener" data-en="Full artifact" data-zh="完整成品">Full artifact</a>
                 <a class="card-link" href="gallery/sources/event-stream.dataflow.json" target="_blank" rel="noopener">JSON IR</a>
                 <a class="card-link create-link" href="start.html?type=dataflow&amp;source=gallery" data-en="Create this type" data-zh="按此类型开始">Create this type</a>
@@ -516,7 +520,7 @@
             <header class="card-header">
               <div class="card-index">09</div>
               <div class="card-title-wrap">
-                <div class="card-kicker">Lifecycle / 10 nodes / 3 views · play</div>
+                <div class="card-kicker">Lifecycle / 10 nodes</div>
                 <h3 class="card-title" data-en="Agent Run Lifecycle" data-zh="智能体运行生命周期">Agent Run Lifecycle</h3>
               </div>
               <div class="card-mode">classic + trace</div>
@@ -530,11 +534,11 @@
               <div class="receipt" aria-label="Validation receipt">
                 <div class="receipt-cell"><span class="receipt-label">Artifact</span><span class="receipt-value ok">9/9 pass</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Composition</span><span class="receipt-value ok" title="0 crossings · 0 border runs · 0 micro segments · 0 cramped turns">SHOWCASE · PASS</span></div>
-                <div class="receipt-cell"><span class="receipt-label">Graph</span><span class="receipt-value">10N · 6E</span></div>
-                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="5d035aebc0141c63d6266ccc2134078906f979a0d6480e2f81de9af3fae995e4">5d035aebc014</span></div>
+                <div class="receipt-cell"><span class="receipt-label">Graph</span><span class="receipt-value">10N · 12E</span></div>
+                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="25a2d476a97951efe30517d86ee64bc33a9827efe1db08d47e28f98dd619e48c">25a2d476a979</span></div>
               </div>
               <div class="card-actions">
-                <a class="card-link primary" href="gallery/artifacts/agent-run.lifecycle.html?present=1&amp;play=1#view=main-lifecycle" target="_blank" rel="noopener" data-en="Play named chapter ↗" data-zh="播放命名章节 ↗">Play named chapter ↗</a>
+                <a class="card-link primary" href="gallery/artifacts/agent-run.lifecycle.html#focus=approval" target="_blank" rel="noopener" data-en="Explore focus ↗" data-zh="探索聚焦路径 ↗">Explore focus ↗</a>
                 <a class="card-link" href="gallery/artifacts/agent-run.lifecycle.html" target="_blank" rel="noopener" data-en="Full artifact" data-zh="完整成品">Full artifact</a>
                 <a class="card-link" href="gallery/sources/agent-run.lifecycle.json" target="_blank" rel="noopener">JSON IR</a>
                 <a class="card-link create-link" href="start.html?type=lifecycle&amp;source=gallery" data-en="Create this type" data-zh="按此类型开始">Create this type</a>
@@ -545,7 +549,7 @@
             <header class="card-header">
               <div class="card-index">10</div>
               <div class="card-title-wrap">
-                <div class="card-kicker">Lifecycle / 11 nodes / 3 views · play</div>
+                <div class="card-kicker">Lifecycle / 12 nodes</div>
                 <h3 class="card-title" data-en="Deployment Release Lifecycle" data-zh="部署发布生命周期">Deployment Release Lifecycle</h3>
               </div>
               <div class="card-mode">signal-flow + trace</div>
@@ -559,11 +563,11 @@
               <div class="receipt" aria-label="Validation receipt">
                 <div class="receipt-cell"><span class="receipt-label">Artifact</span><span class="receipt-value ok">9/9 pass</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Composition</span><span class="receipt-value ok" title="0 crossings · 0 border runs · 0 micro segments · 0 cramped turns">SHOWCASE · PASS</span></div>
-                <div class="receipt-cell"><span class="receipt-label">Graph</span><span class="receipt-value">11N · 6E</span></div>
-                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="d3b4ce045a312498fc40a238db646898b7176930305df0f1f04293baf980c7ae">d3b4ce045a31</span></div>
+                <div class="receipt-cell"><span class="receipt-label">Graph</span><span class="receipt-value">12N · 15E</span></div>
+                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="00e6c5710cb612d7984d2e7ff0f08cced3451db3520bced29020bf9771d9dc75">00e6c5710cb6</span></div>
               </div>
               <div class="card-actions">
-                <a class="card-link primary" href="gallery/artifacts/deployment-release.lifecycle.html?present=1&amp;play=1#view=rollback-outcomes" target="_blank" rel="noopener" data-en="Play named chapter ↗" data-zh="播放命名章节 ↗">Play named chapter ↗</a>
+                <a class="card-link primary" href="gallery/artifacts/deployment-release.lifecycle.html#focus=live" target="_blank" rel="noopener" data-en="Explore focus ↗" data-zh="探索聚焦路径 ↗">Explore focus ↗</a>
                 <a class="card-link" href="gallery/artifacts/deployment-release.lifecycle.html" target="_blank" rel="noopener" data-en="Full artifact" data-zh="完整成品">Full artifact</a>
                 <a class="card-link" href="gallery/sources/deployment-release.lifecycle.json" target="_blank" rel="noopener">JSON IR</a>
                 <a class="card-link create-link" href="start.html?type=lifecycle&amp;source=gallery" data-en="Create this type" data-zh="按此类型开始">Create this type</a>
@@ -574,7 +578,7 @@
             <header class="card-header">
               <div class="card-index">11</div>
               <div class="card-title-wrap">
-                <div class="card-kicker">Architecture / 10 nodes / 3 views · play</div>
+                <div class="card-kicker">Architecture / 10 nodes</div>
                 <h3 class="card-title" data-en="Three-tier Web App" data-zh="三层 Web 应用">Three-tier Web App</h3>
               </div>
               <div class="card-mode">classic</div>
@@ -589,13 +593,42 @@
                 <div class="receipt-cell"><span class="receipt-label">Artifact</span><span class="receipt-value ok">9/9 pass</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Composition</span><span class="receipt-value ok" title="0 crossings · 0 border runs · 0 micro segments · 0 cramped turns">SHOWCASE · PASS</span></div>
                 <div class="receipt-cell"><span class="receipt-label">Graph</span><span class="receipt-value">10N · 9E</span></div>
-                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="b23c18a8847f63960c7bd6aab13bb126987e338c11ecbae5608f9fe9229686b9">b23c18a8847f</span></div>
+                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="92a7eeb1b5f751a09bfe7c550316fb70a41afc5c01fb6f3dd6bdde02ab62cdfe">92a7eeb1b5f7</span></div>
               </div>
               <div class="card-actions">
-                <a class="card-link primary" href="gallery/artifacts/web-app.architecture.html?present=1&amp;play=1#view=request-path" target="_blank" rel="noopener" data-en="Play named chapter ↗" data-zh="播放命名章节 ↗">Play named chapter ↗</a>
+                <a class="card-link primary" href="gallery/artifacts/web-app.architecture.html#focus=api" target="_blank" rel="noopener" data-en="Explore focus ↗" data-zh="探索聚焦路径 ↗">Explore focus ↗</a>
                 <a class="card-link" href="gallery/artifacts/web-app.architecture.html" target="_blank" rel="noopener" data-en="Full artifact" data-zh="完整成品">Full artifact</a>
                 <a class="card-link" href="gallery/sources/web-app.architecture.json" target="_blank" rel="noopener">JSON IR</a>
                 <a class="card-link create-link" href="start.html?type=architecture&amp;source=gallery" data-en="Create this type" data-zh="按此类型开始">Create this type</a>
+              </div>
+            </div>
+          </article>
+          <article class="showcase-card" id="proof-orders" data-proof-id="orders" data-type="erd" style="--accent:#0f766e">
+            <header class="card-header">
+              <div class="card-index">12</div>
+              <div class="card-title-wrap">
+                <div class="card-kicker">Entity-relationship / 6 nodes</div>
+                <h3 class="card-title" data-en="Order Management Schema" data-zh="订单管理表结构">Order Management Schema</h3>
+              </div>
+              <div class="card-mode">classic</div>
+            </header>
+            <div class="preview-shell">
+              <div class="live-flag">Live artifact</div>
+              <iframe src="gallery/artifacts/orders.erd.html?embed=1&amp;theme=dark" data-src-base="gallery/artifacts/orders.erd.html" title="Order Management Schema live Archify preview" loading="lazy"></iframe>
+            </div>
+            <div class="card-body">
+              <p class="card-description" data-en="Six tables with their complete column lists, primary, foreign, and unique keys, crow-foot cardinality at both ends, and one optional non-identifying payment link." data-zh="六张表及其完整字段清单、主键/外键/唯一键标记、两端鸦爪基数，以及一条可选的非标识性支付连线。">Six tables with their complete column lists, primary, foreign, and unique keys, crow-foot cardinality at both ends, and one optional non-identifying payment link.</p>
+              <div class="receipt" aria-label="Validation receipt">
+                <div class="receipt-cell"><span class="receipt-label">Artifact</span><span class="receipt-value ok">9/9 pass</span></div>
+                <div class="receipt-cell"><span class="receipt-label">Composition</span><span class="receipt-value ok" title="0 crossings · 0 border runs · 0 micro segments · 0 cramped turns">SHOWCASE · PASS</span></div>
+                <div class="receipt-cell"><span class="receipt-label">Graph</span><span class="receipt-value">6N · 5E</span></div>
+                <div class="receipt-cell"><span class="receipt-label">SHA-256</span><span class="receipt-value" title="a686b9a56f197a2573ce4c209562cd0a40a0e586c79e552de6851b580a16139e">a686b9a56f19</span></div>
+              </div>
+              <div class="card-actions">
+                <a class="card-link primary" href="gallery/artifacts/orders.erd.html#focus=order" target="_blank" rel="noopener" data-en="Explore focus ↗" data-zh="探索聚焦路径 ↗">Explore focus ↗</a>
+                <a class="card-link" href="gallery/artifacts/orders.erd.html" target="_blank" rel="noopener" data-en="Full artifact" data-zh="完整成品">Full artifact</a>
+                <a class="card-link" href="gallery/sources/orders.erd.json" target="_blank" rel="noopener">JSON IR</a>
+                <a class="card-link create-link" href="start.html?type=erd&amp;source=gallery" data-en="Create this type" data-zh="按此类型开始">Create this type</a>
               </div>
             </div>
           </article>
@@ -627,13 +660,14 @@
           <div class="method-code-bar"><span>reproduce locally</span><span>zero runtime deps</span></div>
           <pre><span class="accent">$ node scripts/build-gallery.mjs</span>
 
-render  workflow      ✓
-render  sequence      ✓
-render  dataflow      ✓
-render  lifecycle     ✓
-render  architecture  ✓
+render  workflow       ✓
+render  sequence       ✓
+render  dataflow       ✓
+render  lifecycle      ✓
+render  architecture   ✓
+render  erd            ✓
 
-receipt 99 checks / 11 artifacts / deterministic hashes</pre>
+receipt 108 checks / 12 artifacts / deterministic hashes</pre>
         </div>
       </div>
     </section>
@@ -642,16 +676,16 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
   <footer>
     <div class="shell footer-inner">
       <span data-en="Generated from Archify's checked-in examples. No hand-authored capability claims." data-zh="由 Archify 仓库内示例自动生成，不手写可能过期的能力声明。">Generated from Archify's checked-in examples. No hand-authored capability claims.</span>
-      <span data-en="Archify v2.17.0-dev.1 · development · MIT" data-zh="Archify v2.17.0-dev.1 · 开发版 · MIT">Archify v2.17.0-dev.1 · development · MIT</span>
+      <span data-en="Archify v3.1.1-dev.1 · development · MIT" data-zh="Archify v3.1.1-dev.1 · 开发版 · MIT">Archify v3.1.1-dev.1 · development · MIT</span>
     </div>
   </footer>
 
   <script id="gallery-manifest" type="application/json">{
   "schemaVersion": 1,
   "generator": "scripts/build-gallery.mjs",
-  "archifyVersion": "2.17.0-dev.1",
-  "entryCount": 11,
-  "checkCount": 99,
+  "archifyVersion": "3.1.1-dev.1",
+  "entryCount": 12,
+  "checkCount": 108,
   "entries": [
     {
       "id": "agent-tool-call",
@@ -661,24 +695,16 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
       "input": "gallery/sources/agent-tool-call.workflow.json",
       "artifact": "gallery/artifacts/agent-tool-call.workflow.html",
       "focus": "planner",
-      "view": "happy-path",
-      "viewCount": 3,
-      "viewIds": [
-        "happy-path",
-        "safety-gate",
-        "evidence-loop"
-      ],
-      "guidedPlayback": true,
       "schemaVersion": 2,
       "visualPreset": "signal-flow",
       "animation": "trace",
       "engineeringProfile": null,
       "nodeCount": 12,
       "edgeCount": 11,
-      "artifactBytes": 830007,
-      "artifactSha256": "59b0736cf66456cec937ce33cc2d8702fc973459a09bd07bbe7fdadc5ea78ef3",
-      "sourceBytes": 5687,
-      "sourceSha256": "4d3f6c23de2ca7d306e05d0041a9506833bb5a164a2bddc2d1984cf4da3ee90c",
+      "artifactBytes": 830865,
+      "artifactSha256": "fdc0975c069e0353800a1958036d3e24f2630811da9eac5a8dd6d4942d84f31a",
+      "sourceBytes": 4939,
+      "sourceSha256": "d67965d50872c97e4ff3476271e645bf19fab6b3ab44e111bdb44b063e3aa36f",
       "checks": [
         {
           "name": "single_svg",
@@ -727,21 +753,24 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
         },
         "metrics": {
           "properCrossings": 0,
+          "resolvedCrossovers": 0,
           "ambiguousCorridors": 0,
+          "arrowheadCollisions": 0,
           "containerBorderRuns": 0,
           "labelRouteClearanceIssues": 0,
           "labelCanvasOverflowIssues": 0,
           "minLabelRouteClearance": 29,
           "desktopReadabilityIssues": 0,
-          "minProjectedNodeTextPx": null,
-          "maxBends": 3,
-          "routesOverSuggestedBends": 1,
-          "maxStretch": 1.225,
+          "viewportHeightIssues": 0,
+          "minProjectedNodeTextPx": 6.714801444043322,
+          "maxBends": 0,
+          "routesOverSuggestedBends": 0,
+          "maxStretch": 1,
           "routesOverSuggestedStretch": 0,
-          "minSegmentPx": 16,
-          "minInteriorSegmentPx": 82,
-          "shortSegmentCount": 0,
-          "shortEndpointSegmentCount": 0,
+          "minSegmentPx": 8,
+          "minInteriorSegmentPx": null,
+          "shortSegmentCount": 2,
+          "shortEndpointSegmentCount": 2,
           "shortInteriorSegmentCount": 0,
           "microSegmentCount": 0
         },
@@ -750,6 +779,32 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "stretch": 1.35,
           "segmentPx": 16,
           "microSegmentPx": 8
+        },
+        "routeReview": {
+          "crossings": [],
+          "detours": []
+        },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
+        },
+        "desktopReadability": {
+          "budgetBasis": "legacy-930",
+          "readerContract": "declared-wide-v1",
+          "availableDiagramWidth": 930,
+          "actualBudgetPx": 930,
+          "limit": "legacy",
+          "requestedTargetPx": null,
+          "requestedTargetMet": null,
+          "hardFloorPx": 6,
+          "hardFloorMet": true,
+          "minimumOwner": {
+            "kind": "node",
+            "id": "user"
+          },
+          "minimumSourceTextPx": 8,
+          "minimumProjectedTextPx": 6.714801444043322,
+          "semanticTextCount": 29
         },
         "issues": []
       }
@@ -762,24 +817,16 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
       "input": "gallery/sources/production-deployment.architecture.json",
       "artifact": "gallery/artifacts/production-deployment.architecture.html",
       "focus": "gateway",
-      "view": "request-boundary",
-      "viewCount": 3,
-      "viewIds": [
-        "request-boundary",
-        "state-ownership",
-        "async-operations"
-      ],
-      "guidedPlayback": true,
       "schemaVersion": 1,
       "visualPreset": "blueprint",
       "animation": "trace",
       "engineeringProfile": "deployment-ownership",
       "nodeCount": 12,
       "edgeCount": 12,
-      "artifactBytes": 831864,
-      "artifactSha256": "66156f04b6a048feb0d0d7c63a3dfa3afa8daddff883679a5d0d082e8a0b48ca",
-      "sourceBytes": 5476,
-      "sourceSha256": "ec484aa8576664fdb207b543fa49486b23273faccb7a5071e1a0becfb48c22eb",
+      "artifactBytes": 833243,
+      "artifactSha256": "bab5aa4aab63abbe867c415306750b9382939161da46139300d12c0a54c8c62b",
+      "sourceBytes": 4734,
+      "sourceSha256": "610a5614667e8f108bdcf1769c9d7af5c3ce0fb62be3ea50550b10eb752e4bda",
       "checks": [
         {
           "name": "single_svg",
@@ -828,19 +875,22 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
         },
         "metrics": {
           "properCrossings": 0,
+          "resolvedCrossovers": 0,
           "ambiguousCorridors": 0,
+          "arrowheadCollisions": 0,
           "containerBorderRuns": 0,
           "labelRouteClearanceIssues": 0,
           "labelCanvasOverflowIssues": 0,
           "minLabelRouteClearance": 36,
           "desktopReadabilityIssues": 0,
-          "minProjectedNodeTextPx": null,
+          "viewportHeightIssues": 0,
+          "minProjectedNodeTextPx": 7.5,
           "maxBends": 2,
           "routesOverSuggestedBends": 0,
           "maxStretch": 1.098,
           "routesOverSuggestedStretch": 0,
           "minSegmentPx": 20,
-          "minInteriorSegmentPx": 74,
+          "minInteriorSegmentPx": 104,
           "shortSegmentCount": 0,
           "shortEndpointSegmentCount": 0,
           "shortInteriorSegmentCount": 0,
@@ -851,6 +901,43 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "stretch": 1.35,
           "segmentPx": 16,
           "microSegmentPx": 8
+        },
+        "routeReview": {
+          "crossings": [],
+          "detours": []
+        },
+        "leadingSpace": {
+          "measured": true,
+          "emptyTopPx": 85,
+          "emptyTopRatio": 0.108,
+          "occupiedTop": 85,
+          "viewBoxTop": 0,
+          "canvasHeight": 790,
+          "typicalNodeHeight": 62,
+          "reviewSuggested": false
+        },
+        "desktopReadability": {
+          "budgetBasis": "recognized-declared-wide",
+          "readerContract": "declared-wide-v1",
+          "availableDiagramWidth": 1290,
+          "actualBudgetPx": 1290,
+          "actualReaderWidth": 1320,
+          "desiredReaderWidth": 1320,
+          "viewportCap": 1376,
+          "limit": "source-size",
+          "requestedTargetPx": 7.5,
+          "requestedTargetMet": true,
+          "hardFloorPx": 6,
+          "hardFloorMet": true,
+          "minimumOwner": {
+            "kind": "edge",
+            "id": null,
+            "from": "clients",
+            "to": "edge"
+          },
+          "minimumSourceTextPx": 8,
+          "minimumProjectedTextPx": 7.5,
+          "semanticTextCount": 38
         },
         "issues": []
       }
@@ -863,24 +950,16 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
       "input": "gallery/sources/cache-miss-request.sequence.json",
       "artifact": "gallery/artifacts/cache-miss.sequence.html",
       "focus": "redis",
-      "view": "cache-fallback",
-      "viewCount": 3,
-      "viewIds": [
-        "request-and-auth",
-        "cache-fallback",
-        "return-and-trace"
-      ],
-      "guidedPlayback": true,
       "schemaVersion": 1,
       "visualPreset": "classic",
       "animation": "trace",
       "engineeringProfile": null,
       "nodeCount": 7,
       "edgeCount": 12,
-      "artifactBytes": 825119,
-      "artifactSha256": "ff09c5d5b7aad90651b27cc7e59d356ff3a3986b2c457224cc5848004f3298fa",
-      "sourceBytes": 4374,
-      "sourceSha256": "9a799a3661c16cd6ab4f6373ff6a04da95a9ab70d93b0a349b668466f4912fd7",
+      "artifactBytes": 821153,
+      "artifactSha256": "252f687dbe79fbf9fb4402d24c974b3c1e56d761f773d2093ad61493dd7d349c",
+      "sourceBytes": 3805,
+      "sourceSha256": "f8486daa803fff6c295cecca4604c561fbbf9acb2e83326022b5a87639e8afe6",
       "checks": [
         {
           "name": "single_svg",
@@ -929,13 +1008,16 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
         },
         "metrics": {
           "properCrossings": 0,
+          "resolvedCrossovers": 0,
           "ambiguousCorridors": 0,
+          "arrowheadCollisions": 0,
           "containerBorderRuns": 0,
           "labelRouteClearanceIssues": 0,
           "labelCanvasOverflowIssues": 0,
           "minLabelRouteClearance": 8,
           "desktopReadabilityIssues": 0,
-          "minProjectedNodeTextPx": null,
+          "viewportHeightIssues": 0,
+          "minProjectedNodeTextPx": 6.027777777777779,
           "maxBends": 0,
           "routesOverSuggestedBends": 0,
           "maxStretch": 1,
@@ -953,6 +1035,44 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "segmentPx": 16,
           "microSegmentPx": 8
         },
+        "routeReview": {
+          "crossings": [],
+          "detours": []
+        },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
+        },
+        "sequenceColumnSpace": {
+          "measured": true,
+          "columnFit": "spread",
+          "participantCount": 7,
+          "occupiedRight": 1040,
+          "viewBoxLeft": 0,
+          "canvasWidth": 1080,
+          "emptyRightPx": 40,
+          "emptyRightRatio": 0.037,
+          "typicalParticipantWidth": 113,
+          "reviewSuggested": false
+        },
+        "desktopReadability": {
+          "budgetBasis": "legacy-930",
+          "readerContract": "declared-wide-v1",
+          "availableDiagramWidth": 930,
+          "actualBudgetPx": 930,
+          "limit": "legacy",
+          "requestedTargetPx": null,
+          "requestedTargetMet": null,
+          "hardFloorPx": 6,
+          "hardFloorMet": true,
+          "minimumOwner": {
+            "kind": "node",
+            "id": "user"
+          },
+          "minimumSourceTextPx": 7,
+          "minimumProjectedTextPx": 6.027777777777779,
+          "semanticTextCount": 26
+        },
         "issues": []
       }
     },
@@ -964,24 +1084,16 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
       "input": "gallery/sources/release-delivery.workflow.json",
       "artifact": "gallery/artifacts/release-delivery.workflow.html",
       "focus": "approval",
-      "view": "approval-to-production",
-      "viewCount": 3,
-      "viewIds": [
-        "commit-to-checks",
-        "approval-to-production",
-        "rollback-path"
-      ],
-      "guidedPlayback": true,
       "schemaVersion": 1,
       "visualPreset": "classic",
       "animation": "trace",
       "engineeringProfile": null,
       "nodeCount": 10,
       "edgeCount": 10,
-      "artifactBytes": 826205,
-      "artifactSha256": "ccbaf889e2df6077cd23e528aca1a6ddb811a57cb1944428291448e09f26174a",
-      "sourceBytes": 5164,
-      "sourceSha256": "e5c880417eac1623923c3dd5461e0c78acd762e1621a28bd53fc14a84cad6a91",
+      "artifactBytes": 826425,
+      "artifactSha256": "5c3a84b8f25f62a8d52c157b50fa8ce500fb851bcab3bcd52b7f7a6cfbf3605b",
+      "sourceBytes": 4510,
+      "sourceSha256": "dbd5c174af66296caec372e7214cf4df7158b50a563508e16826b95ab8d1cd6c",
       "checks": [
         {
           "name": "single_svg",
@@ -1026,17 +1138,20 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
         "status": "pass",
         "summary": {
           "errors": 0,
-          "warnings": 0
+          "warnings": 1
         },
         "metrics": {
           "properCrossings": 0,
+          "resolvedCrossovers": 0,
           "ambiguousCorridors": 0,
+          "arrowheadCollisions": 0,
           "containerBorderRuns": 0,
           "labelRouteClearanceIssues": 0,
           "labelCanvasOverflowIssues": 0,
           "minLabelRouteClearance": 36.3,
           "desktopReadabilityIssues": 0,
-          "minProjectedNodeTextPx": null,
+          "viewportHeightIssues": 1,
+          "minProjectedNodeTextPx": 6.2,
           "maxBends": 2,
           "routesOverSuggestedBends": 0,
           "maxStretch": 1.214,
@@ -1054,7 +1169,51 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "segmentPx": 16,
           "microSegmentPx": 8
         },
-        "issues": []
+        "routeReview": {
+          "crossings": [],
+          "detours": []
+        },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
+        },
+        "desktopReadability": {
+          "budgetBasis": "legacy-930",
+          "readerContract": "declared-wide-v1",
+          "availableDiagramWidth": 930,
+          "actualBudgetPx": 930,
+          "limit": "legacy",
+          "requestedTargetPx": null,
+          "requestedTargetMet": null,
+          "hardFloorPx": 6,
+          "hardFloorMet": true,
+          "minimumOwner": {
+            "kind": "node",
+            "id": "rollback"
+          },
+          "minimumSourceTextPx": 6.2,
+          "minimumProjectedTextPx": 6.2,
+          "semanticTextCount": 24
+        },
+        "issues": [
+          {
+            "severity": "warning",
+            "code": "composition/viewport-height",
+            "readerFit": null,
+            "viewBoxWidth": 720,
+            "viewBoxHeight": 900,
+            "viewportWidth": 1440,
+            "viewportHeight": 900,
+            "ratio": 0.8,
+            "wideRatio": 1.55,
+            "svgWidthPx": 1346,
+            "svgHeightPx": 1683,
+            "fixedChromePx": 126,
+            "pageHeightPx": 1809,
+            "overflowPx": 909,
+            "detail": "[composition/viewport-height] Preserve every node, relationship, and label. This 720x900 canvas (ratio 0.8) declares no intrinsic-height fit and is below the 1.55 wide ratio, so the desktop Reader can neither narrow it nor accept vertical scroll: it renders 1683px tall at the full 1346px width and the page reaches 1809px before cards against 900px, a certain visual-check failure. Either compact vertical spacing so meta.viewBox height is at most 464 at this width, or spread content sideways so the width is at least 1395 at this height; for architecture and readable-v2 workflow, omitting meta.viewBox lets the renderer size the canvas and declare the fit."
+          }
+        ]
       }
     },
     {
@@ -1065,24 +1224,16 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
       "input": "gallery/sources/incident-response.workflow.json",
       "artifact": "gallery/artifacts/incident-response.workflow.html",
       "focus": "triage",
-      "view": "mitigate-and-verify",
-      "viewCount": 3,
-      "viewIds": [
-        "detect-and-triage",
-        "mitigate-and-verify",
-        "escalate-and-communicate"
-      ],
-      "guidedPlayback": true,
       "schemaVersion": 1,
       "visualPreset": "signal-flow",
       "animation": "trace",
       "engineeringProfile": null,
       "nodeCount": 11,
       "edgeCount": 10,
-      "artifactBytes": 823520,
-      "artifactSha256": "b70efacfce055e3cd54e533757ac5204434bbc24d17c8ac363561eb020453338",
-      "sourceBytes": 5375,
-      "sourceSha256": "5c760c82eee545dfb7da38a4e628059d7891af4cfbfc13c8a7009ea64f69aa1b",
+      "artifactBytes": 823825,
+      "artifactSha256": "62fb9fa3426015c82fd357d570ee0f86e35fbf630ba852697f512dbf0fcabb4c",
+      "sourceBytes": 4723,
+      "sourceSha256": "630be98449925d2716ecb8439f404b2bff5fe65ba905b0ad0baea6d96890c526",
       "checks": [
         {
           "name": "single_svg",
@@ -1127,17 +1278,20 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
         "status": "pass",
         "summary": {
           "errors": 0,
-          "warnings": 0
+          "warnings": 1
         },
         "metrics": {
           "properCrossings": 0,
+          "resolvedCrossovers": 0,
           "ambiguousCorridors": 0,
+          "arrowheadCollisions": 0,
           "containerBorderRuns": 0,
           "labelRouteClearanceIssues": 0,
           "labelCanvasOverflowIssues": 0,
           "minLabelRouteClearance": 119,
           "desktopReadabilityIssues": 0,
-          "minProjectedNodeTextPx": null,
+          "viewportHeightIssues": 1,
+          "minProjectedNodeTextPx": 7.7,
           "maxBends": 3,
           "routesOverSuggestedBends": 1,
           "maxStretch": 3.465,
@@ -1155,7 +1309,97 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "segmentPx": 16,
           "microSegmentPx": 8
         },
-        "issues": []
+        "routeReview": {
+          "crossings": [],
+          "detours": [
+            {
+              "relationship": {
+                "from": "page",
+                "to": "triage",
+                "label": "",
+                "collectionIndex": 1,
+                "artifactIndex": 2
+              },
+              "bends": 2,
+              "stretch": 1.8
+            },
+            {
+              "relationship": {
+                "from": "contain",
+                "to": "recover",
+                "label": "",
+                "collectionIndex": 3,
+                "artifactIndex": 4
+              },
+              "bends": 2,
+              "stretch": 1.914
+            },
+            {
+              "relationship": {
+                "from": "declare",
+                "to": "update",
+                "label": "",
+                "collectionIndex": 7,
+                "artifactIndex": 8
+              },
+              "bends": 3,
+              "stretch": 3.465,
+              "directCorridorBlockers": [
+                {
+                  "id": "contain",
+                  "label": "Contain",
+                  "box": [
+                    394,
+                    341,
+                    72,
+                    52
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
+        },
+        "desktopReadability": {
+          "budgetBasis": "legacy-930",
+          "readerContract": "declared-wide-v1",
+          "availableDiagramWidth": 930,
+          "actualBudgetPx": 930,
+          "limit": "legacy",
+          "requestedTargetPx": null,
+          "requestedTargetMet": null,
+          "hardFloorPx": 6,
+          "hardFloorMet": true,
+          "minimumOwner": {
+            "kind": "node",
+            "id": "triage"
+          },
+          "minimumSourceTextPx": 7.7,
+          "minimumProjectedTextPx": 7.7,
+          "semanticTextCount": 23
+        },
+        "issues": [
+          {
+            "severity": "warning",
+            "code": "composition/viewport-height",
+            "readerFit": null,
+            "viewBoxWidth": 720,
+            "viewBoxHeight": 900,
+            "viewportWidth": 1440,
+            "viewportHeight": 900,
+            "ratio": 0.8,
+            "wideRatio": 1.55,
+            "svgWidthPx": 1346,
+            "svgHeightPx": 1683,
+            "fixedChromePx": 126,
+            "pageHeightPx": 1809,
+            "overflowPx": 909,
+            "detail": "[composition/viewport-height] Preserve every node, relationship, and label. This 720x900 canvas (ratio 0.8) declares no intrinsic-height fit and is below the 1.55 wide ratio, so the desktop Reader can neither narrow it nor accept vertical scroll: it renders 1683px tall at the full 1346px width and the page reaches 1809px before cards against 900px, a certain visual-check failure. Either compact vertical spacing so meta.viewBox height is at most 464 at this width, or spread content sideways so the width is at least 1395 at this height; for architecture and readable-v2 workflow, omitting meta.viewBox lets the renderer size the canvas and declare the fit."
+          }
+        ]
       }
     },
     {
@@ -1166,24 +1410,16 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
       "input": "gallery/sources/product-analytics.dataflow.json",
       "artifact": "gallery/artifacts/product-analytics.dataflow.html",
       "focus": "consent",
-      "view": "consent-boundary",
-      "viewCount": 3,
-      "viewIds": [
-        "collection-path",
-        "consent-boundary",
-        "analytics-consumers"
-      ],
-      "guidedPlayback": true,
       "schemaVersion": 1,
       "visualPreset": "classic",
       "animation": "trace",
       "engineeringProfile": null,
       "nodeCount": 10,
       "edgeCount": 10,
-      "artifactBytes": 827474,
-      "artifactSha256": "40a2a779072454e19d5df48e46ae422eebbf680d94b41fc93da11e5c4fc2e278",
-      "sourceBytes": 5618,
-      "sourceSha256": "91411404fb4828a3b7ea358f3a7b9877781c9e9dc9c04b42b6eb4a757281b59f",
+      "artifactBytes": 823440,
+      "artifactSha256": "622fe3ca711c25659db5add27ba609b299eaf42f80cec90005447043131aef06",
+      "sourceBytes": 5035,
+      "sourceSha256": "8a635db9e51a5b1a8d2955b9d66f5b9a450e0a298432ce8f2e2f0be11f372e05",
       "checks": [
         {
           "name": "single_svg",
@@ -1232,13 +1468,16 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
         },
         "metrics": {
           "properCrossings": 0,
+          "resolvedCrossovers": 0,
           "ambiguousCorridors": 0,
+          "arrowheadCollisions": 0,
           "containerBorderRuns": 0,
           "labelRouteClearanceIssues": 0,
           "labelCanvasOverflowIssues": 0,
           "minLabelRouteClearance": 44.3,
           "desktopReadabilityIssues": 0,
-          "minProjectedNodeTextPx": null,
+          "viewportHeightIssues": 0,
+          "minProjectedNodeTextPx": 6.027777777777779,
           "maxBends": 3,
           "routesOverSuggestedBends": 1,
           "maxStretch": 1.369,
@@ -1256,6 +1495,45 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "segmentPx": 16,
           "microSegmentPx": 8
         },
+        "routeReview": {
+          "crossings": [],
+          "detours": [
+            {
+              "relationship": {
+                "id": "consent-enrichment",
+                "from": "edge",
+                "to": "consent",
+                "label": "identity + consent",
+                "collectionIndex": 2,
+                "artifactIndex": 3
+              },
+              "bends": 3,
+              "stretch": 1.369
+            }
+          ]
+        },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
+        },
+        "desktopReadability": {
+          "budgetBasis": "legacy-930",
+          "readerContract": "declared-wide-v1",
+          "availableDiagramWidth": 930,
+          "actualBudgetPx": 930,
+          "limit": "legacy",
+          "requestedTargetPx": null,
+          "requestedTargetMet": null,
+          "hardFloorPx": 6,
+          "hardFloorMet": true,
+          "minimumOwner": {
+            "kind": "node",
+            "id": "web"
+          },
+          "minimumSourceTextPx": 7,
+          "minimumProjectedTextPx": 6.027777777777779,
+          "semanticTextCount": 30
+        },
         "issues": []
       }
     },
@@ -1267,24 +1545,16 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
       "input": "gallery/sources/async-job-roundtrip.sequence.json",
       "artifact": "gallery/artifacts/async-job-roundtrip.sequence.html",
       "focus": "queue",
-      "view": "work-and-retry",
-      "viewCount": 3,
-      "viewIds": [
-        "accept-and-enqueue",
-        "work-and-retry",
-        "observe-final-state"
-      ],
-      "guidedPlayback": true,
       "schemaVersion": 1,
       "visualPreset": "signal-flow",
       "animation": "trace",
       "engineeringProfile": null,
       "nodeCount": 7,
       "edgeCount": 14,
-      "artifactBytes": 824237,
-      "artifactSha256": "16489c3e61f4733b398ffee6cc5b969f5fd82cb1462d0b007c441632b2497e07",
-      "sourceBytes": 4370,
-      "sourceSha256": "545f20920c89b69c2bb1f15508d5543fddbeb15cffba61e102206e04bd5a5cd9",
+      "artifactBytes": 821499,
+      "artifactSha256": "3370a2ec08d50224e8a5f85d1d34166f37ea641576ca134f067d684baaf48549",
+      "sourceBytes": 3766,
+      "sourceSha256": "b8c6c52f1763ede2933c77deb8da59b3e06917bc41d27e66df896136456b859a",
       "checks": [
         {
           "name": "single_svg",
@@ -1329,22 +1599,25 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
         "status": "pass",
         "summary": {
           "errors": 0,
-          "warnings": 0
+          "warnings": 1
         },
         "metrics": {
           "properCrossings": 0,
+          "resolvedCrossovers": 0,
           "ambiguousCorridors": 0,
+          "arrowheadCollisions": 0,
           "containerBorderRuns": 0,
           "labelRouteClearanceIssues": 0,
           "labelCanvasOverflowIssues": 0,
           "minLabelRouteClearance": 22,
           "desktopReadabilityIssues": 0,
-          "minProjectedNodeTextPx": null,
+          "viewportHeightIssues": 1,
+          "minProjectedNodeTextPx": 7,
           "maxBends": 0,
           "routesOverSuggestedBends": 0,
           "maxStretch": 1,
           "routesOverSuggestedStretch": 0,
-          "minSegmentPx": 94,
+          "minSegmentPx": 91.3,
           "minInteriorSegmentPx": null,
           "shortSegmentCount": 0,
           "shortEndpointSegmentCount": 0,
@@ -1357,7 +1630,63 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "segmentPx": 16,
           "microSegmentPx": 8
         },
-        "issues": []
+        "routeReview": {
+          "crossings": [],
+          "detours": []
+        },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
+        },
+        "sequenceColumnSpace": {
+          "measured": true,
+          "columnFit": "spread",
+          "participantCount": 7,
+          "occupiedRight": 780,
+          "viewBoxLeft": 0,
+          "canvasWidth": 820,
+          "emptyRightPx": 40,
+          "emptyRightRatio": 0.049,
+          "typicalParticipantWidth": 86,
+          "reviewSuggested": false
+        },
+        "desktopReadability": {
+          "budgetBasis": "legacy-930",
+          "readerContract": "declared-wide-v1",
+          "availableDiagramWidth": 930,
+          "actualBudgetPx": 930,
+          "limit": "legacy",
+          "requestedTargetPx": null,
+          "requestedTargetMet": null,
+          "hardFloorPx": 6,
+          "hardFloorMet": true,
+          "minimumOwner": {
+            "kind": "node",
+            "id": "client"
+          },
+          "minimumSourceTextPx": 7,
+          "minimumProjectedTextPx": 7,
+          "semanticTextCount": 28
+        },
+        "issues": [
+          {
+            "severity": "warning",
+            "code": "composition/viewport-height",
+            "readerFit": null,
+            "viewBoxWidth": 820,
+            "viewBoxHeight": 920,
+            "viewportWidth": 1440,
+            "viewportHeight": 900,
+            "ratio": 0.89,
+            "wideRatio": 1.55,
+            "svgWidthPx": 1346,
+            "svgHeightPx": 1510,
+            "fixedChromePx": 126,
+            "pageHeightPx": 1636,
+            "overflowPx": 736,
+            "detail": "[composition/viewport-height] Preserve every node, relationship, and label. This 820x920 canvas (ratio 0.89) declares no intrinsic-height fit and is below the 1.55 wide ratio, so the desktop Reader can neither narrow it nor accept vertical scroll: it renders 1510px tall at the full 1346px width and the page reaches 1636px before cards against 900px, a certain visual-check failure. Either compact vertical spacing so meta.viewBox height is at most 529 at this width, or spread content sideways so the width is at least 1426 at this height; for architecture and readable-v2 workflow, omitting meta.viewBox lets the renderer size the canvas and declare the fit."
+          }
+        ]
       }
     },
     {
@@ -1368,24 +1697,16 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
       "input": "gallery/sources/event-stream.dataflow.json",
       "artifact": "gallery/artifacts/event-stream.dataflow.html",
       "focus": "orders",
-      "view": "order-transit",
-      "viewCount": 3,
-      "viewIds": [
-        "order-transit",
-        "payment-transit",
-        "failure-and-replay"
-      ],
-      "guidedPlayback": true,
       "schemaVersion": 1,
       "visualPreset": "signal-flow",
       "animation": "trace",
       "engineeringProfile": null,
       "nodeCount": 12,
       "edgeCount": 12,
-      "artifactBytes": 831472,
-      "artifactSha256": "db560447724f04e9b1b8606999d95a4b7560d54f939d10319254789ffd37e366",
-      "sourceBytes": 5433,
-      "sourceSha256": "a92d6597ddbe164f395da32a7d4b33cfae08edd7d9600a6fb45a2058e5bbb43e",
+      "artifactBytes": 827360,
+      "artifactSha256": "e4557dd7d1671f2045bca4e3fbd5453e62e4738835de8c017089bd1ec7316d3d",
+      "sourceBytes": 4769,
+      "sourceSha256": "3bdd77674282009c7c68d588cf8a3c495bc98a3be1b9c45327fd1801a6f83a23",
       "checks": [
         {
           "name": "single_svg",
@@ -1430,17 +1751,20 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
         "status": "pass",
         "summary": {
           "errors": 0,
-          "warnings": 0
+          "warnings": 1
         },
         "metrics": {
           "properCrossings": 0,
+          "resolvedCrossovers": 0,
           "ambiguousCorridors": 0,
+          "arrowheadCollisions": 0,
           "containerBorderRuns": 0,
           "labelRouteClearanceIssues": 0,
           "labelCanvasOverflowIssues": 0,
           "minLabelRouteClearance": 9,
           "desktopReadabilityIssues": 0,
-          "minProjectedNodeTextPx": null,
+          "viewportHeightIssues": 1,
+          "minProjectedNodeTextPx": 6.027777777777779,
           "maxBends": 4,
           "routesOverSuggestedBends": 1,
           "maxStretch": 2.663,
@@ -1458,7 +1782,63 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "segmentPx": 16,
           "microSegmentPx": 8
         },
-        "issues": []
+        "routeReview": {
+          "crossings": [],
+          "detours": [
+            {
+              "relationship": {
+                "from": "validate",
+                "to": "dlq",
+                "label": "invalid event",
+                "collectionIndex": 8,
+                "artifactIndex": 9
+              },
+              "bends": 4,
+              "stretch": 2.663
+            }
+          ]
+        },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
+        },
+        "desktopReadability": {
+          "budgetBasis": "legacy-930",
+          "readerContract": "declared-wide-v1",
+          "availableDiagramWidth": 930,
+          "actualBudgetPx": 930,
+          "limit": "legacy",
+          "requestedTargetPx": null,
+          "requestedTargetMet": null,
+          "hardFloorPx": 6,
+          "hardFloorMet": true,
+          "minimumOwner": {
+            "kind": "node",
+            "id": "checkout"
+          },
+          "minimumSourceTextPx": 7,
+          "minimumProjectedTextPx": 6.027777777777779,
+          "semanticTextCount": 36
+        },
+        "issues": [
+          {
+            "severity": "warning",
+            "code": "composition/viewport-height",
+            "readerFit": null,
+            "viewBoxWidth": 1080,
+            "viewBoxHeight": 780,
+            "viewportWidth": 1440,
+            "viewportHeight": 900,
+            "ratio": 1.38,
+            "wideRatio": 1.55,
+            "svgWidthPx": 1346,
+            "svgHeightPx": 972,
+            "fixedChromePx": 126,
+            "pageHeightPx": 1098,
+            "overflowPx": 198,
+            "detail": "[composition/viewport-height] Preserve every node, relationship, and label. This 1080x780 canvas (ratio 1.38) declares no intrinsic-height fit and is below the 1.55 wide ratio, so the desktop Reader can neither narrow it nor accept vertical scroll: it renders 972px tall at the full 1346px width and the page reaches 1098px before cards against 900px, a certain visual-check failure. Either compact vertical spacing so meta.viewBox height is at most 696 at this width, or spread content sideways so the width is at least 1209 at this height; for architecture and readable-v2 workflow, omitting meta.viewBox lets the renderer size the canvas and declare the fit."
+          }
+        ]
       }
     },
     {
@@ -1469,24 +1849,16 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
       "input": "gallery/sources/agent-run.lifecycle.json",
       "artifact": "gallery/artifacts/agent-run.lifecycle.html",
       "focus": "approval",
-      "view": "main-lifecycle",
-      "viewCount": 3,
-      "viewIds": [
-        "main-lifecycle",
-        "human-waits",
-        "recovery-and-exits"
-      ],
-      "guidedPlayback": true,
-      "schemaVersion": 1,
+      "schemaVersion": 3,
       "visualPreset": "classic",
       "animation": "trace",
       "engineeringProfile": null,
       "nodeCount": 10,
-      "edgeCount": 6,
-      "artifactBytes": 820551,
-      "artifactSha256": "5d035aebc0141c63d6266ccc2134078906f979a0d6480e2f81de9af3fae995e4",
-      "sourceBytes": 4044,
-      "sourceSha256": "7c0ad72ee7affbd6c6e4758b7520d61ddd4508c917acf36beabcad3ee7ca3ba7",
+      "edgeCount": 12,
+      "artifactBytes": 827248,
+      "artifactSha256": "25a2d476a97951efe30517d86ee64bc33a9827efe1db08d47e28f98dd619e48c",
+      "sourceBytes": 3260,
+      "sourceSha256": "5ba36f5ce91ed428cb48b599e275424916d82b619b9a3231cbd1bbc3966fc54b",
       "checks": [
         {
           "name": "single_svg",
@@ -1535,19 +1907,22 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
         },
         "metrics": {
           "properCrossings": 0,
+          "resolvedCrossovers": 0,
           "ambiguousCorridors": 0,
+          "arrowheadCollisions": 0,
           "containerBorderRuns": 0,
           "labelRouteClearanceIssues": 0,
           "labelCanvasOverflowIssues": 0,
-          "minLabelRouteClearance": null,
+          "minLabelRouteClearance": 26.4,
           "desktopReadabilityIssues": 0,
-          "minProjectedNodeTextPx": null,
-          "maxBends": 3,
-          "routesOverSuggestedBends": 2,
-          "maxStretch": 3.267,
-          "routesOverSuggestedStretch": 2,
-          "minSegmentPx": 18,
-          "minInteriorSegmentPx": 78,
+          "viewportHeightIssues": 0,
+          "minProjectedNodeTextPx": 7.265625,
+          "maxBends": 2,
+          "routesOverSuggestedBends": 0,
+          "maxStretch": 1,
+          "routesOverSuggestedStretch": 0,
+          "minSegmentPx": 34,
+          "minInteriorSegmentPx": 64,
           "shortSegmentCount": 0,
           "shortEndpointSegmentCount": 0,
           "shortInteriorSegmentCount": 0,
@@ -1558,6 +1933,32 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "stretch": 1.35,
           "segmentPx": 16,
           "microSegmentPx": 8
+        },
+        "routeReview": {
+          "crossings": [],
+          "detours": []
+        },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
+        },
+        "desktopReadability": {
+          "budgetBasis": "legacy-930",
+          "readerContract": "declared-wide-v1",
+          "availableDiagramWidth": 930,
+          "actualBudgetPx": 930,
+          "limit": "legacy",
+          "requestedTargetPx": null,
+          "requestedTargetMet": null,
+          "hardFloorPx": 6,
+          "hardFloorMet": true,
+          "minimumOwner": {
+            "kind": "node",
+            "id": "queued"
+          },
+          "minimumSourceTextPx": 9,
+          "minimumProjectedTextPx": 7.265625,
+          "semanticTextCount": 32
         },
         "issues": []
       }
@@ -1570,24 +1971,16 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
       "input": "gallery/sources/deployment-release.lifecycle.json",
       "artifact": "gallery/artifacts/deployment-release.lifecycle.html",
       "focus": "live",
-      "view": "rollback-outcomes",
-      "viewCount": 3,
-      "viewIds": [
-        "promotion-rail",
-        "approval-gate",
-        "rollback-outcomes"
-      ],
-      "guidedPlayback": true,
-      "schemaVersion": 1,
+      "schemaVersion": 3,
       "visualPreset": "signal-flow",
       "animation": "trace",
       "engineeringProfile": null,
-      "nodeCount": 11,
-      "edgeCount": 6,
-      "artifactBytes": 822093,
-      "artifactSha256": "d3b4ce045a312498fc40a238db646898b7176930305df0f1f04293baf980c7ae",
-      "sourceBytes": 4274,
-      "sourceSha256": "735c2c5819266e6ea2a71775b6eefce98b53030ce90cb721dc8e1d022ce5be71",
+      "nodeCount": 12,
+      "edgeCount": 15,
+      "artifactBytes": 834273,
+      "artifactSha256": "00e6c5710cb612d7984d2e7ff0f08cced3451db3520bced29020bf9771d9dc75",
+      "sourceBytes": 4155,
+      "sourceSha256": "e3dc105d03c1c9881160006cdace23cb5d8533803e337caf0ec287c64e775275",
       "checks": [
         {
           "name": "single_svg",
@@ -1636,19 +2029,22 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
         },
         "metrics": {
           "properCrossings": 0,
+          "resolvedCrossovers": 0,
           "ambiguousCorridors": 0,
+          "arrowheadCollisions": 0,
           "containerBorderRuns": 0,
           "labelRouteClearanceIssues": 0,
           "labelCanvasOverflowIssues": 0,
-          "minLabelRouteClearance": null,
+          "minLabelRouteClearance": 6,
           "desktopReadabilityIssues": 0,
-          "minProjectedNodeTextPx": null,
-          "maxBends": 0,
+          "viewportHeightIssues": 0,
+          "minProjectedNodeTextPx": 6.518691588785047,
+          "maxBends": 2,
           "routesOverSuggestedBends": 0,
-          "maxStretch": 1,
+          "maxStretch": 1.246,
           "routesOverSuggestedStretch": 0,
-          "minSegmentPx": 90,
-          "minInteriorSegmentPx": null,
+          "minSegmentPx": 30,
+          "minInteriorSegmentPx": 68,
           "shortSegmentCount": 0,
           "shortEndpointSegmentCount": 0,
           "shortInteriorSegmentCount": 0,
@@ -1659,6 +2055,32 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "stretch": 1.35,
           "segmentPx": 16,
           "microSegmentPx": 8
+        },
+        "routeReview": {
+          "crossings": [],
+          "detours": []
+        },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
+        },
+        "desktopReadability": {
+          "budgetBasis": "legacy-930",
+          "readerContract": "declared-wide-v1",
+          "availableDiagramWidth": 930,
+          "actualBudgetPx": 930,
+          "limit": "legacy",
+          "requestedTargetPx": null,
+          "requestedTargetMet": null,
+          "hardFloorPx": 6,
+          "hardFloorMet": true,
+          "minimumOwner": {
+            "kind": "node",
+            "id": "queued"
+          },
+          "minimumSourceTextPx": 9,
+          "minimumProjectedTextPx": 6.518691588785047,
+          "semanticTextCount": 38
         },
         "issues": []
       }
@@ -1671,24 +2093,16 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
       "input": "gallery/sources/web-app.architecture.json",
       "artifact": "gallery/artifacts/web-app.architecture.html",
       "focus": "api",
-      "view": "request-path",
-      "viewCount": 3,
-      "viewIds": [
-        "request-path",
-        "identity-and-cache",
-        "async-work"
-      ],
-      "guidedPlayback": true,
       "schemaVersion": 1,
       "visualPreset": "classic",
       "animation": "static",
       "engineeringProfile": null,
       "nodeCount": 10,
       "edgeCount": 9,
-      "artifactBytes": 822190,
-      "artifactSha256": "b23c18a8847f63960c7bd6aab13bb126987e338c11ecbae5608f9fe9229686b9",
-      "sourceBytes": 3793,
-      "sourceSha256": "483350f5297df682aba4e4a0fa491307ce3d3abd725ae4df07fab177490752cf",
+      "artifactBytes": 825782,
+      "artifactSha256": "92a7eeb1b5f751a09bfe7c550316fb70a41afc5c01fb6f3dd6bdde02ab62cdfe",
+      "sourceBytes": 3197,
+      "sourceSha256": "95e051b27a9e4a3307e194c0f666fca4af51470be7e2228d400ff48aea5b353b",
       "checks": [
         {
           "name": "single_svg",
@@ -1737,13 +2151,16 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
         },
         "metrics": {
           "properCrossings": 0,
+          "resolvedCrossovers": 0,
           "ambiguousCorridors": 0,
+          "arrowheadCollisions": 0,
           "containerBorderRuns": 0,
           "labelRouteClearanceIssues": 0,
           "labelCanvasOverflowIssues": 0,
           "minLabelRouteClearance": 20,
           "desktopReadabilityIssues": 0,
-          "minProjectedNodeTextPx": null,
+          "viewportHeightIssues": 0,
+          "minProjectedNodeTextPx": 7.5,
           "maxBends": 3,
           "routesOverSuggestedBends": 1,
           "maxStretch": 1,
@@ -1760,6 +2177,181 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "stretch": 1.35,
           "segmentPx": 16,
           "microSegmentPx": 8
+        },
+        "routeReview": {
+          "crossings": [],
+          "detours": [
+            {
+              "relationship": {
+                "id": "jwt-verification",
+                "from": "auth",
+                "to": "api",
+                "label": "verify JWT",
+                "collectionIndex": 1,
+                "artifactIndex": 2
+              },
+              "bends": 3,
+              "stretch": 1
+            }
+          ]
+        },
+        "leadingSpace": {
+          "measured": true,
+          "emptyTopPx": 110,
+          "emptyTopRatio": 0.187,
+          "occupiedTop": 110,
+          "viewBoxTop": 0,
+          "canvasHeight": 588,
+          "typicalNodeHeight": 60,
+          "reviewSuggested": false
+        },
+        "desktopReadability": {
+          "budgetBasis": "recognized-declared-wide",
+          "readerContract": "declared-wide-v1",
+          "availableDiagramWidth": 1012.5,
+          "actualBudgetPx": 1012.5,
+          "actualReaderWidth": 1042.5,
+          "desiredReaderWidth": 1042.5,
+          "viewportCap": 1376,
+          "limit": "source-size",
+          "requestedTargetPx": 7.5,
+          "requestedTargetMet": true,
+          "hardFloorPx": 6,
+          "hardFloorMet": true,
+          "minimumOwner": {
+            "kind": "edge",
+            "id": "users-to-cdn",
+            "from": "users",
+            "to": "cdn"
+          },
+          "minimumSourceTextPx": 8,
+          "minimumProjectedTextPx": 7.5,
+          "semanticTextCount": 28
+        },
+        "issues": []
+      }
+    },
+    {
+      "id": "orders",
+      "type": "erd",
+      "title": "Order management schema",
+      "subtitle": "",
+      "input": "gallery/sources/orders.erd.json",
+      "artifact": "gallery/artifacts/orders.erd.html",
+      "focus": "order",
+      "schemaVersion": 1,
+      "visualPreset": "classic",
+      "animation": "static",
+      "engineeringProfile": null,
+      "nodeCount": 6,
+      "edgeCount": 5,
+      "artifactBytes": 840844,
+      "artifactSha256": "a686b9a56f197a2573ce4c209562cd0a40a0e586c79e552de6851b580a16139e",
+      "sourceBytes": 7321,
+      "sourceSha256": "1777a374647084466f4d7ce3a968004be6ab70ac9cf82459b96bed7c556cdfdd",
+      "checks": [
+        {
+          "name": "single_svg",
+          "ok": true
+        },
+        {
+          "name": "finite_svg",
+          "ok": true
+        },
+        {
+          "name": "orthogonal_arrows",
+          "ok": true
+        },
+        {
+          "name": "label_route_clearance",
+          "ok": true
+        },
+        {
+          "name": "relationship_crossings",
+          "ok": true
+        },
+        {
+          "name": "relationship_corridors",
+          "ok": true
+        },
+        {
+          "name": "container_border_runs",
+          "ok": true
+        },
+        {
+          "name": "route_rhythm",
+          "ok": true
+        },
+        {
+          "name": "legend_clearance",
+          "ok": true
+        }
+      ],
+      "composition": {
+        "schemaVersion": 1,
+        "profile": "showcase",
+        "status": "pass",
+        "summary": {
+          "errors": 0,
+          "warnings": 0
+        },
+        "metrics": {
+          "properCrossings": 0,
+          "resolvedCrossovers": 0,
+          "ambiguousCorridors": 0,
+          "arrowheadCollisions": 0,
+          "containerBorderRuns": 0,
+          "labelRouteClearanceIssues": 0,
+          "labelCanvasOverflowIssues": 0,
+          "minLabelRouteClearance": 225,
+          "desktopReadabilityIssues": 0,
+          "viewportHeightIssues": 0,
+          "minProjectedNodeTextPx": 8.378378378378379,
+          "maxBends": 2,
+          "routesOverSuggestedBends": 0,
+          "maxStretch": 1,
+          "routesOverSuggestedStretch": 0,
+          "minSegmentPx": 16,
+          "minInteriorSegmentPx": 30,
+          "shortSegmentCount": 0,
+          "shortEndpointSegmentCount": 0,
+          "shortInteriorSegmentCount": 0,
+          "microSegmentCount": 0
+        },
+        "suggestedLimits": {
+          "bendsPerRelationship": 2,
+          "stretch": 1.35,
+          "segmentPx": 16,
+          "microSegmentPx": 8
+        },
+        "routeReview": {
+          "crossings": [],
+          "detours": []
+        },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
+        },
+        "desktopReadability": {
+          "budgetBasis": "recognized-declared-wide",
+          "readerContract": "declared-wide-v1",
+          "availableDiagramWidth": 930,
+          "actualBudgetPx": 930,
+          "actualReaderWidth": 960,
+          "desiredReaderWidth": 960,
+          "viewportCap": 1376,
+          "limit": "source-size",
+          "requestedTargetPx": 7.5,
+          "requestedTargetMet": true,
+          "hardFloorPx": 6,
+          "hardFloorMet": true,
+          "minimumOwner": {
+            "kind": "node",
+            "id": "customer"
+          },
+          "minimumSourceTextPx": 9,
+          "minimumProjectedTextPx": 8.378378378378379,
+          "semanticTextCount": 92
         },
         "issues": []
       }
@@ -1820,7 +2412,7 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
       document.getElementById('language').addEventListener('click', function () { applyLanguage(language === 'en' ? 'zh' : 'en'); });
       document.getElementById('preview-theme').addEventListener('click', function () { applyPreviewTheme(previewTheme === 'dark' ? 'light' : 'dark'); });
 
-      var allowed = ['architecture', 'workflow', 'sequence', 'dataflow', 'lifecycle'];
+      var allowed = ['architecture', 'workflow', 'sequence', 'dataflow', 'lifecycle', 'erd'];
       var requested = new URLSearchParams(location.search).get('type') || 'all';
       applyFilter(allowed.indexOf(requested) >= 0 ? requested : 'all', false);
       applyLanguage(language);

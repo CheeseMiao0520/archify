@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Automatic label corridor",
+    "output": "diagram.html",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "stages": [
+    {
+      "label": "输入结果"
+    },
+    {
+      "label": "分支条件"
+    },
+    {
+      "label": "清理与交付"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n7",
+      "type": "backend",
+      "label": "请求状态判定",
+      "sublabel": "Kind / active / 其他",
+      "stage": 1,
+      "row": 0
+    },
+    {
+      "id": "n8",
+      "type": "backend",
+      "label": "结果处理",
+      "sublabel": "最终处理结果或连接异常",
+      "stage": 1,
+      "row": 1
+    },
+    {
+      "id": "n9",
+      "type": "backend",
+      "label": "submit 提交",
+      "sublabel": "结果确认值 · 继续收尾",
+      "stage": 1,
+      "row": 2
+    },
+    {
+      "id": "n10",
+      "type": "backend",
+      "label": "输入 / 处理异常",
+      "sublabel": "expired / refused / missing",
+      "stage": 0,
+      "row": 4
+    },
+    {
+      "id": "n11",
+      "type": "backend",
+      "label": "cleanup 收尾",
+      "sublabel": "worker.clear() · 完成交付",
+      "stage": 2,
+      "row": 2
+    },
+    {
+      "id": "n12",
+      "type": "backend",
+      "label": "调用方接收结果",
+      "sublabel": "选定结果字典或异常值",
+      "stage": 2,
+      "row": 4
+    }
+  ],
+  "flows": [
+    {
+      "id": "f9",
+      "from": "n7",
+      "to": "n11",
+      "label": "状态非 active 或 Idle",
+      "variant": "dashed",
+      "classification": "控制条件"
+    },
+    {
+      "id": "f10",
+      "from": "n8",
+      "to": "n11",
+      "label": "处理已结束或 EOF",
+      "variant": "dashed",
+      "classification": "控制条件"
+    },
+    {
+      "id": "f11",
+      "from": "n9",
+      "to": "n11",
+      "label": "请求结束或 EOF",
+      "variant": "dashed",
+      "classification": "控制条件"
+    },
+    {
+      "id": "f12",
+      "from": "n10",
+      "to": "n11",
+      "label": "捕获指定处理异常",
+      "variant": "dashed",
+      "classification": "控制条件"
+    },
+    {
+      "id": "f13",
+      "from": "n11",
+      "to": "n12",
+      "label": "close 收尾后交付",
+      "variant": "dashed",
+      "classification": "控制条件"
+    },
+    {
+      "id": "f14",
+      "from": "n7",
+      "to": "n12",
+      "label": "中间值或输入错误",
+      "variant": "default",
+      "classification": "结果数据"
+    },
+    {
+      "id": "f15",
+      "from": "n8",
+      "to": "n12",
+      "label": "result 或处理错误",
+      "variant": "default",
+      "classification": "结果数据"
+    },
+    {
+      "id": "f16",
+      "from": "n9",
+      "to": "n12",
+      "label": "中间值或输入错误",
+      "variant": "default",
+      "classification": "结果数据"
+    },
+    {
+      "id": "f17",
+      "from": "n10",
+      "to": "n12",
+      "label": "result:error 字典",
+      "variant": "default",
+      "classification": "结果数据"
+    }
+  ]
+}

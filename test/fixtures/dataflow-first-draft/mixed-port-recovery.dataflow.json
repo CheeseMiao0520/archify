@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Mixed input and cleanup paths",
+    "output": "diagram.html",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "stages": [
+    {
+      "label": "读取"
+    },
+    {
+      "label": "结果"
+    },
+    {
+      "label": "处理"
+    },
+    {
+      "label": "存储"
+    }
+  ],
+  "nodes": [
+    {
+      "type": "backend",
+      "stage": 0,
+      "row": 0,
+      "id": "n0",
+      "label": "读取"
+    },
+    {
+      "type": "backend",
+      "stage": 2,
+      "row": 2,
+      "id": "n1",
+      "label": "处理"
+    },
+    {
+      "type": "backend",
+      "stage": 3,
+      "row": 2,
+      "id": "n2",
+      "label": "保存"
+    },
+    {
+      "type": "backend",
+      "stage": 2,
+      "row": 3,
+      "id": "n3",
+      "label": "释放"
+    },
+    {
+      "type": "backend",
+      "stage": 1,
+      "row": 3,
+      "id": "n4",
+      "label": "发布"
+    },
+    {
+      "type": "backend",
+      "stage": 2,
+      "row": 4,
+      "id": "n5",
+      "label": "一级"
+    },
+    {
+      "type": "backend",
+      "stage": 3,
+      "row": 4,
+      "id": "n6",
+      "label": "二级"
+    }
+  ],
+  "flows": [
+    {
+      "id": "e0",
+      "from": "n1",
+      "to": "n2",
+      "label": "value · key · TTL",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e1",
+      "from": "n2",
+      "to": "n5",
+      "label": "value · TTL",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e2",
+      "from": "n2",
+      "to": "n6",
+      "label": "可选存储：value · TTL",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e3",
+      "from": "n6",
+      "to": "n0",
+      "label": "一级未命中：二级值",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e4",
+      "from": "n2",
+      "to": "n3",
+      "label": "已持有：处理完成或失败",
+      "variant": "dashed"
+    },
+    {
+      "id": "e5",
+      "from": "n1",
+      "to": "n3",
+      "label": "已持有：处理异常",
+      "variant": "dashed"
+    },
+    {
+      "id": "e6",
+      "from": "n2",
+      "to": "n4",
+      "label": "未持有：完成或失败",
+      "variant": "dashed"
+    },
+    {
+      "id": "e7",
+      "from": "n1",
+      "to": "n4",
+      "label": "未持有：处理异常",
+      "variant": "dashed"
+    },
+    {
+      "id": "e8",
+      "from": "n3",
+      "to": "n4",
+      "label": "释放完成（含异常）",
+      "variant": "dashed"
+    }
+  ]
+}
