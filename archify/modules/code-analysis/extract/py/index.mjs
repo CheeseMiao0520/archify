@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fail } from '../shared/diagnostics.mjs';
-import { classifyRole, listFiles, snapshotFiles } from '../shared/files.mjs';
+import { classifyRole, listFiles, snapshotFiles, listPackageMarkers } from '../shared/files.mjs';
 import { describeRepository } from '../shared/git.mjs';
 
 export const id = 'py';
@@ -93,6 +93,7 @@ export function extract(root, config) {
     schema_version: 1,
     repository: { ...repo, language: 'py', adapter: `python@${output.python}` },
     files: fileRecords,
+    packageMarkers: listPackageMarkers(absRoot, config),
     imports,
     symbols: symbols.sort((a, b) => compareText(a.file, b.file) || a.line - b.line || compareText(a.name, b.name)),
     calls: [],

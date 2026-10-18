@@ -84,10 +84,17 @@ export function buildOverlay({ ir, graph, html, map, facts = null, findings = []
     snippets: sourceRoot ? collectSnippets(findings, sourceRoot, components, facts) : {},
   };
 
-  const injection = `\n<!-- bauify overlay: authored diagram untouched; analysis layer below -->\n<script type="application/json" id="bauify-analysis">${JSON.stringify(payload).replace(/<\//g, '<\\/')}</script>\n<style id="bauify-style">${CSS}</style>\n<script id="bauify-script">${JS}</script>\n`;
+  const injection = `\n<!-- bauify overlay: authored diagram untouched; analysis layer below -->\n<script type="application/json" id="bauify-analysis">${scriptSafeJson(payload)}</script>\n<style id="bauify-style">${CSS}</style>\n<script id="bauify-script">${JS}</script>\n`;
   const idx = html.lastIndexOf('</body>');
   const out = idx === -1 ? html + injection : html.slice(0, idx) + injection + html.slice(idx);
   return { html: out, mapped: components.filter((c) => c.modules.length).length, components: components.length, edges: edges.length, unmapped: unmapped.length, snippets: Object.keys(payload.snippets).length };
+}
+
+// Embedded source text can contain `<!--` or `<script`, which move the HTML
+// tokenizer into script-data escape states where the closing </script> no
+// longer ends the element. Escaping every `<` keeps the JSON valid and inert.
+export function scriptSafeJson(value) {
+  return JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 }
 
 // A finding touches a component when its subject names the component, one of
@@ -772,7 +779,13 @@ const JS = `
     } else { if (layer) layer.remove(); layer = null; panel.hidden = true; detail.hidden = true; codePane.hidden = true; hint.hidden = true; svg.querySelectorAll('.bauify-mapped').forEach(function (g) { g.classList.remove('bauify-mapped'); }); }
   }
   btn.addEventListener('click', function () { setOn(root.getAttribute('data-bauify') !== 'on'); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'c' || e.key === 'C') { if (['INPUT', 'TEXTAREA'].indexOf((e.target && e.target.tagName) || '') === -1) btn.click(); } });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'c' && e.key !== 'C') return;
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || e.isComposing || e.defaultPrevented) return;
+    var t = e.target;
+    if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].indexOf(t.tagName || '') !== -1)) return;
+    btn.click();
+  });
   svg.addEventListener('click', function (e) {
     if (root.getAttribute('data-bauify') !== 'on') return;
     var g = e.target.closest && e.target.closest('g[data-node-id]');

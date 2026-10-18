@@ -9,6 +9,15 @@ export function toPosix(p) {
   return p.split(path.sep).join('/');
 }
 
+// Package boundaries are declared by marker files the adapters do not parse
+// (package.json, pyproject.toml). Record their paths separately so module
+// grouping can honour them; directories the config excludes stay excluded.
+export const PACKAGE_MARKERS = ['package.json', 'pyproject.toml', '__init__.py'];
+
+export function listPackageMarkers(root, config) {
+  return collectFiles(root, { include: PACKAGE_MARKERS.map(name => `**/${name}`), exclude: config.exclude || [] }).map(entry => entry.rel);
+}
+
 export function listFiles(root, config) {
   return collectFiles(root, config).map(entry => entry.rel);
 }

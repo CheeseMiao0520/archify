@@ -171,3 +171,47 @@ test('source snapshots reject a file swapped between path validation and descrip
   try { assert.throws(() => snapshotFiles(root, config), error => error.diagnostics?.[0].code === 'extract/source-changed'); }
   finally { fs.openSync = original; }
 });
+
+test('package.json and pyproject.toml set module boundaries even though adapters only list sources', async t => {
+  const { extract: extractTs } = await import('../extract/ts/index.mjs');
+  const { buildModuleGraph } = await import('../graphs/module.mjs');
+  const ts = fixture(t, {
+    'packages/app/package.json': '{"name":"app"}',
+    'packages/app/src/core/a.mjs': "import '../util/b.mjs';\n",
+    'packages/app/src/util/b.mjs': 'export const b = 1;\n',
+    'packages/lib/package.json': '{"name":"lib"}',
+    'packages/lib/src/c.mjs': 'export const c = 1;\n',
+    'dist/package.json': '{"name":"built"}',
+  });
+  const tsFacts = extractTs(ts, config);
+  assert.deepEqual(tsFacts.packageMarkers, ['packages/app/package.json', 'packages/lib/package.json']);
+  const tsGraph = buildModuleGraph(tsFacts, { modules: { depth: 3 } });
+  assert.deepEqual(tsGraph.modules.map(m => m.label).sort(), ['packages/app', 'packages/lib']);
+
+  const py = fixture(t, {
+    'svc/pyproject.toml': '[project]\nname = "svc"\n',
+    'svc/handlers/http.py': 'from svc.core import run\n',
+    'svc/core/run.py': 'def run(): pass\n',
+  });
+  const pyFacts = extract(py, config);
+  assert.deepEqual(pyFacts.packageMarkers, ['svc/pyproject.toml']);
+  assert.deepEqual(buildModuleGraph(pyFacts, { modules: { depth: 3 } }).modules.map(m => m.label), ['svc']);
+  assert.deepEqual(buildModuleGraph({ ...pyFacts, packageMarkers: undefined }, { modules: { depth: 3 } }).modules.map(m => m.label).sort(), ['svc/core', 'svc/handlers']);
+});
+
+test('an install lock left by an exited process is reclaimed; a live owner is waited for', async t => {
+  const root = fixture(t);
+  const lock = path.join(fs.realpathSync(root), '.code-analysis-install.lock');
+  const child = spawn(process.execPath, ['-e', '0']);
+  await new Promise(resolve => child.on('exit', resolve));
+  fs.mkdirSync(lock);
+  fs.writeFileSync(path.join(lock, 'owner.json'), JSON.stringify({ pid: child.pid, host: `${process.platform}:${os.hostname()}` }));
+  assert.equal(await withInstallLock(root, () => 'ran', 2000), 'ran');
+  assert.equal(fs.existsSync(lock), false);
+
+  fs.mkdirSync(lock);
+  fs.writeFileSync(path.join(lock, 'owner.json'), JSON.stringify({ pid: process.pid, host: `${process.platform}:${os.hostname()}` }));
+  await assert.rejects(withInstallLock(root, () => 'stolen', 300), /Timed out waiting/);
+  assert.equal(fs.existsSync(lock), true, 'a live owner keeps its lock');
+  fs.rmSync(lock, { recursive: true });
+});
