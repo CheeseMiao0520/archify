@@ -56,6 +56,8 @@ export function run({ graph, config, facts }) {
         subject: { file: fn.file, function: fn.qualname, line: fn.line, endLine: fn.endLine },
         evidence: {
           threshold: limits[level],
+          // Both levels: the finding goes away only below the info level, whatever level it was reported at.
+          thresholds: limits,
           complexity: fn.complexity,
           nesting: fn.nesting,
           deepestLine: fn.deepestLine,

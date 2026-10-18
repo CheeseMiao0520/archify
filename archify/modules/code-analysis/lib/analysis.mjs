@@ -170,7 +170,16 @@ export function loadBaseline(file) {
 
 // Previous findings.json → document, or null when there is none or it is not
 // a readable findings document (a comparison is optional, never a failure).
-export function loadPrevious(file) {
+// With `strict` (an explicitly requested comparison), an unreadable or invalid
+// file is an input error instead: silently comparing with nothing would let a
+// `--new-only` gate pass on a corrupted artifact.
+export function loadPrevious(file, { strict = false } = {}) {
+  if (strict) {
+    const doc = readJsonInput(file, 'check --compare');
+    const errors = schemaErrors('findings', doc);
+    if (errors.length) fail('cli/input-invalid', `${file} is not a findings.json document.`, { subject: { option: '--compare', file }, evidence: { errors: errors.slice(0, 20) }, supportedFixes: ['pass the findings.json written by an earlier analysis run'] });
+    return doc;
+  }
   if (!file || !fs.existsSync(file)) return null;
   try {
     const doc = JSON.parse(fs.readFileSync(file, 'utf8'));

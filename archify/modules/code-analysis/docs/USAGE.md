@@ -73,7 +73,7 @@ Nested named functions are measured on their own:
 - in Python: methods and nested `def`s;
 - in JS/TS: methods, constructors, accessors, and arrow or function expressions assigned to a name.
 
-Lambdas and anonymous callbacks count toward the function that contains them. A callback at module level has no such function, so it is measured on its own, named after the call it is passed to, such as `<callback of server.on>`. Test and generated files are skipped.
+Lambdas and anonymous callbacks count toward the function that contains them. A callback at module level has no such function, so it is measured on its own, named after the call it is passed to, and its first literal argument, such as `<callback of server.on("request")>`. Test and generated files are skipped.
 
 A function is reported as info from complexity 15 or nesting 5, and as a warning from complexity 25 or nesting 6. Function length is shown as context but never reported on its own. A high count is a maintenance signal, not a defect. The problem page links to the function's first line and its deepest nested block.
 

@@ -951,7 +951,7 @@ const JS = `
     if (c) {
       var gone = c.notDetected || c.fixed || [];
       h += '<div class="ev review-line">Since the previous analysis: ' + c.new.length + ' new · ' + gone.length + ' no longer detected · ' + c.evidenceChanged.length + ' with changed evidence</div>';
-      if (c.comparable !== true) h += '<p class="ev comparison-notice">Results are not directly comparable: ' + esc((c.reasons || []).join(', ') || 'comparison context unavailable') + '. Missing findings do not establish a fix.</p>';
+      if (c.comparable !== true) h += '<p class="ev comparison-notice">Results are not directly comparable: ' + esc((c.reasons || []).map(function (r) { return typeof r === 'string' ? r : (r && (r.message || r.code)) || ''; }).filter(Boolean).join(' ') || 'comparison context unavailable') + '. Missing findings do not establish a fix.</p>';
       if (gone.length) h += '<details><summary>No longer detected · ' + gone.length + '</summary><div class="ev">' + gone.map(function (f) { return '<div>' + esc(GROUPS[f.code] || f.code) + ': ' + esc(f.message) + (f.likelyCause ? ' · ' + esc(f.likelyCause) : '') + '</div>'; }).join('') + '</div></details>';
     }
     var b = r.baseline;

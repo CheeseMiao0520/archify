@@ -15,8 +15,10 @@
 // property, a class field, an assignment target, export default). Anonymous
 // callbacks belong to the function that contains them, like Python lambdas. An
 // anonymous callback at module scope has no such function and is measured on
-// its own, named after the call it is passed to, so top-level handlers such as
-// `server.on('request', (req, res) => { … })` are not lost.
+// its own, named after the call it is passed to and its first literal argument,
+// so top-level handlers such as `server.on('request', (req, res) => { … })` are
+// not lost (`<callback of server.on("request")>`). Only callbacks with the same
+// call and literal get a `#2`, `#3` suffix in source order.
 // Overload signatures and other bodiless declarations are skipped.
 import ts from 'typescript';
 
@@ -154,9 +156,23 @@ function anonymousName(fn, source) {
   const parent = current.parent;
   if (parent && ts.isCallExpression(parent) && parent.arguments.includes(current)) {
     const callee = calleeName(parent.expression, source);
-    return `<callback of ${callee.length > 40 ? `${callee.slice(0, 39)}…` : callee}>`;
+    // The first literal argument (an event or route name) tells sibling registrations
+    // apart by what they are, not by their position, so adding or removing one callback
+    // does not rename the others: `server.on('request', …)` and `server.on('close', …)`.
+    const key = parent.arguments.find((arg) => arg !== current && isLiteralKey(arg));
+    const label = key ? `${callee}(${literalText(key)})` : callee;
+    return `<callback of ${label.length > 60 ? `${label.slice(0, 59)}…` : label}>`;
   }
   return '<anonymous>';
+}
+
+function isLiteralKey(node) {
+  return ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isNumericLiteral(node);
+}
+
+function literalText(node) {
+  const text = ts.isNumericLiteral(node) ? node.text : JSON.stringify(node.text);
+  return text.length > 40 ? `${text.slice(0, 39)}…` : text;
 }
 
 // `server.on`, `runCheck(…).then`: the called name without its arguments.

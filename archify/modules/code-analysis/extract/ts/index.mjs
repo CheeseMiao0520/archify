@@ -61,10 +61,20 @@ export function extract(root, config) {
   const unresolved = { external: 0, outside: 0, unknown: 0, opaque: 0 };
   const fileRecords = [];
   const functions = [];
+  const parseErrors = [];
 
   for (const rel of files) {
     const abs = path.join(absRoot, rel);
     const source = program.getSourceFile(abs);
+    // TypeScript recovers from syntax errors and returns a partial tree, so a broken
+    // file can silently lose its imports and functions. Record it like Python's
+    // parse_errors: coverage shows it, and run comparisons treat it as a scope change.
+    const syntax = program.getSyntacticDiagnostics(source);
+    if (syntax.length) {
+      const first = syntax[0];
+      const line = first.start === undefined ? null : source.getLineAndCharacterOfPosition(first.start).line + 1;
+      parseErrors.push({ path: rel, message: `${line ? `line ${line}: ` : ''}${ts.flattenDiagnosticMessageText(first.messageText, ' ')}${syntax.length > 1 ? ` (+${syntax.length - 1} more)` : ''}` });
+    }
     fileRecords.push({ path: rel, loc: lineCount(source.text), role: classifyRole(rel, config.roles), sourceText: source.text });
     if (!source.isDeclarationFile) functions.push(...measureFunctions(source, rel));
     for (const found of collectImports(source, checker, options)) {
@@ -91,6 +101,7 @@ export function extract(root, config) {
     symbols: [],
     functions: functions.sort((a, b) => compareText(a.file, b.file) || a.line - b.line || compareText(a.qualname, b.qualname)),
     calls: [],
+    ...(parseErrors.length ? { parse_errors: parseErrors } : {}),
     unresolved,
   };
 }

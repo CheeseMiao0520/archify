@@ -232,7 +232,7 @@ test('ts extraction: functions, methods, named arrows and module-scope callbacks
     assert.deepEqual(schemaErrors('raw-facts', facts), []);
     const byName = Object.fromEntries(facts.functions.map((f) => [f.qualname, f]));
     assert.deepEqual(Object.keys(byName).sort(), [
-      '<callback of server.on>', '<callback of server.on>#2', 'Engine.constructor', 'Engine.get size', 'Engine.step',
+      '<callback of server.on("close")>', '<callback of server.on("request")>', 'Engine.constructor', 'Engine.get size', 'Engine.step',
       'Engine.step.<locals>.inner', 'api.load', 'api.save', 'branches',
     ], 'the overload signature has no body and is skipped');
     // 1 + if + || + && + else-if + for-of + if + while + catch + && in the folded callback + ?? + ?:
@@ -243,8 +243,8 @@ test('ts extraction: functions, methods, named arrows and module-scope callbacks
     assert.equal(byName['Engine.step.<locals>.inner'].complexity, 2);
     assert.equal(byName['api.load'].complexity, 1, 'optional chaining is not a branch');
     assert.equal(byName['api.save'].complexity, 2);
-    assert.equal(byName['<callback of server.on>'].complexity, 2);
-    assert.equal(byName['<callback of server.on>'].line, 37);
+    assert.equal(byName['<callback of server.on("request")>'].complexity, 2);
+    assert.equal(byName['<callback of server.on("request")>'].line, 37);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -318,3 +318,25 @@ test('complexity: runs for JS/TS projects end to end', () => {
   }
 });
 
+
+test('ts extraction: module-scope callbacks are named by their call and literal, not their position', () => {
+  const before = "server.on('request', (req: any) => { if (req) return 1; return 0; });\n";
+  const after = "app.use(() => {});\nserver.on('error', () => {});\n" + before;
+  const names = (text) => {
+    const dir = tsTree({ 'src/s.ts': text });
+    try { return extractFacts(dir, { language: 'ts', config: loadConfig(null) }).facts.functions.map((f) => f.qualname); }
+    finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  };
+  assert.deepEqual(names(before), ['<callback of server.on("request")>']);
+  assert.ok(names(after).includes('<callback of server.on("request")>'), 'adding other handlers above keeps its name, so its finding id');
+  assert.deepEqual(names("emit('x', () => {});\nemit('x', () => {});\n"), ['<callback of emit("x")>', '<callback of emit("x")>#2']);
+});
+
+test('ts extraction: syntax errors are recorded as parse_errors', () => {
+  const dir = tsTree({ 'src/ok.ts': 'export const a = 1;\n', 'src/broken.ts': 'const s = `unterminated\nimport { a } from "./ok";\n' });
+  try {
+    const { facts } = extractFacts(dir, { language: 'ts', config: loadConfig(null) });
+    assert.deepEqual(schemaErrors('raw-facts', facts), []);
+    assert.deepEqual((facts.parse_errors || []).map((e) => e.path), ['src/broken.ts']);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});

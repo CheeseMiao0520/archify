@@ -165,12 +165,13 @@ test('AI task reader: evidence first, live validation, clipboard fallback, downl
   assert.ok(embedded);
   const payload = JSON.parse(embedded[1]);
   payload.snippets = {};
-  payload.overview.review = { comparison: { new: [], evidenceChanged: [], notDetected: [], comparable: false, reasons: ['scope-changed'] } };
+  payload.overview.review = { comparison: { new: [], evidenceChanged: [], notDetected: [], comparable: false, reasons: [{ code: 'scope-changed', message: 'Excluded file roles changed.' }] } };
   const unavailableFile = path.join(scratch, 'source-unavailable.html');
   fs.writeFileSync(unavailableFile, staticHtml.replace(embedded[1], () => JSON.stringify(payload).replace(/<\//g, '<\\/')));
   await navigate(pathToFileURL(unavailableFile).href);
   await run("document.getElementById('btn-bauify').click()");
-  assert.match(await run("document.querySelector('.comparison-notice').textContent"), /not directly comparable: scope-changed/);
+  assert.match(await run("document.querySelector('.comparison-notice').textContent"), /not directly comparable: Excluded file roles changed\./);
+  assert.doesNotMatch(await run("document.querySelector('.comparison-notice').textContent"), /\[object Object\]/);
   await openFinding();
   assert.match(await run("document.querySelector('.inline-evidence').textContent"), /Source unavailable/);
   await run("document.querySelector('.inline-evidence .ref').click()");

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { loadConfig, mergeConfig } from '../lib/analysis.mjs';
@@ -120,4 +121,43 @@ test('comparison: a previous run without analysis context has unknown comparabil
   assert.equal(comparability(findings.analysis, findings.analysis).comparable, true);
   const parse = comparability(findings.analysis, { ...findings.analysis, coverage: { ...findings.analysis.coverage, parseErrors: ['app/x.py'] } });
   assert.deepEqual(parse.reasons.map((r) => r.code), ['parse-errors']);
+});
+
+// ---- review findings on PR #992 -------------------------------------------
+
+test('comparison: findings with position-numbered ids stay readable and are flagged as not comparable', (t) => {
+  const dir = copySource();
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const { findings, facts } = analyzeFixture(dir);
+  const legacy = { ...findings, diagnostics: findings.diagnostics.map((d, i) => ({ ...d, id: `${d.id.split('-')[0]}-${String(i + 1).padStart(4, '0')}` })) };
+  delete legacy.analysis;
+  assert.deepEqual(schemaErrors('findings', legacy), [], 'a schema-v1 document from before stable ids is still valid');
+  const c = reviewFindings(findings.diagnostics, { previous: legacy, analysis: findings.analysis, files: facts.files.map((f) => f.path) }).comparison;
+  assert.equal(c.comparable, false);
+  assert.ok(c.reasons.some((r) => r.code === 'legacy-ids'));
+});
+
+test('comparison: reordering first-match config maps or changing the extractor is not comparable', (t) => {
+  const dir = copySource();
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const config = loadConfig(CONFIG);
+  const before = run(dir, config);
+  const { domain, ui, app } = config.boundaries.layers;
+  const reordered = run(dir, { ...config, boundaries: { ...config.boundaries, layers: { app, ui, domain } } });
+  assert.deepEqual(compare(before, reordered).reasons.map((r) => r.code), ['config-changed'], 'layer order decides which layer owns a file');
+  const other = { ...before.findings.analysis, adapter: 'python@9.9.9' };
+  assert.deepEqual(comparability(before.findings.analysis, other).reasons.map((r) => r.code), ['adapter-changed']);
+});
+
+test('check: an explicit --compare that cannot be read is an input error, not "no comparison"', (t) => {
+  const dir = copySource();
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-compare-'));
+  t.after(() => { fs.rmSync(dir, { recursive: true, force: true }); fs.rmSync(out, { recursive: true, force: true }); });
+  const check = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'check.mjs');
+  for (const [name, text] of [['broken.json', '{'], ['other.json', '{"schema_version":1}']]) {
+    const file = path.join(out, name);
+    fs.writeFileSync(file, text);
+    const r = spawnSync(process.execPath, [check, dir, '--language', 'py', '--compare', file, '--new-only', '--json'], { encoding: 'utf8', timeout: 60000 });
+    assert.equal(r.status, 2, `${name}: ${r.stdout}${r.stderr}`);
+  }
 });
