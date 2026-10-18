@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="generator" content="archify 2.17.0-dev.1">
+  <meta name="generator" content="archify 3.1.1-dev.1">
+  <meta name="archify-reader-contract" content="declared-wide-v1">
   <title>[PROJECT NAME] Architecture Diagram</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
@@ -174,6 +175,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
        Motion appears only for trace-enabled artifacts and has no shortcut;
        Keyboard: T toggles theme, S cycles style, F toggles the stage, E opens export. -->
   <div class="toolbar" role="toolbar" aria-label="{{i18n:viewer.toolbar.actions}}">
+    <div class="toolbar-group">
     <button id="btn-theme" type="button"
             title="{{i18n:viewer.theme.toggle.title}}"
             aria-label="{{i18n:viewer.theme.toggle}}"
@@ -194,7 +196,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <span class="toolbar-icon toolbar-chevron" aria-hidden="true"></span>
       </button>
       <div class="preset-menu" id="preset-menu" role="menu" aria-label="{{i18n:viewer.preset.menu}}">
-        <div class="preset-menu-heading" role="presentation"><span>{{i18n:viewer.preset.identity}}</span><span>{{i18n:viewer.preset.cycles}}</span></div>
+        <div class="preset-menu-heading" role="presentation"><span>{{i18n:viewer.preset.identity}}</span><span class="preset-menu-shortcut"><kbd>S</kbd>{{i18n:viewer.preset.cycles}}</span></div>
         <button class="preset-option" data-preset-value="classic" type="button" role="menuitemradio" aria-checked="false" tabindex="-1">
           <span class="preset-option-swatch classic" aria-hidden="true"></span>
           <span class="preset-option-copy"><strong>{{i18n:viewer.preset.classic}}</strong><small>{{i18n:viewer.preset.classic.hint}}</small></span>
@@ -231,6 +233,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <span id="present-icon" class="toolbar-icon" aria-hidden="true"></span>
       <span id="present-label">{{i18n:viewer.present.present}}</span>
     </button>
+    </div>
     <div class="export-wrap">
       <button id="btn-export" type="button"
               title="{{i18n:viewer.export.button.title}}"
@@ -247,10 +250,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </div>
         <div class="export-menu-section" role="group" aria-label="{{i18n:viewer.export.share}}">
           <span class="export-menu-heading" aria-hidden="true">{{i18n:viewer.export.share}}</span>
-          <button data-format="share-card" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>{{i18n:viewer.export.shareCard}}</strong><small class="hint">1200&times;630 PNG</small></span></button>
           <button data-action="route-share-card" type="button" role="menuitem" tabindex="-1" hidden disabled><span class="export-item-copy"><strong>{{i18n:viewer.export.routeShareCard}}</strong><small class="hint">1200&times;630 PNG</small></span></button>
           <button data-action="reach-share-card" type="button" role="menuitem" tabindex="-1" hidden disabled><span class="export-item-copy"><strong>{{i18n:viewer.export.reachShareCard}}</strong><small class="hint">1200&times;630 PNG</small></span></button>
-          <button data-action="copy-share-card" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>{{i18n:viewer.export.copyShareCard}}</strong><small class="hint">{{i18n:viewer.export.clipboardPng}}</small></span></button>
           <button data-action="copy" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>{{i18n:viewer.export.copyDiagram}}</strong><small class="hint">{{i18n:viewer.export.clipboardPng}}</small></span></button>
         </div>
         <div class="export-menu-section" role="group" aria-label="{{i18n:viewer.export.raster}}">
@@ -261,7 +262,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </div>
         <div class="export-menu-section" role="group" aria-label="{{i18n:viewer.export.vectorMotion}}">
           <span class="export-menu-heading" aria-hidden="true">{{i18n:viewer.export.vectorMotion.heading}}</span>
-          <button data-format="svg" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>SVG</strong><small class="hint">{{i18n:viewer.export.editable}}</small></span></button>
+          <button data-format="svg" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>{{i18n:viewer.export.svg.auto}}</strong><small class="hint">{{i18n:viewer.export.svg.auto.hint}}</small></span></button>
+          <button data-format="svg-light" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>{{i18n:viewer.export.svg.light}}</strong><small class="hint">{{i18n:viewer.export.svg.light.hint}}</small></span></button>
+          <button data-format="svg-dark" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>{{i18n:viewer.export.svg.dark}}</strong><small class="hint">{{i18n:viewer.export.svg.dark.hint}}</small></span></button>
           <button data-format="webm" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>WebM</strong><small class="hint">{{i18n:viewer.export.motion6s}}</small></span></button>
         </div>
       </div>
@@ -281,48 +284,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <p class="subtitle">[Subtitle description]</p>
     </div>
 
-    <!-- ARCHIFY:GUIDED_VIEWS_DATA -->
     <!-- ARCHIFY:SOURCE_EVIDENCE_DATA -->
     <!-- ARCHIFY:I18N_DATA -->
-    <div class="guided-views no-print" id="guided-views" hidden aria-label="{{i18n:viewer.guided.region}}">
-      <button id="guided-view-prev" type="button" aria-label="{{i18n:viewer.guided.previous}}" title="{{i18n:viewer.guided.previous.title}}">&#8592;</button>
-      <div class="guided-view-copy">
-        <div class="guided-view-meta">
-          <span>{{i18n:viewer.guided.views}}</span>
-          <span id="guided-view-count"></span>
-          <span class="guided-view-progress" aria-hidden="true"><span id="guided-view-progress-bar"></span></span>
-          <span class="guided-view-handoff" id="guided-view-handoff" hidden aria-hidden="true"></span>
-        </div>
-        <strong id="guided-view-label">{{i18n:viewer.guided.explore}}</strong>
-        <small id="guided-view-note" aria-live="polite" aria-atomic="true">{{i18n:viewer.guided.intro}}</small>
-        <div class="guided-view-trail" id="guided-view-trail" hidden role="group" aria-label="{{i18n:viewer.guided.trail}}"></div>
-        <div class="guided-story-caption" id="guided-story-caption" hidden aria-live="polite" aria-atomic="true">
-          <span class="guided-story-caption-index" id="guided-story-caption-index">{{i18n:viewer.guided.beat}}</span>
-          <strong id="guided-story-caption-route"></strong>
-          <small id="guided-story-caption-detail"></small>
-          <span class="guided-story-caption-next" id="guided-story-caption-next" hidden aria-hidden="true">
-            <small>{{i18n:viewer.guided.nextBeat}}</small>
-            <strong id="guided-story-caption-next-label"></strong>
-          </span>
-        </div>
-      </div>
-      <button id="guided-view-next" type="button" aria-label="{{i18n:viewer.guided.next}}" title="{{i18n:viewer.guided.next.title}}">&#8594;</button>
-      <div class="guided-view-actions">
-        <button class="guided-view-play" id="guided-view-play" type="button" aria-label="{{i18n:viewer.guided.play}}" aria-pressed="false" title="{{i18n:viewer.guided.play.title}}">
-          <span id="guided-view-play-icon" aria-hidden="true">&#9654;</span>
-          <span id="guided-view-play-label">{{i18n:viewer.guided.playStory}}</span>
-        </button>
-        <button class="guided-view-beat-link" id="guided-view-beat-link" type="button" aria-label="{{i18n:viewer.guided.selectBeatLink}}" title="{{i18n:viewer.guided.selectBeatLink}}" disabled>
-          <span aria-hidden="true">&#35;</span>
-          <span id="guided-view-beat-link-label">{{i18n:viewer.guided.copyMoment}}</span>
-        </button>
-        <button class="guided-view-all" id="guided-view-all" type="button" aria-label="{{i18n:viewer.guided.showAll.aria}}">{{i18n:viewer.guided.showAll}}</button>
-      </div>
-      <nav class="guided-view-index" id="guided-view-index" aria-label="{{i18n:viewer.guided.chapters}}">
-        <ol class="guided-view-chapters" id="guided-view-chapters"></ol>
-      </nav>
-    </div>
-
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="{{i18n:viewer.preset.badge.editorialPlate}}">
@@ -475,23 +438,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       </svg>
       <!-- ARCHIFY:SVG_SLOT_END -->
       <p class="intent-trace-status no-print" id="intent-trace-status" role="status" aria-live="polite" aria-atomic="true"></p>
-      <div class="share-chapter-cue no-print" id="share-chapter-cue" hidden role="status" aria-live="polite">
-        <div class="share-chapter-index">
-          <span class="share-chapter-state" id="share-chapter-state">{{i18n:viewer.guided.state.ready}}</span>
-          <span class="share-chapter-count" id="share-chapter-count">{{i18n:viewer.guided.share.initial}}</span>
-        </div>
-        <div class="share-chapter-copy">
-          <strong id="share-chapter-label">{{i18n:viewer.guided.share.default}}</strong>
-          <small id="share-chapter-note"></small>
-        </div>
-        <span class="share-chapter-route" id="share-chapter-route"></span>
-        <span class="share-chapter-progress" aria-hidden="true"><span id="share-chapter-progress-bar"></span></span>
-      </div>
       <div class="diagram-guide no-print" id="diagram-guide" hidden role="dialog" aria-modal="false" aria-labelledby="diagram-guide-title">
         <div class="diagram-guide-head">
           <span>
             <span class="diagram-guide-eyebrow">{{i18n:viewer.guide.eyebrow}}</span>
-            <strong class="diagram-guide-title" id="diagram-guide-title">{{i18n:viewer.guided.explore}}</strong>
+            <strong class="diagram-guide-title" id="diagram-guide-title">{{i18n:viewer.guide.title}}</strong>
           </span>
           <button class="diagram-guide-close" id="diagram-guide-close" type="button" aria-label="{{i18n:viewer.guide.close}}">&#215;</button>
         </div>
@@ -517,13 +468,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <span class="diagram-guide-action-copy"><strong>{{i18n:viewer.guide.lens}}</strong><small>{{i18n:viewer.guide.lens.hint}}</small></span>
             <kbd aria-hidden="true">L</kbd>
           </button>
-          <button class="diagram-guide-action" type="button" data-guide-action="story" aria-label="{{i18n:viewer.guide.story}}">
-            <span class="diagram-guide-index" aria-hidden="true">05</span>
-            <span class="diagram-guide-action-copy"><strong>{{i18n:viewer.guide.story}}</strong><small id="diagram-guide-story-copy">{{i18n:viewer.guide.story.hint}}</small></span>
-            <kbd aria-hidden="true">P</kbd>
-          </button>
           <button class="diagram-guide-action" type="button" data-guide-action="present" aria-label="{{i18n:viewer.present.enter}}">
-            <span class="diagram-guide-index" aria-hidden="true">06</span>
+            <span class="diagram-guide-index" aria-hidden="true">05</span>
             <span class="diagram-guide-action-copy"><strong>{{i18n:viewer.guide.present}}</strong><small>{{i18n:viewer.guide.present.hint}}</small></span>
             <kbd aria-hidden="true">F</kbd>
           </button>
@@ -532,6 +478,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <span><kbd>E</kbd> {{i18n:viewer.guide.shortcut.export}}</span><span><kbd>T</kbd> {{i18n:viewer.guide.shortcut.theme}}</span><span><kbd>S</kbd> {{i18n:viewer.guide.shortcut.style}}</span><span><kbd>0</kbd> {{i18n:viewer.guide.shortcut.reset}}</span><span><kbd>+</kbd> {{i18n:viewer.guide.shortcut.zoomIn}}</span><span><kbd>-</kbd> {{i18n:viewer.guide.shortcut.zoomOut}}</span><span><kbd>Esc</kbd> {{i18n:viewer.guide.shortcut.close}}</span>
         </div>
         <p class="diagram-guide-feedback" id="diagram-guide-feedback" aria-live="polite"></p>
+        <a class="diagram-guide-credit" href="https://github.com/tt-a1i/archify" target="_blank" rel="noopener noreferrer"><span>{{i18n:viewer.guide.credit}}</span><span class="diagram-guide-credit-link"><span class="diagram-guide-star" aria-hidden="true"></span>{{i18n:viewer.guide.star}} <span aria-hidden="true">&#8599;</span></span></a>
       </div>
       <div class="node-finder no-print" id="node-finder" hidden role="dialog" aria-modal="false" aria-labelledby="node-finder-title">
         <div class="node-finder-head">
@@ -646,6 +593,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <div class="overview-map-hint" aria-hidden="true"><span>{{i18n:viewer.radar.click}}</span><span>{{i18n:viewer.radar.drag}}</span></div>
       </div>
       <p class="overview-map-feedback no-print" id="overview-map-feedback" role="status" aria-live="polite" hidden>{{i18n:viewer.radar.space}}</p>
+      <button class="rail-reveal no-print" id="rail-reveal" type="button" hidden aria-controls="reader-rail" aria-expanded="false"><span class="rail-reveal-icon" aria-hidden="true"></span><span>{{i18n:viewer.rail.show}}</span></button>
       <div class="diagram-nav no-print" role="toolbar" aria-label="{{i18n:viewer.nav.controls}}">
         <button id="btn-route-probe" type="button" aria-label="{{i18n:viewer.nav.route}}" aria-pressed="false" aria-controls="route-probe" title="{{i18n:viewer.nav.route.title}}">{{i18n:viewer.nav.route.short}}</button>
         <button id="btn-overview-map" type="button" aria-label="{{i18n:viewer.nav.radar}}" aria-expanded="false" aria-controls="overview-map" title="{{i18n:viewer.nav.radar.title}}">{{i18n:viewer.nav.radar.short}}</button>
@@ -658,6 +606,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       </div>
     </div>
 
+    <aside class="reader-rail" id="reader-rail">
+    <div class="rail-controls no-print" role="toolbar" aria-label="{{i18n:viewer.rail.controls}}">
+      <button class="rail-control" id="rail-placement" type="button" hidden aria-label="{{i18n:viewer.rail.bottom}}" title="{{i18n:viewer.rail.bottom}}" data-placement="right"><span class="rail-control-icon placement" aria-hidden="true"></span></button>
+      <button class="rail-control" id="rail-collapse" type="button" hidden aria-controls="reader-rail" aria-expanded="true" aria-label="{{i18n:viewer.rail.collapse}}" title="{{i18n:viewer.rail.collapse}}"><span class="rail-control-icon collapse" aria-hidden="true"></span></button>
+    </div>
     <!-- ARCHIFY:CARDS_SLOT_START -->
     <div class="cards">
       <div class="card">
@@ -666,10 +619,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>Card Title 1</h3>
         </div>
         <ul>
-          <li>&bull; Item one</li>
-          <li>&bull; Item two</li>
-          <li>&bull; Item three</li>
-          <li>&bull; Item four</li>
+          <li>Item one</li>
+          <li>Item two</li>
+          <li>Item three</li>
+          <li>Item four</li>
         </ul>
       </div>
 
@@ -679,10 +632,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>Card Title 2</h3>
         </div>
         <ul>
-          <li>&bull; Item one</li>
-          <li>&bull; Item two</li>
-          <li>&bull; Item three</li>
-          <li>&bull; Item four</li>
+          <li>Item one</li>
+          <li>Item two</li>
+          <li>Item three</li>
+          <li>Item four</li>
         </ul>
       </div>
 
@@ -692,14 +645,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>Card Title 3</h3>
         </div>
         <ul>
-          <li>&bull; Item one</li>
-          <li>&bull; Item two</li>
-          <li>&bull; Item three</li>
-          <li>&bull; Item four</li>
+          <li>Item one</li>
+          <li>Item two</li>
+          <li>Item three</li>
+          <li>Item four</li>
         </ul>
       </div>
     </div>
     <!-- ARCHIFY:CARDS_SLOT_END -->
+    <nav class="node-outline no-print" id="node-outline" hidden aria-labelledby="node-outline-title">
+      <div class="node-outline-head">
+        <strong id="node-outline-title">{{i18n:viewer.outline.title}}</strong>
+        <span class="node-outline-count" id="node-outline-count"></span>
+      </div>
+      <ol class="node-outline-list" id="node-outline-list"></ol>
+    </nav>
+    </aside>
 
   </div>
 
@@ -737,12 +698,47 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         .replace(/\b\w/g, function (letter) { return letter.toUpperCase(); });
     }
 
+    function readerLink(state) {
+      var template = document.documentElement.getAttribute('data-reading-link-template');
+      if (template === null) return location.href.replace(/#.*$/, '') + '#' + state;
+      if (!template || template.length > 4096 || template.split('{state}').length !== 2) return null;
+      try {
+        var url = new URL(template.replace('{state}', encodeURIComponent(state)));
+        if (['http:', 'https:', 'file:'].indexOf(url.protocol) === -1 || url.username || url.password) return null;
+        return url.href;
+      } catch (_) { return null; }
+    }
+
+    function copyReaderText(value) {
+      function fallbackCopy() {
+        var field = document.createElement('textarea');
+        field.value = value;
+        field.setAttribute('readonly', '');
+        field.style.position = 'fixed';
+        field.style.opacity = '0';
+        document.body.appendChild(field);
+        field.select();
+        var copied = false;
+        try { copied = document.execCommand('copy'); } catch (_) {}
+        field.remove();
+        return copied;
+      }
+      var policy = document.permissionsPolicy || document.featurePolicy;
+      var allowed = !policy || typeof policy.allowsFeature !== 'function' || policy.allowsFeature('clipboard-write');
+      if (allowed && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        try { return Promise.resolve(navigator.clipboard.writeText(value)).then(function () { return true; }).catch(fallbackCopy); }
+        catch (_) {}
+      }
+      return Promise.resolve(fallbackCopy());
+    }
+
     function hasDrawableGeometry(element) {
-      if (!element) return false;
+      if (!element || element.hasAttribute('data-ambient-flow-overlay')) return false;
       var geometries = /^(path|line|polyline)$/i.test(element.tagName)
         ? [element]
         : Array.prototype.slice.call(element.querySelectorAll('path, line, polyline'));
       return geometries.some(function (geometry) {
+        if (geometry.hasAttribute('data-ambient-flow-overlay')) return false;
         var source = geometry.tagName.toLowerCase() === 'path'
           ? geometry.getAttribute('d')
           : geometry.tagName.toLowerCase() === 'polyline'
@@ -834,6 +830,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         else open(false);
       });
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -850,6 +847,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab') { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         var available = options();
         var active = available.indexOf(document.activeElement);
         switch (e.key) {
@@ -950,75 +948,47 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     Archify.sourceEvidence = (function () {
       var element = document.getElementById('archify-source-evidence-data');
       var payload = null;
-      var svgNamespace = 'http://www.w3.org/2000/svg';
       if (element) {
         try {
           var parsed = JSON.parse(element.textContent || 'null');
           if (parsed && parsed.verified === true && parsed.repository && parsed.nodes) payload = parsed;
         } catch (_) {}
       }
-      function installBeacons() {
-        if (!payload) return 0;
-        var svg = document.querySelector('.diagram-container svg');
-        if (!svg) return 0;
-        var installed = 0;
-        Array.prototype.forEach.call(svg.querySelectorAll('[data-node-id]'), function (node) {
-          var id = node.getAttribute('data-node-id');
-          var sources = payload.nodes[id];
-          if (!Array.isArray(sources) || !sources.length || node.querySelector('[data-source-evidence-beacon]')) return;
-          var shape = node.querySelector('[data-animate="node"]') || node.querySelector('[class*="c-"]');
-          var box;
-          try { box = (shape || node).getBBox(); } catch (_) { return; }
-          if (!box || !Number.isFinite(box.x) || !Number.isFinite(box.y) || !Number.isFinite(box.width) || box.width < 36) return;
-
-          var count = sources.length;
-          var label = viewerCount('viewer.passport.beacon', count);
-          var beacon = document.createElementNS(svgNamespace, 'g');
-          beacon.classList.add('source-evidence-beacon');
-          beacon.setAttribute('data-source-evidence-beacon', '');
-          beacon.setAttribute('aria-hidden', 'true');
-          var brandOffset = node.hasAttribute('data-node-brand') ? 24 : 0;
-          beacon.setAttribute('transform', 'translate(' + (box.x + box.width - 35 - brandOffset) + ' ' + (box.y + 5) + ')');
-          var title = document.createElementNS(svgNamespace, 'title');
-          title.textContent = label;
-          var plate = document.createElementNS(svgNamespace, 'rect');
-          plate.setAttribute('width', '30');
-          plate.setAttribute('height', '12');
-          plate.setAttribute('rx', '6');
-          var text = document.createElementNS(svgNamespace, 'text');
-          text.setAttribute('x', '15');
-          text.setAttribute('y', '8.25');
-          text.textContent = viewerText('viewer.passport.sourceMarker') + ' ' + count;
-          beacon.appendChild(title);
-          beacon.appendChild(plate);
-          beacon.appendChild(text);
-          node.appendChild(beacon);
-
-          var originalLabel = node.getAttribute('aria-label') || '';
-          node.setAttribute('data-source-evidence-count', String(count));
-          node.setAttribute('data-source-evidence-original-label', originalLabel);
-          node.setAttribute('aria-label', (originalLabel ? originalLabel + ', ' : '') + viewerCount('viewer.passport.sourceCount', count));
-          installed += 1;
-        });
-        return installed;
-      }
+      // Keep verified evidence discoverable to screen readers without adding
+      // visual marks. Restore first so repeated initialization never appends
+      // another count or retains one after evidence becomes unavailable.
+      var svg = document.querySelector('.diagram-container svg');
+      if (svg) Array.prototype.forEach.call(svg.querySelectorAll('[data-node-id]'), function (node) {
+        if (node.hasAttribute('data-source-evidence-count')) {
+          var savedLabel = node.getAttribute('data-source-evidence-original-label');
+          if (savedLabel == null) node.removeAttribute('aria-label');
+          else node.setAttribute('aria-label', savedLabel);
+          node.removeAttribute('data-source-evidence-count');
+          node.removeAttribute('data-source-evidence-original-label');
+        }
+        var sources = payload && payload.nodes[node.getAttribute('data-node-id')];
+        if (!Array.isArray(sources) || !sources.length) return;
+        var originalLabel = node.getAttribute('aria-label');
+        node.setAttribute('data-source-evidence-count', String(sources.length));
+        if (originalLabel != null) node.setAttribute('data-source-evidence-original-label', originalLabel);
+        node.setAttribute('aria-label', (originalLabel ? originalLabel + ', ' : '') +
+          viewerCount('viewer.passport.sourceCount', sources.length));
+      });
       return {
         available: function () { return Boolean(payload); },
         repository: function () { return payload ? payload.repository : null; },
         node: function (id) {
           var sources = payload && payload.nodes ? payload.nodes[id] : null;
           return Array.isArray(sources) ? sources.slice() : [];
-        },
-        installBeacons: installBeacons
+        }
       };
     })();
-    Archify.sourceEvidence.installBeacons();
+
+/* ARCHIFY:TREE_BRANCHES */
 
 /* ARCHIFY:FOCUS */
 
 /* ARCHIFY:INTENT_TRACE */
-
-/* ARCHIFY:GUIDED_VIEWS */
 
     /* ============================================================
        Adaptive Reader Shell — one diagram across laptop and monitor.
@@ -1028,6 +998,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
        embed, presentation, print, and unmarked non-wide diagrams retain their own
        established layout contracts.
        ============================================================ */
+    // Fixed script-private participants; the CLI sees only the joint wait below.
+    const archifyLayoutOwners = { reader: null, viewerChrome: null };
     Archify.waitForStableLayout = function (options) {
       options = options || {};
       var maximumFrames = Math.max(1, Number(options.maximumFrames) || 240);
@@ -1070,14 +1042,57 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 /* ARCHIFY:READER_LAYOUT */
 /* ARCHIFY:CHROME_LAYOUT */
+    Archify.layoutStability = {
+      whenStable: function () {
+        var reader = archifyLayoutOwners.reader;
+        var chrome = archifyLayoutOwners.viewerChrome;
+        if (!reader || !chrome) {
+          return Promise.reject(new Error('Joint layout owners are unavailable.'));
+        }
+        var observedFontsReady = document.fonts && document.fonts.ready;
+        var fontCyclePending = false;
+        var fontGeneration = 0;
+        function scheduleOwners() { reader.schedule(); chrome.schedule(); }
+        function fontsPending() {
+          var fonts = document.fonts;
+          var ready = fonts && fonts.ready;
+          if (ready && (ready !== observedFontsReady || (fonts.status === 'loading' && !fontCyclePending))) {
+            observedFontsReady = ready;
+            fontCyclePending = true;
+            var generation = ++fontGeneration;
+            ready.catch(function () {}).then(function () {
+              if (generation !== fontGeneration) return;
+              fontCyclePending = false;
+              scheduleOwners();
+            });
+          }
+          return fontCyclePending || Boolean(fonts && fonts.status === 'loading');
+        }
+        return Archify.waitForStableLayout({
+          maximumFrames: 960,
+          schedule: scheduleOwners,
+          pending: function () {
+            // Recapture readiness for font cycles that begin during sampling.
+            return fontsPending() || reader.pending() || chrome.pending();
+          },
+          snapshot: function () {
+            return JSON.stringify([
+              ['reader', reader.snapshot()],
+              ['viewerChrome', chrome.snapshot()]
+            ]);
+          },
+          timeoutMessage: 'Joint reader and viewer chrome layout did not reach stable dimensions.'
+        });
+      }
+    };
 /* ARCHIFY:CAMERA */
 /* ARCHIFY:RADAR */
 
     /* ============================================================
        Presentation Stage — a shareable, viewport-filling live view.
        It changes only HTML layout and URL state; SVG semantics and export
-       serialization remain untouched. Escape first clears an active guided
-       view/focus, then exits the stage.
+       serialization remain untouched. Escape first clears an active
+       focus, then exits the stage.
        ============================================================ */
     Archify.presentation = (function () {
       var html = document.documentElement;
@@ -1149,6 +1164,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 /* ARCHIFY:NODE_FINDER */
 
+/* ARCHIFY:NODE_OUTLINE */
+
+
 /* ARCHIFY:ROUTE_PROBE */
 
 /* ARCHIFY:SEMANTIC_LENS */
@@ -1156,7 +1174,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     /* ============================================================
        Diagram Guide — a factual command deck over existing interactions.
        Counts come from compiled semantics; actions delegate to Finder, Route
-       Probe, Semantic Radar, Semantic Lens, Story Trail, Presentation, theme, export, and
+       Probe, Semantic Radar, Semantic Lens, Presentation, theme, export, and
        camera without adding a second command implementation or SVG state.
        ============================================================ */
     Archify.guide = (function () {
@@ -1169,13 +1187,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       var stats = document.getElementById('diagram-guide-stats');
       var actions = document.getElementById('diagram-guide-actions');
       var feedback = document.getElementById('diagram-guide-feedback');
-      var storyBtn = actions.querySelector('[data-guide-action="story"]');
-      var storyCopy = document.getElementById('diagram-guide-story-copy');
       var routePanel = document.getElementById('route-probe');
+      var returnFocus = null;
 
-      function viewCount() {
-        return Archify.guidedViews && Number(Archify.guidedViews.count) || 0;
-      }
       function relationshipCount() {
         var seen = {};
         Array.prototype.forEach.call(svg.querySelectorAll('[data-edge-from][data-edge-to]'), function (edge) {
@@ -1191,17 +1205,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       function renderFacts() {
         var nodes = svg.querySelectorAll('[data-node-id]').length;
         var relationships = relationshipCount();
-        var views = viewCount();
         stats.textContent = viewerText('viewer.guide.facts', {
           nodes: viewerCount('viewer.guide.fact.node', nodes),
-          relationships: viewerCount('viewer.guide.fact.relationship', relationships),
-          views: viewerCount('viewer.guide.fact.view', views)
+          relationships: viewerCount('viewer.guide.fact.relationship', relationships)
         });
-        storyBtn.disabled = views === 0;
-        storyBtn.setAttribute('aria-disabled', views === 0 ? 'true' : 'false');
-        storyCopy.textContent = views
-          ? viewerCount('viewer.guide.story.available', views)
-          : viewerText('viewer.guide.story.unavailable');
       }
       function actionButtons() {
         return Array.prototype.slice.call(actions.querySelectorAll('.diagram-guide-action:not(:disabled)'));
@@ -1214,7 +1221,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         trigger.setAttribute('aria-expanded', 'false');
         trigger.setAttribute('aria-label', viewerText('viewer.guide.open'));
         feedback.textContent = '';
-        if (options.restoreFocus !== false) trigger.focus();
+        if (options.restoreFocus !== false) {
+          // Return focus where the reader was when the guide opened; the
+          // trigger itself is only the fallback when that element is gone.
+          var target = returnFocus && returnFocus.isConnected ? returnFocus : trigger;
+          if (target && typeof target.focus === 'function') target.focus();
+        }
         return false;
       }
       function open() {
@@ -1224,12 +1236,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (Archify.finder && Archify.finder.isOpen()) Archify.finder.close({ restoreFocus: false });
         if (Archify.radar && Archify.radar.isOpen()) Archify.radar.close({ restoreFocus: false });
         if (Archify.semanticLens && Archify.semanticLens.isOpen()) Archify.semanticLens.close({ restoreFocus: false });
-        if (Archify.guidedViews && Archify.guidedViews.isPlaying && Archify.guidedViews.isPlaying()) {
-          Archify.guidedViews.pause();
-        }
         if (Archify.routeProbe && Archify.routeProbe.isJourneyPlaying && Archify.routeProbe.isJourneyPlaying()) {
           Archify.routeProbe.pauseJourney({ preserveElapsed: true, reason: 'guide' });
         }
+        returnFocus = document.activeElement;
         renderFacts();
         panel.hidden = false;
         html.setAttribute('data-guide-open', 'true');
@@ -1246,16 +1256,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       function toggle() { return panel.hidden ? open() : close(); }
       function execute(action) {
         feedback.textContent = '';
-        if (action === 'story' && !viewCount()) {
-          feedback.textContent = viewerText('viewer.guide.noStory');
-          return false;
-        }
         close({ restoreFocus: false });
         if (action === 'find') return Archify.finder.open();
         if (action === 'route') return Archify.routeProbe.begin({ focusNode: true });
         if (action === 'map') return Archify.radar.open();
         if (action === 'lens') return Archify.semanticLens.open();
-        if (action === 'story') return Archify.guidedViews.play();
         if (action === 'present') return Archify.presentation.enter();
         if (action === 'export') return Archify.exportMenu.open();
         if (action === 'theme') return Archify.theme.toggle();
@@ -1271,7 +1276,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           r: 'route',
           m: 'map',
           l: 'lens',
-          p: 'story',
           f: 'present',
           e: 'export',
           t: 'theme',
@@ -1320,7 +1324,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         execute(action);
       });
       document.addEventListener('click', function (event) {
-        if (!panel.hidden && !panel.contains(event.target) && event.target !== trigger) close({ restoreFocus: false });
+        // Clicks anywhere on the trigger (including its icon span) are the
+        // toggle itself, never an outside dismissal.
+        if (!panel.hidden && !panel.contains(event.target) && !trigger.contains(event.target)) close({ restoreFocus: false });
       });
 
       renderFacts();
@@ -1333,8 +1339,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         facts: function () {
           return {
             nodes: svg.querySelectorAll('[data-node-id]').length,
-            relationships: relationshipCount(),
-            views: viewCount()
+            relationships: relationshipCount()
           };
         }
       };
@@ -1357,6 +1362,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
        ============================================================ */
     document.addEventListener('keydown', function (e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.shiftKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End')) return;
       if (e.defaultPrevented) return;
       var t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;

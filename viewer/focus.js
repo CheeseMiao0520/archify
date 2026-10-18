@@ -39,6 +39,7 @@
       var relationshipHitTargets = [];
       var directPreviewTimer = null;
       var lensDrag = null;
+      var lensDragClickPointer = null;
       var manualLensPosition = null;
       var reachabilityMode = null;
       var activeReachability = null;
@@ -178,9 +179,6 @@
         }
         var result = reachabilityFor(activeIds[0], direction);
         if (!result || result.nodeIds.length <= 1) return false;
-        if (Archify.guidedViews && typeof Archify.guidedViews.showAll === 'function') {
-          Archify.guidedViews.showAll({ clearFocus: false, updateUrl: false, resetView: false });
-        }
         clearRelationshipPreview({ clearPin: true });
         clearReachability({ updateUrl: false });
         reachabilityMode = direction;
@@ -421,7 +419,7 @@
       function relationshipEdgeShapes(edge) {
         if (!edge) return [];
         if (/^(path|line|polyline)$/i.test(edge.tagName || '')) return [edge];
-        return Array.prototype.slice.call(edge.querySelectorAll('path, line, polyline'));
+        return Array.prototype.slice.call(edge.querySelectorAll('path:not([data-ambient-flow-overlay]), line, polyline'));
       }
       function relationshipHitRecords() {
         var recordsByKey = {};
@@ -525,6 +523,8 @@
       }
       function relationshipPulseGeometry(shape) {
         var clone = shape.cloneNode(false);
+        if (shape.getAttribute('data-motion-path')) clone.setAttribute('d', relationshipTokenPath(shape));
+        clone.removeAttribute('data-motion-path');
         clone.removeAttribute('id');
         clone.removeAttribute('class');
         clone.removeAttribute('style');
@@ -569,7 +569,7 @@
       function relationshipTokenPath(shape) {
         if (!shape) return '';
         var tagName = String(shape.tagName || '').toLowerCase();
-        if (tagName === 'path') return shape.getAttribute('d') || '';
+        if (tagName === 'path') return shape.getAttribute('data-motion-path') || shape.getAttribute('d') || '';
         if (tagName === 'line') {
           return 'M ' + shape.getAttribute('x1') + ' ' + shape.getAttribute('y1') +
             ' L ' + shape.getAttribute('x2') + ' ' + shape.getAttribute('y2');
@@ -753,11 +753,9 @@
           html.getAttribute('data-guide-open') === 'true' ||
           container.classList.contains('is-panning') ||
           (activeIds.length > 0 && !pinnedRelationshipKey) ||
-          svg.hasAttribute('data-story-active') ||
           svg.hasAttribute('data-route-picking') ||
           svg.hasAttribute('data-route-active') ||
-          svg.hasAttribute('data-lens-active') ||
-          svg.hasAttribute('data-chapter-preview');
+          svg.hasAttribute('data-lens-active');
       }
       function scheduleDirectRelationshipPreview(target) {
         if (directPreviewTimer) window.clearTimeout(directPreviewTimer);
@@ -796,9 +794,6 @@
         }
         var record = relationshipRecordForKey(key);
         if (!record) return false;
-        if (Archify.guidedViews && typeof Archify.guidedViews.showAll === 'function') {
-          Archify.guidedViews.showAll({ clearFocus: false, updateUrl: false });
-        }
         set(record.from, { toggle: false, updateUrl: false });
         var row = Array.prototype.slice.call(relationshipList.querySelectorAll('[data-relationship-key]')).find(function (candidate) {
           return candidate.getAttribute('data-relationship-key') === key;
@@ -1116,6 +1111,7 @@
         event.stopPropagation();
         var activeDrag = lensDrag;
         lensDrag = null;
+        if (activeDrag.moved) lensDragClickPointer = activeDrag.pointerId;
         chip.removeAttribute('data-panel-dragging');
         try { moveBtn.releasePointerCapture(event.pointerId); } catch (_) {}
         if (!cancel) return;
@@ -1334,6 +1330,11 @@
           if (byId[id] && normalized.indexOf(id) === -1) normalized.push(id);
         });
         if (!normalized.length) return false;
+        // Hash restoration and internal selections use this path too. Reveal
+        // tree ancestors before measuring the selected node for its lens.
+        if (Archify.treeBranches && Archify.treeBranches.active) {
+          normalized.forEach(function (id) { Archify.treeBranches.reveal(id); });
+        }
         if (normalized.length === activeIds.length && normalized.every(function (id, index) { return activeIds[index] === id; }) && options.toggle !== false) {
           clear();
           return true;
@@ -1370,7 +1371,7 @@
         svg.setAttribute('data-focus-active', normalized.join(' '));
         var defaultLabel = normalized.length === 1
           ? nodeLabel(byId[normalized[0]], normalized[0])
-          : viewerText('viewer.guided.chapter.selectedNodes', { count: normalized.length });
+          : viewerText('viewer.focus.selectedNodes', { count: normalized.length });
         label.textContent = options.label || defaultLabel;
         chip.hidden = options.hideChip === true || normalized.length !== 1 || selectionMode;
         if (!chip.hidden) {
@@ -1391,31 +1392,14 @@
         return setMany([id], options);
       }
 
-      function fallbackCopy(value) {
-        var field = document.createElement('textarea');
-        field.value = value;
-        field.setAttribute('readonly', '');
-        field.style.position = 'fixed';
-        field.style.opacity = '0';
-        document.body.appendChild(field);
-        field.select();
-        var copied = false;
-        try { copied = document.execCommand('copy'); } catch (_) {}
-        field.remove();
-        return copied;
-      }
-
       function copyFocusLink() {
         if (activeIds.length !== 1) return Promise.resolve(false);
         var record = pinnedRelationshipRecord();
         var relationId = record && record.id;
-        var value = location.href.replace(/#.*$/, '') + (relationId
-          ? '#relation=' + encodeURIComponent(relationId)
-          : '#focus=' + encodeURIComponent(activeIds[0]) + (reachabilityMode ? '&reach=' + reachabilityMode : ''));
-        var copy = navigator.clipboard && typeof navigator.clipboard.writeText === 'function'
-          ? navigator.clipboard.writeText(value).then(function () { return true; }).catch(function () { return fallbackCopy(value); })
-          : Promise.resolve(fallbackCopy(value));
-        return copy.then(function (copied) {
+        var value = readerLink(relationId
+          ? 'relation=' + encodeURIComponent(relationId)
+          : 'focus=' + encodeURIComponent(activeIds[0]) + (reachabilityMode ? '&reach=' + reachabilityMode : ''));
+        return (value === null ? Promise.resolve(false) : copyReaderText(value)).then(function (copied) {
           copyBtn.textContent = viewerText(copied ? 'viewer.common.copied' : 'viewer.common.copyFailed');
           copyBtn.setAttribute('aria-label', copied
             ? viewerText(relationId ? 'viewer.passport.copy.pinned.success' : 'viewer.passport.copy.focused.success')
@@ -1478,9 +1462,6 @@
         var button = event.target.closest('[data-relationship-target]');
         if (!button) return;
         var id = button.getAttribute('data-relationship-target');
-        if (Archify.guidedViews && typeof Archify.guidedViews.showAll === 'function') {
-          Archify.guidedViews.showAll({ clearFocus: false, updateUrl: false });
-        }
         set(id, { toggle: false });
         if (Archify.view && typeof Archify.view.reveal === 'function') {
           Archify.view.reveal([id], { includeNeighbors: true, reason: 'relationship' });
@@ -1518,6 +1499,7 @@
         syncRelationshipPreview();
       });
       relationshipList.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
         var buttons = Array.prototype.slice.call(relationshipList.querySelectorAll('[data-relationship-target]'));
         if (!buttons.length) return;
@@ -1529,16 +1511,38 @@
         event.preventDefault();
         buttons[index].focus();
       });
+      document.addEventListener('pointerdown', function () {
+        lensDragClickPointer = null;
+      }, true);
       document.addEventListener('click', function (event) {
+        // Losing capture (for example when a resize hides the handle) can
+        // retarget this drag's final click to the page. It is not dismissal.
+        // A new pointerdown releases the guard; keyboard clicks remain live.
+        if (lensDragClickPointer != null && event.detail > 0 &&
+            (event.pointerId == null || event.pointerId === lensDragClickPointer)) {
+          lensDragClickPointer = null;
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
         var target = event.target;
         if (chip.hidden || !target || typeof target.closest !== 'function' || chip.contains(target)) return;
         if (container.getAttribute('data-just-panned') === 'true') return;
-        if (target.closest('[data-node-id], [data-relationship-hit-key], .overview-map')) return;
+        // Export consumes the active semantic snapshot; its controls are not
+        // an outside selection. Genuine outside activation still clears it.
+        if (target.closest('[data-node-id], [data-relationship-hit-key], .overview-map, #btn-export, #export-menu')) return;
         clear();
       }, true);
       window.addEventListener('scroll', requestLensPlacement, { passive: true });
       window.addEventListener('resize', requestLensPlacement);
       container.addEventListener('scroll', requestLensPlacement, { passive: true });
+      // Reader and Chrome may finish resizing the stage after window resize.
+      // The absolute Passport does not resize its container when reclamped.
+      if (typeof ResizeObserver === 'function') {
+        new ResizeObserver(function () {
+          if (!chip.hidden) requestLensPlacement();
+        }).observe(container);
+      }
       document.addEventListener('visibilitychange', function () {
         if (document.hidden) removeRelationshipPulse();
       });
@@ -1571,7 +1575,7 @@
               applyReachability(reach, { updateUrl: false, toggle: false, reveal: false });
             }
           }
-          else if (!params.get('view')) clear({ updateUrl: false });
+          else clear({ updateUrl: false });
         } catch (_) {}
       }
 

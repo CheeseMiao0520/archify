@@ -1,0 +1,129 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Automatic exception corridors",
+    "locale": "zh-CN",
+    "output": "diagram.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "lane0",
+      "label": "Stage 1"
+    },
+    {
+      "id": "lane1",
+      "label": "Stage 2"
+    },
+    {
+      "id": "lane2",
+      "label": "Stage 3"
+    },
+    {
+      "id": "lane3",
+      "label": "人工复核与重试 · retry-route 状态流"
+    },
+    {
+      "id": "lane4",
+      "label": "Stage 5",
+      "variant": "exception"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n13",
+      "lane": "lane0",
+      "col": 1,
+      "type": "security",
+      "label": "Step 1"
+    },
+    {
+      "id": "n06",
+      "lane": "lane0",
+      "col": 3,
+      "type": "messagebus",
+      "label": "Step 2"
+    },
+    {
+      "id": "n00",
+      "lane": "lane0",
+      "col": 4,
+      "type": "messagebus",
+      "label": "Step 3"
+    },
+    {
+      "id": "n15",
+      "lane": "lane0",
+      "col": 5,
+      "type": "backend",
+      "label": "Step 4"
+    },
+    {
+      "id": "n18",
+      "lane": "lane1",
+      "col": 3,
+      "type": "security",
+      "label": "Step 5",
+      "sublabel": "输入验证 · 批处理 · 异常流"
+    },
+    {
+      "id": "n09",
+      "lane": "lane2",
+      "col": 5,
+      "type": "messagebus",
+      "label": "Step 6",
+      "sublabel": "processed / retry-later / denied"
+    },
+    {
+      "id": "n10",
+      "lane": "lane3",
+      "col": 4,
+      "type": "security",
+      "label": "Step 7"
+    },
+    {
+      "id": "n14",
+      "lane": "lane3",
+      "col": 2,
+      "type": "messagebus",
+      "label": "Step 8"
+    },
+    {
+      "id": "n05",
+      "lane": "lane4",
+      "col": 1,
+      "type": "security",
+      "label": "Step 9"
+    },
+    {
+      "id": "n17",
+      "lane": "lane4",
+      "col": 5,
+      "type": "security",
+      "label": "Step 10"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e09",
+      "to": "n05",
+      "from": "n06",
+      "label": "branch",
+      "role": "error"
+    },
+    {
+      "id": "e02",
+      "to": "n18",
+      "from": "n00",
+      "label": "branch"
+    },
+    {
+      "id": "e01",
+      "to": "n17",
+      "from": "n00",
+      "label": "branch",
+      "role": "branch"
+    }
+  ]
+}

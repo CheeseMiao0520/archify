@@ -37,9 +37,10 @@ test('plugin is skill-only and does not declare native tools', () => {
   assert.match(init, /HERMES_HOME/);
 });
 
-test('register() registers the in-repo Skill without a packed copy', () => {
+test('register() advertises all ten modes and registers the in-repo Skill without a packed copy', () => {
   const result = spawnSync(python, [...pythonArgs, '-c', `
 import importlib.util
+import re
 from pathlib import Path
 plugin = Path(${JSON.stringify(path.join(integrationRoot, '__init__.py'))})
 spec = importlib.util.spec_from_file_location('archify_hermes_plugin', plugin)
@@ -54,7 +55,10 @@ calls = []
 mod.register(SimpleNamespace(register_skill=lambda *args, **kw: calls.append((args, kw))))
 assert len(calls) == 1
 assert calls[0][0] == ('archify', resolved)
-assert calls[0][1]['description']
+description = calls[0][1]['description']
+for mode in ('architecture', 'workflow', 'sequence', 'data-flow', 'lifecycle',
+             'ERD', 'class', 'tree', 'timeline', 'waterfall'):
+    assert re.search(r'\\b' + re.escape(mode) + r'\\b', description, re.IGNORECASE), mode
 `], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.equal(path.resolve(result.stdout.trim()), path.join(repoRoot, 'archify', 'SKILL.md'));
@@ -77,9 +81,11 @@ test('docs stay community opt-in, cover Windows, and refuse a Python rewrite', (
 test('README install tables mention Hermes without adding a switcher agent', () => {
   const english = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
   const chinese = fs.readFileSync(path.join(repoRoot, 'README_ZH.md'), 'utf8');
+  const japanese = fs.readFileSync(path.join(repoRoot, 'README_JA.md'), 'utf8');
   const start = fs.readFileSync(path.join(repoRoot, 'docs', 'start.html'), 'utf8');
   assert.match(english, /\| \*\*Hermes Agent\*\* \|/);
   assert.match(chinese, /\| \*\*Hermes Agent\*\* \|/);
+  assert.match(japanese, /\| \*\*Hermes Agent\*\* \|/);
   assert.match(english, /integrations\/hermes-agent\/README\.md/);
   assert.match(english, /hermes skills install skills-sh\/tt-a1i\/archify\/archify -y/);
   const skill = fs.readFileSync(path.join(repoRoot, 'archify', 'SKILL.md'), 'utf8');

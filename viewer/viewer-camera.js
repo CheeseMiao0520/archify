@@ -7,6 +7,8 @@
       var resetPercentLabel = resetBtn.querySelector('[data-view-percent]');
       var inBtn = container.querySelector('[data-view="in"]');
       var state = { scale: 1, x: 0, y: 0, mode: 'overview' };
+      var minimumZoom = 0.25;
+      var maximumZoom = 3;
       var drag = null;
       var cameraTimer = null;
       var cameraFrame = null;
@@ -15,12 +17,25 @@
       var clipFrame = 0;
       var resizeFrame = 0;
       var autoScrollUntil = 0;
+      var originalFlowHeight = container.style.getPropertyValue('height');
+      var originalFlowHeightPriority = container.style.getPropertyPriority('height');
+      var compactPageFlow = false;
 
       var viewBox = svg.viewBox && svg.viewBox.baseVal;
 
       function clamp() {
         var width = svg.clientWidth || 1;
         var height = svg.clientHeight || 1;
+        if (state.scale < 1) {
+          var visibleWidth = Math.min(width, container.clientWidth);
+          var availableX = visibleWidth - width * state.scale;
+          state.x = availableX >= 0 ? container.scrollLeft + availableX / 2
+            : Math.max(container.scrollLeft + availableX, Math.min(container.scrollLeft, state.x));
+          // Long sequences keep their first rows in view instead of centering
+          // inside a layout box that can be several screens tall.
+          state.y = height > window.innerHeight ? 0 : height * (1 - state.scale) / 2;
+          return;
+        }
         state.x = Math.min(0, Math.max(width - width * state.scale, state.x));
         state.y = Math.min(0, Math.max(height - height * state.scale, state.y));
       }
@@ -43,26 +58,35 @@
       function logicalViewport() {
         var metrics = contentMetrics();
         if (!metrics) return null;
+        var camera = sampleRenderedState();
         var x;
         var y;
         var width;
         var height;
-        if (window.innerWidth <= 720 && container.hasAttribute('data-wide-diagram')) {
+        if (window.innerWidth <= 720 && container.hasAttribute('data-wide-diagram') && camera.scale >= 1) {
           x = viewBox.x + container.scrollLeft / metrics.scale;
           y = viewBox.y;
           width = Math.min(viewBox.width, Math.max(1, container.clientWidth / metrics.scale));
           height = viewBox.height;
         } else {
-          x = viewBox.x + ((-state.x / state.scale) - metrics.offsetX) / metrics.scale;
-          y = viewBox.y + ((-state.y / state.scale) - metrics.offsetY) / metrics.scale;
-          width = Math.min(viewBox.width, metrics.width / state.scale / metrics.scale);
-          height = Math.min(viewBox.height, metrics.height / state.scale / metrics.scale);
+          x = viewBox.x + (((container.scrollLeft - camera.x) / camera.scale) - metrics.offsetX) / metrics.scale;
+          y = viewBox.y + ((-camera.y / camera.scale) - metrics.offsetY) / metrics.scale;
+          width = Math.min(viewBox.width, Math.min(metrics.width, container.clientWidth) / camera.scale / metrics.scale);
+          height = Math.min(viewBox.height, metrics.height / camera.scale / metrics.scale);
         }
         width = Math.max(1, Math.min(viewBox.width, width));
         height = Math.max(1, Math.min(viewBox.height, height));
         x = Math.max(viewBox.x, Math.min(viewBox.x + viewBox.width - width, x));
         y = Math.max(viewBox.y, Math.min(viewBox.y + viewBox.height - height, y));
-        return { x: x, y: y, width: width, height: height, scale: state.scale };
+        // The camera's layout box can span several browser screens. Intersect
+        // its logical bounds with the actual window, including page scrolling.
+        var matrix = svg.getScreenCTM();
+        if (matrix && matrix.d > 0) {
+          var end = y + height;
+          y = Math.max(y, Math.min(end - 1, -matrix.f / matrix.d));
+          height = Math.max(1, Math.min(end, (window.innerHeight - matrix.f) / matrix.d) - y);
+        }
+        return { x: x, y: y, width: width, height: height, scale: camera.scale };
       }
       function detailLevel() {
         if (state.mode === 'semantic') return 'full';
@@ -92,7 +116,8 @@
           semantic: semantic ? viewerText('viewer.nav.camera.semantic') : '',
           hint: detailHint
         });
-        resetBtn.setAttribute('aria-label', viewerText('viewer.nav.camera', { hint: detailHint }));
+        var readout = (showDetailLevel ? resolvedLevel + ' ' : '') + percent;
+        resetBtn.setAttribute('aria-label', readout + ' · ' + viewerText('viewer.nav.camera', { hint: detailHint }));
         resetBtn.setAttribute('data-detail-level', detail);
         container.setAttribute('data-detail-level', detail);
         container.setAttribute('data-camera-mode', state.mode);
@@ -120,13 +145,45 @@
           Math.abs(rendered.x - state.x) < 0.05 &&
           Math.abs(rendered.y - state.y) < 0.05;
       }
+      // CSS transforms keep the SVG's intrinsic layout size. Shrink only its
+      // outer page-flow box for long ordinary diagrams, never the SVG itself:
+      // changing its height would feed the smaller size back into camera math.
+      function ordinaryPage() {
+        var html = document.documentElement;
+        return html.getAttribute('data-embed') !== 'true' &&
+          html.getAttribute('data-present') !== 'true' &&
+          (!window.matchMedia || !window.matchMedia('print').matches);
+      }
+      function syncPageFlow(camera) {
+        camera = camera || state;
+        var height = svg.clientHeight;
+        var ordinary = ordinaryPage();
+        // Restore ordinary flow as soon as the target reaches 100%. Chrome
+        // uses that target to resume baseline rail measurement; retaining a
+        // partially shrunk box during the CSS transition would inflate reserve.
+        if (ordinary && state.scale < 1 && camera.scale < 1 && height > window.innerHeight) {
+          var style = getComputedStyle(container);
+          var chrome = ['paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth']
+            .reduce(function (total, key) { return total + (parseFloat(style[key]) || 0); }, 0);
+          var flowHeight = Math.ceil(height * camera.scale + Math.max(0, camera.y) + chrome) + 'px';
+          if (container.style.getPropertyValue('height') !== flowHeight) container.style.setProperty('height', flowHeight);
+          compactPageFlow = true;
+        } else if (compactPageFlow) {
+          if (originalFlowHeight) container.style.setProperty('height', originalFlowHeight, originalFlowHeightPriority);
+          else container.style.removeProperty('height');
+          compactPageFlow = false;
+        }
+      }
       function syncViewportClip() {
         if (clipFrame) cancelAnimationFrame(clipFrame);
         clipFrame = 0;
         function sample() {
           clipFrame = 0;
           var rendered = sampleRenderedState();
+          syncPageFlow(rendered);
           clipToViewport(rendered);
+          if (Archify.radar && Archify.radar.isOpen()) Archify.radar.sync();
+          if (Archify.readerLayout && typeof Archify.readerLayout.syncLegend === 'function') Archify.readerLayout.syncLegend();
           if (!cameraSettled(rendered)) clipFrame = requestAnimationFrame(sample);
         }
         sample();
@@ -134,12 +191,12 @@
       function apply() {
         clamp();
         svg.style.transform = 'translate(' + state.x + 'px,' + state.y + 'px) scale(' + state.scale + ')';
+        svg.setAttribute('data-view-scale', String(state.scale));
         syncViewportClip();
         renderControls();
-        outBtn.disabled = state.scale <= 1;
-        inBtn.disabled = state.scale >= 3;
+        outBtn.disabled = state.scale <= minimumZoom;
+        inBtn.disabled = state.scale >= maximumZoom;
         container.classList.toggle('is-pannable', state.scale > 1);
-        svg.setAttribute('data-view-scale', String(state.scale));
         if (Archify.radar && typeof Archify.radar.sync === 'function') Archify.radar.sync();
         if (Archify.viewerChromeLayout && typeof Archify.viewerChromeLayout.schedule === 'function') {
           Archify.viewerChromeLayout.schedule();
@@ -219,18 +276,12 @@
         container.removeAttribute('data-camera-transaction');
       }
       function interruptCamera(reason) {
-        if (Archify.guidedViews && Archify.guidedViews.cancelHandoff) {
-          Archify.guidedViews.cancelHandoff(reason || 'manual');
-        }
         var rendered = sampleRenderedState();
         stopCameraMotion(reason || 'manual', false);
         state = rendered;
         state.mode = 'manual';
         apply();
         renderControls();
-        if (Archify.guidedViews && Archify.guidedViews.isPlaying && Archify.guidedViews.isPlaying()) {
-          Archify.guidedViews.pause();
-        }
         if (Archify.routeProbe && Archify.routeProbe.isJourneyPlaying && Archify.routeProbe.isJourneyPlaying()) {
           Archify.routeProbe.pauseJourney({ preserveElapsed: true, reason: reason || 'manual' });
         }
@@ -239,8 +290,14 @@
         options = options || {};
         if (options.manual !== false) interruptCamera();
         var previous = state.scale;
-        next = Math.max(1, Math.min(3, Math.round(next * 4) / 4));
+        next = Math.max(minimumZoom, Math.min(maximumZoom, Math.round(next * 4) / 4));
         if (next === previous) return;
+        var longDiagram = svg.clientHeight > window.innerHeight && Math.min(previous, next) < 1;
+        var before = longDiagram ? svg.getBoundingClientRect() : null;
+        var anchorY = before ? Math.max(0, Math.min(window.innerHeight, before.bottom) + Math.max(0, before.top)) / 2 : 0;
+        if (before && (before.bottom <= 0 || before.top >= window.innerHeight)) anchorY = window.innerHeight / 2;
+        var logicalY = before ? Math.max(0, Math.min(svg.clientHeight, (anchorY - before.top) / previous)) : 0;
+        var documentTop = before ? window.scrollY + before.top - state.y : 0;
         var centerX = (svg.clientWidth || 1) / 2;
         var centerY = (svg.clientHeight || 1) / 2;
         var contentX = (centerX - state.x) / previous;
@@ -249,6 +306,12 @@
         state.x = centerX - contentX * next;
         state.y = centerY - contentY * next;
         apply();
+        if (longDiagram) {
+          var scaledHeight = svg.clientHeight * next;
+          var pageY = scaledHeight <= window.innerHeight ? documentTop + state.y
+            : documentTop + state.y + logicalY * next - anchorY;
+          window.scrollTo({ left: window.scrollX, top: Math.max(0, pageY), behavior: 'instant' });
+        }
       }
       function reset(options) {
         options = options || {};
@@ -256,6 +319,17 @@
         else stopCameraMotion('reset', false);
         state = { scale: 1, x: 0, y: 0, mode: 'overview' };
         apply();
+      }
+      function scrollLongDiagramTo(contentY, metrics, options) {
+        if (!ordinaryPage() || metrics.height <= window.innerHeight) return;
+        // apply() may still be animating its CSS transform. Recover the layout
+        // origin from the painted transform, then use the final camera target.
+        var painted = sampleRenderedState();
+        var rect = svg.getBoundingClientRect();
+        var pixelScale = rect.height / metrics.height / painted.scale;
+        var documentTop = window.scrollY + rect.top - painted.y * pixelScale;
+        var target = documentTop + (state.y + contentY * state.scale) * pixelScale - window.innerHeight / 2;
+        window.scrollTo({ left: window.scrollX, top: Math.max(0, target), behavior: options.instant ? 'instant' : 'smooth' });
       }
       function centerAt(logicalX, logicalY, options) {
         options = options || {};
@@ -275,6 +349,7 @@
           autoScrollUntil = Date.now() + 80;
           try { container.scrollTo({ left: mobileTarget, behavior: options.instant ? 'auto' : 'smooth' }); }
           catch (_) { container.scrollLeft = mobileTarget; }
+          scrollLongDiagramTo(metrics.offsetY + (logicalY - viewBox.y) * metrics.scale, metrics, options);
           return true;
         }
         var minimumScale = Math.max(1, Math.min(3, Number(options.minimumScale) || 1));
@@ -286,6 +361,7 @@
         state.y = metrics.height / 2 - contentY * state.scale;
         state.mode = 'manual';
         apply();
+        scrollLongDiagramTo(contentY, metrics, options);
         if (Archify.focus && Archify.focus.reposition) Archify.focus.reposition();
         return true;
       }
@@ -325,8 +401,8 @@
         var maxX = Math.max.apply(Math, boxes.map(function (box) { return box.x + box.width; }));
         var maxY = Math.max.apply(Math, boxes.map(function (box) { return box.y + box.height; }));
         var bounds = {
-          x: contentOffsetX + minX * contentScale,
-          y: contentOffsetY + minY * contentScale,
+          x: contentOffsetX + (minX - viewBox.x) * contentScale,
+          y: contentOffsetY + (minY - viewBox.y) * contentScale,
           width: Math.max(1, (maxX - minX) * contentScale),
           height: Math.max(1, (maxY - minY) * contentScale)
         };
@@ -430,7 +506,7 @@
         if (!boxes.length || !viewBox || viewBox.width <= 0) return false;
         var minX = Math.min.apply(Math, boxes.map(function (box) { return box.x; }));
         var maxX = Math.max.apply(Math, boxes.map(function (box) { return box.x + box.width; }));
-        var center = ((minX + maxX) / 2 / viewBox.width) * (svg.clientWidth || 1);
+        var center = (((minX + maxX) / 2 - viewBox.x) / viewBox.width) * (svg.clientWidth || 1);
         var target = Math.max(0, Math.min(svg.clientWidth - container.clientWidth, center - container.clientWidth / 2));
         var transaction = cameraReceipt({ scrollLeft: target }, options);
         cameraTransaction = transaction;
@@ -448,9 +524,6 @@
         return transaction;
       }
       function syncSemantic() {
-        var guided = Archify.guidedViews && typeof Archify.guidedViews.focus === 'function'
-          ? Archify.guidedViews.focus() : [];
-        if (guided && guided.length) return reveal(guided, { reason: 'guided-sync' });
         var active = Archify.focus && typeof Archify.focus.active === 'function' ? Archify.focus.active() : null;
         if (typeof active === 'string') return reveal([active], { includeNeighbors: true, reason: 'focus-sync' });
         if (Array.isArray(active) && active.length) return reveal(active, { reason: 'selection-sync' });
@@ -508,6 +581,20 @@
           else apply();
         });
       });
+      // Reader width and Chrome reserve can change without a window resize.
+      // Observe their resulting sizes; the SVG remains intrinsically sized, so
+      // the outer flow height cannot feed back into its camera base.
+      if (typeof ResizeObserver === 'function') {
+        var flowObserver = new ResizeObserver(function () { syncPageFlow(sampleRenderedState()); });
+        flowObserver.observe(svg);
+        flowObserver.observe(container);
+      }
+      if (typeof MutationObserver === 'function') {
+        new MutationObserver(function () { syncPageFlow(sampleRenderedState()); })
+          .observe(document.documentElement, { attributes: true, attributeFilter: ['data-embed', 'data-present'] });
+      }
+      var printMedia = window.matchMedia && window.matchMedia('print');
+      if (printMedia && printMedia.addEventListener) printMedia.addEventListener('change', function () { syncPageFlow(sampleRenderedState()); });
       window.addEventListener('hashchange', function () { requestAnimationFrame(syncSemantic); });
       apply();
       pinControls();

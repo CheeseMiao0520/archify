@@ -1,0 +1,140 @@
+{
+  "previousHead": "b17b5171a5be8acaccbf9e65513ef5d22bebddfc",
+  "node": "22.23.1",
+  "runtimeSha256": "bc99a08bd8fba4908b3fd2c3fa3116d0b4cd8fa33f698f42e26f9196a86bf836",
+  "cases": [
+    {
+      "name": "bus-with-ordinary",
+      "inputSha256": "6a3c4764a34b0d568ecb5c7843a3240cab70c0e007d285b57e9ba2a1c6ef3c2d",
+      "htmlSha256": "8ea8ecdac71264ee95670234c7456f587c7414b5e5d78c79a2a5971a2c2855f5",
+      "identicalToPreviousCandidate": true
+    },
+    {
+      "name": "bus-with-dependency",
+      "inputSha256": "0dfdd7022b67d0d095c87c1f100e96179cffec95fd3eabc85fcad5a4cbe1e0b3",
+      "htmlSha256": "2a8c67aa69b72ecbbabff6a2c14874bd30b86c16590caa781eba4b7ff0a851c2",
+      "identicalToPreviousCandidate": true
+    },
+    {
+      "name": "mixedbus",
+      "inputSha256": "fb16f2ba68ca13988b9b56e59d376ae8931ea844043979dc3a460f9377d1598a",
+      "htmlSha256": "b516afc04117ca8e7a99df4059ac4ed9b6bae33689f77b1a4f5437d53bfc7426",
+      "identicalToPreviousCandidate": true
+    },
+    {
+      "name": "interleaved",
+      "inputSha256": "ec09e455b15cbb2d5215e45fcf03040677cccdd77043f505dfc4cd8acb45e3b1",
+      "htmlSha256": "ccb33246fec6b8434a07e38d8b1bfd9dd7c486eaabc53996b0f5f2c78284c09c",
+      "identicalToPreviousCandidate": true
+    },
+    {
+      "name": "payments.class",
+      "inputSha256": "afba837f97a041e14687cbe8893523232c4afad7afd922d9b128606d1b3f12c8",
+      "htmlSha256": "f029ebdc68271f80b47ee423fc2b7deccee9f17aebf4b9dc7a93effc386640e8",
+      "identicalToPreviousCandidate": true
+    },
+    {
+      "name": "payment-processors.class",
+      "inputSha256": "98742b997db4782981460e8110e5fba899d8500c92c086aa867c5c62c3b89222",
+      "htmlSha256": "dfd08e5216cdf56fd85b2c42e8b76bc2ff13d4c8042be48676242323b819cebf",
+      "identicalToPreviousCandidate": true
+    },
+    {
+      "name": "first-draft-notifications",
+      "inputSha256": "46a167626026ff9ad41117a15ac5f7dd78d6162057b4dcc7cd50042e4d1e2df1",
+      "htmlSha256": "b732cd828a7cf76d17b1bba6da29c70fba03570e34fc5ba5d23c94723286977d",
+      "identicalToPreviousCandidate": true
+    },
+    {
+      "name": "first-draft-repository",
+      "inputSha256": "d89d998866abd61ed4dd52f0ebfde7de7aaf4e40e23308d6344e0448daea62cb",
+      "htmlSha256": "1ca170f539ecb8fa27ad0d9535fae014f041c246f38dbbd49f297771c4c1fb25",
+      "identicalToPreviousCandidate": true
+    },
+    {
+      "name": "first-draft-shapes",
+      "inputSha256": "fc18a7d3a82f968aaa715c9834c7eaa23dd1110142610b64ac8e55254e9b760e",
+      "htmlSha256": "3ff3cb4858e74bde814f3f29563e1b91cf50374e8fb6a66f9574460565de2b91",
+      "identicalToPreviousCandidate": true
+    },
+    {
+      "name": "web-app.architecture",
+      "inputSha256": "95e051b27a9e4a3307e194c0f666fca4af51470be7e2228d400ff48aea5b353b",
+      "htmlSha256": "747dbf4a3de9ebd096f585ce431e52019557989b3d4fa197f8d88e54aab8e233",
+      "identicalToPreviousCandidate": true
+    },
+    {
+      "name": "agent-tool-call.workflow",
+      "inputSha256": "d67965d50872c97e4ff3476271e645bf19fab6b3ab44e111bdb44b063e3aa36f",
+      "htmlSha256": "9e9d633be97f552d402895216ee622e469cd04709da0dfc8d24ee6af363ca124",
+      "identicalToPreviousCandidate": true
+    },
+    {
+      "name": "cache-miss-request.sequence",
+      "inputSha256": "f8486daa803fff6c295cecca4604c561fbbf9acb2e83326022b5a87639e8afe6",
+      "htmlSha256": "1a65397a6450427a4a9d51f1087917d9709181a2ccea99a1199fd1559be3fd71",
+      "identicalToPreviousCandidate": true
+    },
+    {
+      "name": "product-analytics.dataflow",
+      "inputSha256": "8a635db9e51a5b1a8d2955b9d66f5b9a450e0a298432ce8f2e2f0be11f372e05",
+      "htmlSha256": "8896e6da9307ab452bcf8e0d478f708f0ea4ae517efd330d322bfbec5ce7b9f5",
+      "identicalToPreviousCandidate": true
+    },
+    {
+      "name": "agent-run.lifecycle",
+      "inputSha256": "5ba36f5ce91ed428cb48b599e275424916d82b619b9a3231cbd1bbc3966fc54b",
+      "htmlSha256": "88e481d8a20d726c1123e616ac4d3ab48a18b482ef8e43ee8754ac66115c5b39",
+      "identicalToPreviousCandidate": true
+    },
+    {
+      "name": "orders.erd",
+      "inputSha256": "1777a374647084466f4d7ce3a968004be6ab70ac9cf82459b96bed7c556cdfdd",
+      "htmlSha256": "d1f3bd878a9af715e4db96732a4f2b5b191f3cfc8bb1ba57ef6d8a09b2057bfd",
+      "identicalToPreviousCandidate": true
+    },
+    {
+      "name": "payment-platform.tree",
+      "inputSha256": "1e99f37b3845d67fa97c9a2ff33109981c23bfdb0d03ba05b7d92944dcdfc61f",
+      "htmlSha256": "7c0b26eea2e3278cd235ff9629b52653b87b7e68bc4d4b57ecacec9cf2676a67",
+      "identicalToPreviousCandidate": true
+    },
+    {
+      "name": "payment-incident.timeline",
+      "inputSha256": "c1f535b3cc915ddd47ecd7df4e3ef02c441c8c3191daced5cf4422cff8dec95f",
+      "htmlSha256": "57a6fc41ab05091dd5ad6a4088be93398745c673691713b3abd6599094da838a",
+      "identicalToPreviousCandidate": true
+    },
+    {
+      "name": "checkout-request.waterfall",
+      "inputSha256": "55a5f74699a0f0e44018a4a000556d43c90430b95f39accac6141af8318b5133",
+      "htmlSha256": "cb4e88162469e555f11af3d8bdff11509f4cf4b9ec9e00c0736513684d6aaa60",
+      "identicalToPreviousCandidate": true
+    }
+  ],
+  "allPreviousArtifactsIdentical": true,
+  "focused": {
+    "passed": 41,
+    "failed": 0,
+    "skipped": 0
+  },
+  "browser": {
+    "passed": 2,
+    "failed": 0,
+    "skipped": 0,
+    "fixtureUsesEmptyVia": true
+  },
+  "generated": "passed",
+  "regressionsBeforeFix": {
+    "passed": 2,
+    "failed": 5,
+    "skipped": 0
+  },
+  "package": {
+    "files": 149,
+    "exit": 0,
+    "sha256": "1a3cb744929202d3fbfac0a3666a140073477746c56a3beacbf43ff7aa0b62c9",
+    "repeatedBytesIdentical": true,
+    "outsideRepository": true
+  }
+}

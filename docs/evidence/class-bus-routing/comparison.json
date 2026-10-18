@@ -1,0 +1,1607 @@
+{
+  "base": "9ef09617bd9ed2fe7bb4ad17fba7c8fce6b0ce76",
+  "candidateRuntimeSha256": "ed09f7a2224227e59f64be1ab70c7497fe451178c951a0f0a0f48d0140257c55",
+  "node": "v22.23.1",
+  "cases": [
+    {
+      "name": "bus-with-ordinary",
+      "type": "class",
+      "expectedChange": true,
+      "inputSha256": "6a3c4764a34b0d568ecb5c7843a3240cab70c0e007d285b57e9ba2a1c6ef3c2d",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 117.7,
+        "htmlSha256": "db1d2c95a563d0577767e61746a4da5d474a194e3244f41ca6c96001b30de0d2",
+        "svgSha256": "27e22f8868a46ea6dac9488368d84ae83556797bf7a76b75355b50d65a982260"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 119.67,
+        "htmlSha256": "8ea8ecdac71264ee95670234c7456f587c7414b5e5d78c79a2a5971a2c2855f5",
+        "svgSha256": "b86c76f73c8102273428cab9cb3aa9228613541a0f08d864c547955b6e1d3c56"
+      },
+      "htmlIdentical": false,
+      "svgIdentical": false,
+      "typeGeometryAndTextIdentical": true,
+      "relationshipIdentityAndKindIdentical": true
+    },
+    {
+      "name": "bus-with-dependency",
+      "type": "class",
+      "expectedChange": true,
+      "inputSha256": "0dfdd7022b67d0d095c87c1f100e96179cffec95fd3eabc85fcad5a4cbe1e0b3",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 118.04,
+        "htmlSha256": "42c31c7132489705f2123a9cc404de6860429baa4424e5e36a3dc30c09a271f2",
+        "svgSha256": "95364da77b13a96e300d72bba2cb3f281cee96f7d7e82f796e4c3fce96e22119"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 138.85,
+        "htmlSha256": "2a8c67aa69b72ecbbabff6a2c14874bd30b86c16590caa781eba4b7ff0a851c2",
+        "svgSha256": "597281f85da19e1627607875fef4001539fa64e6eea8ac24f956a10fe4dab1d7"
+      },
+      "htmlIdentical": false,
+      "svgIdentical": false,
+      "typeGeometryAndTextIdentical": true,
+      "relationshipIdentityAndKindIdentical": true
+    },
+    {
+      "name": "mixedbus",
+      "type": "class",
+      "expectedChange": true,
+      "inputSha256": "fb16f2ba68ca13988b9b56e59d376ae8931ea844043979dc3a460f9377d1598a",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 125.88,
+        "htmlSha256": "02ecc2782d81de49b863d71cba392da7bd2510592a69b29fa83786e722380a01",
+        "svgSha256": "d2ec6aef2b160274f5088608e4b600a9e00885f42dafd8a17369229b677c935c"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 141.68,
+        "htmlSha256": "b516afc04117ca8e7a99df4059ac4ed9b6bae33689f77b1a4f5437d53bfc7426",
+        "svgSha256": "7e21f7f7f7381bd32b7378f4856b1556bc7bd751755f93693cc5e4665c746e83"
+      },
+      "htmlIdentical": false,
+      "svgIdentical": false,
+      "typeGeometryAndTextIdentical": true,
+      "relationshipIdentityAndKindIdentical": true
+    },
+    {
+      "name": "interleaved",
+      "type": "class",
+      "expectedChange": true,
+      "inputSha256": "ec09e455b15cbb2d5215e45fcf03040677cccdd77043f505dfc4cd8acb45e3b1",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 133.49,
+        "htmlSha256": "e40fed4e575f0095724ddb7e92bf20177a428debb11c7467f1604e6d53b50dd0",
+        "svgSha256": "dc0fdef3c02cafcbae579c4cb981539c47149bb25de5076e2946da98a39bc00a"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 134.85,
+        "htmlSha256": "ccb33246fec6b8434a07e38d8b1bfd9dd7c486eaabc53996b0f5f2c78284c09c",
+        "svgSha256": "93f3bc5db4c511f23bffcb55fa606746e127d0b9df4aeb4a5b6371de62f7d899"
+      },
+      "htmlIdentical": false,
+      "svgIdentical": false,
+      "typeGeometryAndTextIdentical": true,
+      "relationshipIdentityAndKindIdentical": true
+    },
+    {
+      "name": "payments.class",
+      "type": "class",
+      "expectedChange": false,
+      "inputSha256": "afba837f97a041e14687cbe8893523232c4afad7afd922d9b128606d1b3f12c8",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 127.02,
+        "htmlSha256": "f029ebdc68271f80b47ee423fc2b7deccee9f17aebf4b9dc7a93effc386640e8",
+        "svgSha256": "3ef3511cc0eee8064cccd894f04cb809cc152d5ddd048694917b250dfee2a268"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 128.6,
+        "htmlSha256": "f029ebdc68271f80b47ee423fc2b7deccee9f17aebf4b9dc7a93effc386640e8",
+        "svgSha256": "3ef3511cc0eee8064cccd894f04cb809cc152d5ddd048694917b250dfee2a268"
+      },
+      "htmlIdentical": true,
+      "svgIdentical": true,
+      "typeGeometryAndTextIdentical": true,
+      "relationshipIdentityAndKindIdentical": true
+    },
+    {
+      "name": "payment-processors.class",
+      "type": "class",
+      "expectedChange": false,
+      "inputSha256": "98742b997db4782981460e8110e5fba899d8500c92c086aa867c5c62c3b89222",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 132.26,
+        "htmlSha256": "dfd08e5216cdf56fd85b2c42e8b76bc2ff13d4c8042be48676242323b819cebf",
+        "svgSha256": "aa93d1985b91db9c7ce30c7bcad07e96a243e2c080c64fd8bebcc83a2c2b2004"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 133.17,
+        "htmlSha256": "dfd08e5216cdf56fd85b2c42e8b76bc2ff13d4c8042be48676242323b819cebf",
+        "svgSha256": "aa93d1985b91db9c7ce30c7bcad07e96a243e2c080c64fd8bebcc83a2c2b2004"
+      },
+      "htmlIdentical": true,
+      "svgIdentical": true,
+      "typeGeometryAndTextIdentical": true,
+      "relationshipIdentityAndKindIdentical": true
+    },
+    {
+      "name": "first-draft-notifications",
+      "type": "class",
+      "expectedChange": false,
+      "inputSha256": "46a167626026ff9ad41117a15ac5f7dd78d6162057b4dcc7cd50042e4d1e2df1",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 141.69,
+        "htmlSha256": "b732cd828a7cf76d17b1bba6da29c70fba03570e34fc5ba5d23c94723286977d",
+        "svgSha256": "05c413902cdf8ba64226099dd7b9c789398499a955e504df94c759d59e39ba2c"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 143.29,
+        "htmlSha256": "b732cd828a7cf76d17b1bba6da29c70fba03570e34fc5ba5d23c94723286977d",
+        "svgSha256": "05c413902cdf8ba64226099dd7b9c789398499a955e504df94c759d59e39ba2c"
+      },
+      "htmlIdentical": true,
+      "svgIdentical": true,
+      "typeGeometryAndTextIdentical": true,
+      "relationshipIdentityAndKindIdentical": true
+    },
+    {
+      "name": "first-draft-repository",
+      "type": "class",
+      "expectedChange": false,
+      "inputSha256": "d89d998866abd61ed4dd52f0ebfde7de7aaf4e40e23308d6344e0448daea62cb",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 135.37,
+        "htmlSha256": "1ca170f539ecb8fa27ad0d9535fae014f041c246f38dbbd49f297771c4c1fb25",
+        "svgSha256": "6f91502a6a37d782df11112e6a2347d5928d9173656c377bcdef418d20f45d83"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 134.73,
+        "htmlSha256": "1ca170f539ecb8fa27ad0d9535fae014f041c246f38dbbd49f297771c4c1fb25",
+        "svgSha256": "6f91502a6a37d782df11112e6a2347d5928d9173656c377bcdef418d20f45d83"
+      },
+      "htmlIdentical": true,
+      "svgIdentical": true,
+      "typeGeometryAndTextIdentical": true,
+      "relationshipIdentityAndKindIdentical": true
+    },
+    {
+      "name": "first-draft-shapes",
+      "type": "class",
+      "expectedChange": true,
+      "inputSha256": "fc18a7d3a82f968aaa715c9834c7eaa23dd1110142610b64ac8e55254e9b760e",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 134.42,
+        "htmlSha256": "2027a1d328f0491fa14d863f1343626b8f19fe6888a25ba0ab6aee4bedd6f411",
+        "svgSha256": "9b09fd3f08f939a565d65cea0a0b6b2bfbd93e1e3404df2e6055f68d73bf547f"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 148.55,
+        "htmlSha256": "3ff3cb4858e74bde814f3f29563e1b91cf50374e8fb6a66f9574460565de2b91",
+        "svgSha256": "9e7a97087d01d27e1fd5d26cd7b07a5613a889c90980c82a110d1306656d4739"
+      },
+      "htmlIdentical": false,
+      "svgIdentical": false,
+      "typeGeometryAndTextIdentical": true,
+      "relationshipIdentityAndKindIdentical": true
+    },
+    {
+      "name": "web-app.architecture",
+      "type": "architecture",
+      "expectedChange": false,
+      "inputSha256": "95e051b27a9e4a3307e194c0f666fca4af51470be7e2228d400ff48aea5b353b",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 124.1,
+        "htmlSha256": "747dbf4a3de9ebd096f585ce431e52019557989b3d4fa197f8d88e54aab8e233",
+        "svgSha256": "5217c876d6e1419feb789b4ec4ccab3326bd3aacc224e41180c021756f30b9f0"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 125,
+        "htmlSha256": "747dbf4a3de9ebd096f585ce431e52019557989b3d4fa197f8d88e54aab8e233",
+        "svgSha256": "5217c876d6e1419feb789b4ec4ccab3326bd3aacc224e41180c021756f30b9f0"
+      },
+      "htmlIdentical": true,
+      "svgIdentical": true
+    },
+    {
+      "name": "agent-tool-call.workflow",
+      "type": "workflow",
+      "expectedChange": false,
+      "inputSha256": "d67965d50872c97e4ff3476271e645bf19fab6b3ab44e111bdb44b063e3aa36f",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 197.42,
+        "htmlSha256": "9e9d633be97f552d402895216ee622e469cd04709da0dfc8d24ee6af363ca124",
+        "svgSha256": "90e440dd16bbfd8534103e9da26332cc95ea973c18c7616df3783b3c61ef3625"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 192.32,
+        "htmlSha256": "9e9d633be97f552d402895216ee622e469cd04709da0dfc8d24ee6af363ca124",
+        "svgSha256": "90e440dd16bbfd8534103e9da26332cc95ea973c18c7616df3783b3c61ef3625"
+      },
+      "htmlIdentical": true,
+      "svgIdentical": true
+    },
+    {
+      "name": "cache-miss-request.sequence",
+      "type": "sequence",
+      "expectedChange": false,
+      "inputSha256": "f8486daa803fff6c295cecca4604c561fbbf9acb2e83326022b5a87639e8afe6",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 115.43,
+        "htmlSha256": "1a65397a6450427a4a9d51f1087917d9709181a2ccea99a1199fd1559be3fd71",
+        "svgSha256": "5b9ebf371555a9f8a89336ac21375d70e215fbc793dad5eb06e271ae632e8a1d"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 115.56,
+        "htmlSha256": "1a65397a6450427a4a9d51f1087917d9709181a2ccea99a1199fd1559be3fd71",
+        "svgSha256": "5b9ebf371555a9f8a89336ac21375d70e215fbc793dad5eb06e271ae632e8a1d"
+      },
+      "htmlIdentical": true,
+      "svgIdentical": true
+    },
+    {
+      "name": "product-analytics.dataflow",
+      "type": "dataflow",
+      "expectedChange": false,
+      "inputSha256": "8a635db9e51a5b1a8d2955b9d66f5b9a450e0a298432ce8f2e2f0be11f372e05",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 111.01,
+        "htmlSha256": "8896e6da9307ab452bcf8e0d478f708f0ea4ae517efd330d322bfbec5ce7b9f5",
+        "svgSha256": "786d073a61be6fce60dd0260b4c3fe0a97ec7006562d0117d5b316ed8415b9d3"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 124.75,
+        "htmlSha256": "8896e6da9307ab452bcf8e0d478f708f0ea4ae517efd330d322bfbec5ce7b9f5",
+        "svgSha256": "786d073a61be6fce60dd0260b4c3fe0a97ec7006562d0117d5b316ed8415b9d3"
+      },
+      "htmlIdentical": true,
+      "svgIdentical": true
+    },
+    {
+      "name": "agent-run.lifecycle",
+      "type": "lifecycle",
+      "expectedChange": false,
+      "inputSha256": "5ba36f5ce91ed428cb48b599e275424916d82b619b9a3231cbd1bbc3966fc54b",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 120.55,
+        "htmlSha256": "88e481d8a20d726c1123e616ac4d3ab48a18b482ef8e43ee8754ac66115c5b39",
+        "svgSha256": "f1c17f62f73d71796e0fff81bd55bc338fc9e9527f7725448456daffe86f7174"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 117.42,
+        "htmlSha256": "88e481d8a20d726c1123e616ac4d3ab48a18b482ef8e43ee8754ac66115c5b39",
+        "svgSha256": "f1c17f62f73d71796e0fff81bd55bc338fc9e9527f7725448456daffe86f7174"
+      },
+      "htmlIdentical": true,
+      "svgIdentical": true
+    },
+    {
+      "name": "orders.erd",
+      "type": "erd",
+      "expectedChange": false,
+      "inputSha256": "1777a374647084466f4d7ce3a968004be6ab70ac9cf82459b96bed7c556cdfdd",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 128,
+        "htmlSha256": "d1f3bd878a9af715e4db96732a4f2b5b191f3cfc8bb1ba57ef6d8a09b2057bfd",
+        "svgSha256": "190b78ab7f698fe0cf526c19452e9e29f1bc39cafea2382febaa6db913aebf85"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 122.85,
+        "htmlSha256": "d1f3bd878a9af715e4db96732a4f2b5b191f3cfc8bb1ba57ef6d8a09b2057bfd",
+        "svgSha256": "190b78ab7f698fe0cf526c19452e9e29f1bc39cafea2382febaa6db913aebf85"
+      },
+      "htmlIdentical": true,
+      "svgIdentical": true
+    },
+    {
+      "name": "payment-platform.tree",
+      "type": "tree",
+      "expectedChange": false,
+      "inputSha256": "1e99f37b3845d67fa97c9a2ff33109981c23bfdb0d03ba05b7d92944dcdfc61f",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 109.48,
+        "htmlSha256": "7c0b26eea2e3278cd235ff9629b52653b87b7e68bc4d4b57ecacec9cf2676a67",
+        "svgSha256": "bcbedf0ab18cdccc2b453d5500ed9e0883d4c08e22d534d6580384a1a1762dda"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 114.7,
+        "htmlSha256": "7c0b26eea2e3278cd235ff9629b52653b87b7e68bc4d4b57ecacec9cf2676a67",
+        "svgSha256": "bcbedf0ab18cdccc2b453d5500ed9e0883d4c08e22d534d6580384a1a1762dda"
+      },
+      "htmlIdentical": true,
+      "svgIdentical": true
+    },
+    {
+      "name": "payment-incident.timeline",
+      "type": "timeline",
+      "expectedChange": false,
+      "inputSha256": "c1f535b3cc915ddd47ecd7df4e3ef02c441c8c3191daced5cf4422cff8dec95f",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 120.8,
+        "htmlSha256": "57a6fc41ab05091dd5ad6a4088be93398745c673691713b3abd6599094da838a",
+        "svgSha256": "5ad20f8d24316a024d3e935fe3a14404f24a84f6d6578983f05ead2954d01b3f"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 121.06,
+        "htmlSha256": "57a6fc41ab05091dd5ad6a4088be93398745c673691713b3abd6599094da838a",
+        "svgSha256": "5ad20f8d24316a024d3e935fe3a14404f24a84f6d6578983f05ead2954d01b3f"
+      },
+      "htmlIdentical": true,
+      "svgIdentical": true
+    },
+    {
+      "name": "checkout-request.waterfall",
+      "type": "waterfall",
+      "expectedChange": false,
+      "inputSha256": "55a5f74699a0f0e44018a4a000556d43c90430b95f39accac6141af8318b5133",
+      "before": {
+        "validate": true,
+        "check": true,
+        "renderMs": 121.4,
+        "htmlSha256": "cb4e88162469e555f11af3d8bdff11509f4cf4b9ec9e00c0736513684d6aaa60",
+        "svgSha256": "84d32276374668f7e205a03821832098242d3f6a176246ee7dd4bc9032738518"
+      },
+      "after": {
+        "validate": true,
+        "check": true,
+        "renderMs": 121.28,
+        "htmlSha256": "cb4e88162469e555f11af3d8bdff11509f4cf4b9ec9e00c0736513684d6aaa60",
+        "svgSha256": "84d32276374668f7e205a03821832098242d3f6a176246ee7dd4bc9032738518"
+      },
+      "htmlIdentical": true,
+      "svgIdentical": true
+    }
+  ],
+  "browser": [
+    {
+      "name": "bus-with-dependency",
+      "version": "before",
+      "theme": "light",
+      "screenshot": "bus-with-dependency-before-light.png",
+      "pageWidth": 1440,
+      "scrollWidth": 1440,
+      "viewBox": "0 0 852 388",
+      "routes": [
+        {
+          "from": "left",
+          "to": "base",
+          "kind": "inheritance",
+          "points": "122,168;122,126;430,126;430,84",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "none"
+        },
+        {
+          "from": "right",
+          "to": "base",
+          "kind": "inheritance",
+          "points": "738,168;738,126;430,126;430,84",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "none"
+        },
+        {
+          "from": "impl",
+          "to": "base",
+          "kind": "dependency",
+          "points": "430,296;430,84",
+          "marker": "url(#cl-open)",
+          "dash": "6px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,168;122,126;430,126;430,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,168;122,126;430,126;430,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "738,168;738,126;430,126;430,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "738,168;738,126;430,126;430,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "dependency",
+          "points": "430,296;430,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "dependency",
+          "points": "430,296;430,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        }
+      ]
+    },
+    {
+      "name": "bus-with-dependency",
+      "version": "after",
+      "theme": "light",
+      "screenshot": "bus-with-dependency-after-light.png",
+      "pageWidth": 1440,
+      "scrollWidth": 1440,
+      "viewBox": "0 0 852 388",
+      "routes": [
+        {
+          "from": "left",
+          "to": "base",
+          "kind": "inheritance",
+          "points": "122,168;122,126;404,126;404,84",
+          "marker": "url(#cl-triangle)",
+          "dash": "none"
+        },
+        {
+          "from": "right",
+          "to": "base",
+          "kind": "inheritance",
+          "points": "738,168;738,126;456,126;456,84",
+          "marker": "url(#cl-triangle)",
+          "dash": "none"
+        },
+        {
+          "from": "impl",
+          "to": "base",
+          "kind": "dependency",
+          "points": "430,296;430,84",
+          "marker": "url(#cl-open)",
+          "dash": "6px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,168;122,126;404,126;404,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,168;122,126;404,126;404,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "738,168;738,126;456,126;456,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "738,168;738,126;456,126;456,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "dependency",
+          "points": "430,296;430,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "dependency",
+          "points": "430,296;430,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        }
+      ]
+    },
+    {
+      "name": "bus-with-dependency",
+      "version": "before",
+      "theme": "dark",
+      "screenshot": "bus-with-dependency-before-dark.png",
+      "pageWidth": 1440,
+      "scrollWidth": 1440,
+      "viewBox": "0 0 852 388",
+      "routes": [
+        {
+          "from": "left",
+          "to": "base",
+          "kind": "inheritance",
+          "points": "122,168;122,126;430,126;430,84",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "none"
+        },
+        {
+          "from": "right",
+          "to": "base",
+          "kind": "inheritance",
+          "points": "738,168;738,126;430,126;430,84",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "none"
+        },
+        {
+          "from": "impl",
+          "to": "base",
+          "kind": "dependency",
+          "points": "430,296;430,84",
+          "marker": "url(#cl-open)",
+          "dash": "6px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,168;122,126;430,126;430,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,168;122,126;430,126;430,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "738,168;738,126;430,126;430,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "738,168;738,126;430,126;430,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "dependency",
+          "points": "430,296;430,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "dependency",
+          "points": "430,296;430,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        }
+      ]
+    },
+    {
+      "name": "bus-with-dependency",
+      "version": "after",
+      "theme": "dark",
+      "screenshot": "bus-with-dependency-after-dark.png",
+      "pageWidth": 1440,
+      "scrollWidth": 1440,
+      "viewBox": "0 0 852 388",
+      "routes": [
+        {
+          "from": "left",
+          "to": "base",
+          "kind": "inheritance",
+          "points": "122,168;122,126;404,126;404,84",
+          "marker": "url(#cl-triangle)",
+          "dash": "none"
+        },
+        {
+          "from": "right",
+          "to": "base",
+          "kind": "inheritance",
+          "points": "738,168;738,126;456,126;456,84",
+          "marker": "url(#cl-triangle)",
+          "dash": "none"
+        },
+        {
+          "from": "impl",
+          "to": "base",
+          "kind": "dependency",
+          "points": "430,296;430,84",
+          "marker": "url(#cl-open)",
+          "dash": "6px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,168;122,126;404,126;404,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,168;122,126;404,126;404,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "738,168;738,126;456,126;456,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "738,168;738,126;456,126;456,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "dependency",
+          "points": "430,296;430,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "dependency",
+          "points": "430,296;430,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        }
+      ]
+    },
+    {
+      "name": "interleaved",
+      "version": "before",
+      "theme": "light",
+      "screenshot": "interleaved-before-light.png",
+      "pageWidth": 1440,
+      "scrollWidth": 1440,
+      "viewBox": "0 0 1160 270",
+      "routes": [
+        {
+          "from": "left",
+          "to": "base",
+          "kind": "inheritance",
+          "points": "122,168;122,126;584,126;584,84",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "none"
+        },
+        {
+          "from": "right",
+          "to": "base",
+          "kind": "inheritance",
+          "points": "738,168;738,126;584,126;584,84",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "none"
+        },
+        {
+          "from": "impl",
+          "to": "base",
+          "kind": "realization",
+          "points": "430,168;430,126;584,126;584,84",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "6px, 4px"
+        },
+        {
+          "from": "other",
+          "to": "base",
+          "kind": "realization",
+          "points": "1046,168;1046,126;584,126;584,84",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "6px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,168;122,126;584,126;584,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,168;122,126;584,126;584,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "738,168;738,126;584,126;584,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "738,168;738,126;584,126;584,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "realization",
+          "points": "430,168;430,126;584,126;584,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "realization",
+          "points": "430,168;430,126;584,126;584,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "realization",
+          "points": "1046,168;1046,126;584,126;584,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "realization",
+          "points": "1046,168;1046,126;584,126;584,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        }
+      ]
+    },
+    {
+      "name": "interleaved",
+      "version": "after",
+      "theme": "light",
+      "screenshot": "interleaved-after-light.png",
+      "pageWidth": 1440,
+      "scrollWidth": 1440,
+      "viewBox": "0 0 1160 270",
+      "routes": [
+        {
+          "from": "left",
+          "to": "base",
+          "kind": "inheritance",
+          "points": "122,168;122,108;545,108;545,84",
+          "marker": "url(#cl-triangle)",
+          "dash": "none"
+        },
+        {
+          "from": "right",
+          "to": "base",
+          "kind": "inheritance",
+          "points": "738,168;738,126;597,126;597,84",
+          "marker": "url(#cl-triangle)",
+          "dash": "none"
+        },
+        {
+          "from": "impl",
+          "to": "base",
+          "kind": "realization",
+          "points": "430,168;430,126;571,126;571,84",
+          "marker": "url(#cl-triangle)",
+          "dash": "6px, 4px"
+        },
+        {
+          "from": "other",
+          "to": "base",
+          "kind": "realization",
+          "points": "1046,168;1046,108;623,108;623,84",
+          "marker": "url(#cl-triangle)",
+          "dash": "6px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,168;122,108;545,108;545,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,168;122,108;545,108;545,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "738,168;738,126;597,126;597,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "738,168;738,126;597,126;597,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "realization",
+          "points": "430,168;430,126;571,126;571,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "realization",
+          "points": "430,168;430,126;571,126;571,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "realization",
+          "points": "1046,168;1046,108;623,108;623,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "realization",
+          "points": "1046,168;1046,108;623,108;623,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        }
+      ]
+    },
+    {
+      "name": "interleaved",
+      "version": "before",
+      "theme": "dark",
+      "screenshot": "interleaved-before-dark.png",
+      "pageWidth": 1440,
+      "scrollWidth": 1440,
+      "viewBox": "0 0 1160 270",
+      "routes": [
+        {
+          "from": "left",
+          "to": "base",
+          "kind": "inheritance",
+          "points": "122,168;122,126;584,126;584,84",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "none"
+        },
+        {
+          "from": "right",
+          "to": "base",
+          "kind": "inheritance",
+          "points": "738,168;738,126;584,126;584,84",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "none"
+        },
+        {
+          "from": "impl",
+          "to": "base",
+          "kind": "realization",
+          "points": "430,168;430,126;584,126;584,84",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "6px, 4px"
+        },
+        {
+          "from": "other",
+          "to": "base",
+          "kind": "realization",
+          "points": "1046,168;1046,126;584,126;584,84",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "6px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,168;122,126;584,126;584,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,168;122,126;584,126;584,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "738,168;738,126;584,126;584,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "738,168;738,126;584,126;584,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "realization",
+          "points": "430,168;430,126;584,126;584,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "realization",
+          "points": "430,168;430,126;584,126;584,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "realization",
+          "points": "1046,168;1046,126;584,126;584,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "realization",
+          "points": "1046,168;1046,126;584,126;584,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        }
+      ]
+    },
+    {
+      "name": "interleaved",
+      "version": "after",
+      "theme": "dark",
+      "screenshot": "interleaved-after-dark.png",
+      "pageWidth": 1440,
+      "scrollWidth": 1440,
+      "viewBox": "0 0 1160 270",
+      "routes": [
+        {
+          "from": "left",
+          "to": "base",
+          "kind": "inheritance",
+          "points": "122,168;122,108;545,108;545,84",
+          "marker": "url(#cl-triangle)",
+          "dash": "none"
+        },
+        {
+          "from": "right",
+          "to": "base",
+          "kind": "inheritance",
+          "points": "738,168;738,126;597,126;597,84",
+          "marker": "url(#cl-triangle)",
+          "dash": "none"
+        },
+        {
+          "from": "impl",
+          "to": "base",
+          "kind": "realization",
+          "points": "430,168;430,126;571,126;571,84",
+          "marker": "url(#cl-triangle)",
+          "dash": "6px, 4px"
+        },
+        {
+          "from": "other",
+          "to": "base",
+          "kind": "realization",
+          "points": "1046,168;1046,108;623,108;623,84",
+          "marker": "url(#cl-triangle)",
+          "dash": "6px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,168;122,108;545,108;545,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,168;122,108;545,108;545,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "738,168;738,126;597,126;597,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "738,168;738,126;597,126;597,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "realization",
+          "points": "430,168;430,126;571,126;571,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "realization",
+          "points": "430,168;430,126;571,126;571,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "realization",
+          "points": "1046,168;1046,108;623,108;623,84",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "realization",
+          "points": "1046,168;1046,108;623,108;623,84",
+          "marker": null,
+          "dash": "2px, 4px"
+        }
+      ]
+    },
+    {
+      "name": "first-draft-shapes",
+      "version": "before",
+      "theme": "light",
+      "screenshot": "first-draft-shapes-before-light.png",
+      "pageWidth": 1440,
+      "scrollWidth": 1440,
+      "viewBox": "0 0 861 400",
+      "routes": [
+        {
+          "from": "rect",
+          "to": "shape",
+          "kind": "inheritance",
+          "points": "122,253;122,206;434.5,206;434.5,164",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "none"
+        },
+        {
+          "from": "circle",
+          "to": "shape",
+          "kind": "inheritance",
+          "points": "434.5,263;434.5,164",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "none"
+        },
+        {
+          "from": "group",
+          "to": "shape",
+          "kind": "inheritance",
+          "points": "747,248;747,206;434.5,206;434.5,164",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "none"
+        },
+        {
+          "from": "group",
+          "to": "shape",
+          "kind": "composition",
+          "points": "657,295;593,295;593,102;529,102",
+          "marker": "url(#cl-diamond-filled)",
+          "dash": "none"
+        },
+        {
+          "from": "doc",
+          "to": "shape",
+          "kind": "aggregation",
+          "points": "212,115;340,115",
+          "marker": "url(#cl-diamond-hollow)",
+          "dash": "none"
+        },
+        {
+          "from": "doc",
+          "to": "history",
+          "kind": "composition",
+          "points": "122,55;122,31;747,31;747,55",
+          "marker": "url(#cl-diamond-filled)",
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,253;122,206;434.5,206;434.5,164",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,253;122,206;434.5,206;434.5,164",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "434.5,263;434.5,164",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "434.5,263;434.5,164",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "747,248;747,206;434.5,206;434.5,164",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "747,248;747,206;434.5,206;434.5,164",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "composition",
+          "points": "657,295;593,295;593,102;529,102",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "composition",
+          "points": "657,295;593,295;593,102;529,102",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "aggregation",
+          "points": "212,115;340,115",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "aggregation",
+          "points": "212,115;340,115",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "composition",
+          "points": "122,55;122,31;747,31;747,55",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "composition",
+          "points": "122,55;122,31;747,31;747,55",
+          "marker": null,
+          "dash": "2px, 4px"
+        }
+      ]
+    },
+    {
+      "name": "first-draft-shapes",
+      "version": "after",
+      "theme": "light",
+      "screenshot": "first-draft-shapes-after-light.png",
+      "pageWidth": 1440,
+      "scrollWidth": 1440,
+      "viewBox": "0 0 861 400",
+      "routes": [
+        {
+          "from": "rect",
+          "to": "shape",
+          "kind": "inheritance",
+          "points": "122,253;122,208.5;408.5,208.5;408.5,164",
+          "marker": "url(#cl-triangle)",
+          "dash": "none"
+        },
+        {
+          "from": "circle",
+          "to": "shape",
+          "kind": "inheritance",
+          "points": "434.5,263;434.5,164",
+          "marker": "url(#cl-triangle)",
+          "dash": "none"
+        },
+        {
+          "from": "group",
+          "to": "shape",
+          "kind": "inheritance",
+          "points": "657,281;593,281;593,88;529,88",
+          "marker": "url(#cl-triangle)",
+          "dash": "none"
+        },
+        {
+          "from": "group",
+          "to": "shape",
+          "kind": "composition",
+          "points": "657,295;553,295;553,102;529,102",
+          "marker": "url(#cl-diamond-filled)",
+          "dash": "none"
+        },
+        {
+          "from": "doc",
+          "to": "shape",
+          "kind": "aggregation",
+          "points": "212,115;340,115",
+          "marker": "url(#cl-diamond-hollow)",
+          "dash": "none"
+        },
+        {
+          "from": "doc",
+          "to": "history",
+          "kind": "composition",
+          "points": "212,89;236,89;236,31;747,31;747,55",
+          "marker": "url(#cl-diamond-filled)",
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,253;122,208.5;408.5,208.5;408.5,164",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,253;122,208.5;408.5,208.5;408.5,164",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "434.5,263;434.5,164",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "434.5,263;434.5,164",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "657,281;593,281;593,88;529,88",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "657,281;593,281;593,88;529,88",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "composition",
+          "points": "657,295;553,295;553,102;529,102",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "composition",
+          "points": "657,295;553,295;553,102;529,102",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "aggregation",
+          "points": "212,115;340,115",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "aggregation",
+          "points": "212,115;340,115",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "composition",
+          "points": "212,89;236,89;236,31;747,31;747,55",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "composition",
+          "points": "212,89;236,89;236,31;747,31;747,55",
+          "marker": null,
+          "dash": "2px, 4px"
+        }
+      ]
+    },
+    {
+      "name": "first-draft-shapes",
+      "version": "before",
+      "theme": "dark",
+      "screenshot": "first-draft-shapes-before-dark.png",
+      "pageWidth": 1440,
+      "scrollWidth": 1440,
+      "viewBox": "0 0 861 400",
+      "routes": [
+        {
+          "from": "rect",
+          "to": "shape",
+          "kind": "inheritance",
+          "points": "122,253;122,206;434.5,206;434.5,164",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "none"
+        },
+        {
+          "from": "circle",
+          "to": "shape",
+          "kind": "inheritance",
+          "points": "434.5,263;434.5,164",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "none"
+        },
+        {
+          "from": "group",
+          "to": "shape",
+          "kind": "inheritance",
+          "points": "747,248;747,206;434.5,206;434.5,164",
+          "marker": "url(#cl-triangle-start)",
+          "dash": "none"
+        },
+        {
+          "from": "group",
+          "to": "shape",
+          "kind": "composition",
+          "points": "657,295;593,295;593,102;529,102",
+          "marker": "url(#cl-diamond-filled)",
+          "dash": "none"
+        },
+        {
+          "from": "doc",
+          "to": "shape",
+          "kind": "aggregation",
+          "points": "212,115;340,115",
+          "marker": "url(#cl-diamond-hollow)",
+          "dash": "none"
+        },
+        {
+          "from": "doc",
+          "to": "history",
+          "kind": "composition",
+          "points": "122,55;122,31;747,31;747,55",
+          "marker": "url(#cl-diamond-filled)",
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,253;122,206;434.5,206;434.5,164",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,253;122,206;434.5,206;434.5,164",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "434.5,263;434.5,164",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "434.5,263;434.5,164",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "747,248;747,206;434.5,206;434.5,164",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "747,248;747,206;434.5,206;434.5,164",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "composition",
+          "points": "657,295;593,295;593,102;529,102",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "composition",
+          "points": "657,295;593,295;593,102;529,102",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "aggregation",
+          "points": "212,115;340,115",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "aggregation",
+          "points": "212,115;340,115",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "composition",
+          "points": "122,55;122,31;747,31;747,55",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "composition",
+          "points": "122,55;122,31;747,31;747,55",
+          "marker": null,
+          "dash": "2px, 4px"
+        }
+      ]
+    },
+    {
+      "name": "first-draft-shapes",
+      "version": "after",
+      "theme": "dark",
+      "screenshot": "first-draft-shapes-after-dark.png",
+      "pageWidth": 1440,
+      "scrollWidth": 1440,
+      "viewBox": "0 0 861 400",
+      "routes": [
+        {
+          "from": "rect",
+          "to": "shape",
+          "kind": "inheritance",
+          "points": "122,253;122,208.5;408.5,208.5;408.5,164",
+          "marker": "url(#cl-triangle)",
+          "dash": "none"
+        },
+        {
+          "from": "circle",
+          "to": "shape",
+          "kind": "inheritance",
+          "points": "434.5,263;434.5,164",
+          "marker": "url(#cl-triangle)",
+          "dash": "none"
+        },
+        {
+          "from": "group",
+          "to": "shape",
+          "kind": "inheritance",
+          "points": "657,281;593,281;593,88;529,88",
+          "marker": "url(#cl-triangle)",
+          "dash": "none"
+        },
+        {
+          "from": "group",
+          "to": "shape",
+          "kind": "composition",
+          "points": "657,295;553,295;553,102;529,102",
+          "marker": "url(#cl-diamond-filled)",
+          "dash": "none"
+        },
+        {
+          "from": "doc",
+          "to": "shape",
+          "kind": "aggregation",
+          "points": "212,115;340,115",
+          "marker": "url(#cl-diamond-hollow)",
+          "dash": "none"
+        },
+        {
+          "from": "doc",
+          "to": "history",
+          "kind": "composition",
+          "points": "212,89;236,89;236,31;747,31;747,55",
+          "marker": "url(#cl-diamond-filled)",
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,253;122,208.5;408.5,208.5;408.5,164",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "122,253;122,208.5;408.5,208.5;408.5,164",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "434.5,263;434.5,164",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "434.5,263;434.5,164",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "inheritance",
+          "points": "657,281;593,281;593,88;529,88",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "inheritance",
+          "points": "657,281;593,281;593,88;529,88",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "composition",
+          "points": "657,295;553,295;553,102;529,102",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "composition",
+          "points": "657,295;553,295;553,102;529,102",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "aggregation",
+          "points": "212,115;340,115",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "aggregation",
+          "points": "212,115;340,115",
+          "marker": null,
+          "dash": "2px, 4px"
+        },
+        {
+          "kind": "composition",
+          "points": "212,89;236,89;236,31;747,31;747,55",
+          "marker": null,
+          "dash": "none"
+        },
+        {
+          "kind": "composition",
+          "points": "212,89;236,89;236,31;747,31;747,55",
+          "marker": null,
+          "dash": "2px, 4px"
+        }
+      ]
+    }
+  ],
+  "visualReview": {
+    "status": "passed",
+    "screenshotsInspected": 12,
+    "conditions": "1440x900, Classic, light/dark, 100% zoom, page top, settled fonts/layout",
+    "observations": {
+      "bus-with-dependency": "Open dependency arrow and inheritance triangles have distinct ports; the dependency remains dashed.",
+      "interleaved": "Solid and dashed paths and their triangles remain distinct through the equal-height interleaving.",
+      "first-draft-shapes": "The inheritance bus/composition crossing is removed; type placement and member content are unchanged."
+    },
+    "limits": "These three paired cases were inspected; this is not exhaustive visual acceptance."
+  },
+  "timingQualification": "Single render wall times are diagnostic samples; focused tests were running concurrently during parts of collection. They are not a controlled performance comparison."
+}

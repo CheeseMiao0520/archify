@@ -35,10 +35,10 @@ function sortedBy(values, keyFor) {
 
 function normalizeRepository(repository) {
   if (!repository) return undefined;
-  const location = parseRepositoryRemote(repository.url, { authored: true });
+  const location = parseRepositoryRemote(repository.url, { authored: true, provider: repository.provider });
   const url = location?.url || String(repository.url || '');
   return {
-    url: location?.provider === 'github' ? url.toLowerCase() : url,
+    url: location?.provider === 'github' || location?.provider === 'gitlab' ? url.toLowerCase() : url,
     revision: String(repository.revision || '').toLowerCase(),
     ...(repository.provider !== undefined ? { provider: repository.provider } : {}),
     ...(repository.link_mode !== undefined ? { link_mode: repository.link_mode } : {}),
@@ -181,7 +181,7 @@ function fieldChanges(before, after, groups) {
 }
 
 const COMPONENT_FIELDS = {
-  semantic: ['type', 'label', 'sublabel', 'tag', 'brand'],
+  semantic: ['type', 'label', 'sublabel', 'tag', 'brand', 'icon'],
   evidence: ['sources'],
   geometry: ['row', 'col', 'pos', 'size'],
 };
@@ -235,7 +235,6 @@ function presentationChanged(base, head) {
     quality_profile: base.meta?.quality_profile,
     engineering_profile: base.meta?.engineering_profile,
     legend: base.meta?.legend,
-    views: base.meta?.views,
     viewBox: base.meta?.viewBox,
     layout: base.layout,
     cards: base.cards,
@@ -249,7 +248,6 @@ function presentationChanged(base, head) {
     quality_profile: head.meta?.quality_profile,
     engineering_profile: head.meta?.engineering_profile,
     legend: head.meta?.legend,
-    views: head.meta?.views,
     viewBox: head.meta?.viewBox,
     layout: head.layout,
     cards: head.cards,
@@ -276,7 +274,7 @@ export function compareArchitecture(base, head, evidence = {}) {
 
   const baseRepository = normalizeRepository(base.meta?.repository);
   const headRepository = normalizeRepository(head.meta?.repository);
-  const identity = (repository) => parseRepositoryRemote(repository.url, { authored: true })?.identity || repository.url;
+  const identity = (repository) => parseRepositoryRemote(repository.url, { authored: true, provider: repository.provider })?.identity || repository.url;
   if (baseRepository && headRepository && identity(baseRepository) !== identity(headRepository)) {
     fail('delta/repository-mismatch', 'The snapshots name different repositories.', {
       baseRepository: baseRepository.url,
@@ -492,11 +490,11 @@ export function annotateArchitectureSideSvg(svg, receipt, side) {
     if (!change) return markup;
     if (part === 'frame') {
       return addState(markup, change, side)
-        .replace(/\/>$/, ` data-delta-boundary-key="${esc(change.key)}"/>`);
+        .replace(/\/>$/, () => ` data-delta-boundary-key="${esc(change.key)}"/>`);
     }
     return markup.replace(
       /<text[^>]*>/,
-      (tag) => tag.replace(/>$/, ` data-delta-state="${change.status}" data-delta-boundary-state="${change.status}" data-delta-boundary-key="${esc(change.key)}">`),
+      (tag) => tag.replace(/>$/, () => ` data-delta-state="${change.status}" data-delta-boundary-state="${change.status}" data-delta-boundary-key="${esc(change.key)}">`),
     );
   });
   result = transformNodeGroups(result, (group, id) => {
@@ -549,13 +547,13 @@ function boundaryMarkupParts(markup) {
 
 function forceBoundaryState(markup, state, key, classifications = []) {
   return markup
-    .replace(/^<rect[^>]+\/>/, (tag) => addState(tag, { classifications }, 'delta', state).replace(/\/>$/, ` data-delta-boundary-key="${esc(key)}"/>`))
+    .replace(/^<rect[^>]+\/>/, (tag) => addState(tag, { classifications }, 'delta', state).replace(/\/>$/, () => ` data-delta-boundary-key="${esc(key)}"/>`))
     .replace(
       /<rect data-graph-role="structural-frame-label-mask"[^>]*\/>/,
       (tag) => addState(tag, { classifications }, 'delta', state)
-        .replace(/\/>$/, ` data-delta-boundary-state="${state}" data-delta-boundary-mask-key="${esc(key)}"/>`),
+        .replace(/\/>$/, () => ` data-delta-boundary-state="${state}" data-delta-boundary-mask-key="${esc(key)}"/>`),
     )
-    .replace(/<text[^>]*>/, (tag) => tag.replace(/>$/, ` data-delta-state="${state}" data-delta-boundary-state="${state}" data-delta-boundary-key="${esc(key)}">`));
+    .replace(/<text[^>]*>/, (tag) => tag.replace(/>$/, () => ` data-delta-state="${state}" data-delta-boundary-state="${state}" data-delta-boundary-key="${esc(key)}">`));
 }
 
 function viewBoxSize(svg) {
@@ -628,15 +626,17 @@ export function buildDeltaSvg(baseSvg, headSvg, receipt) {
     }
   }
 
+  // Insert generated markup literally: authored labels can contain replacement
+  // tokens such as $$, $&, and $` that string replacements would interpret.
   let delta = annotateArchitectureSideSvg(headSvg, receipt, 'head');
   if (baseEdgePhantoms.length) {
     const baseDefinitions = baseRelationshipsSvg.match(/<defs>([\s\S]*?)<\/defs>/)?.[1] || '';
-    delta = delta.replace('</defs>', `${baseDefinitions}</defs>`);
+    delta = delta.replace('</defs>', () => `${baseDefinitions}</defs>`);
   }
   delta = delta.replace(/^<svg[^>]+>/, (tag) => tag.replace(/viewBox="[^"]+"/, `viewBox="0 0 ${Math.max(baseW, headW) + 24} ${Math.max(baseH, headH) + 24}"`));
-  delta = delta.replace('        <!-- Boundaries (behind everything) -->', `        <!-- Baseline boundary frame phantoms -->\n${baseBoundaryFramePhantoms.filter(Boolean).join('\n')}\n\n        <!-- Boundaries (behind everything) -->`);
-  delta = delta.replace('        <!-- Connection paths (before components for correct z-order) -->', `        <!-- Baseline relationship phantoms -->\n${baseEdgePhantoms.join('\n')}\n\n        <!-- Connection paths (before components for correct z-order) -->`);
-  delta = delta.replace('        <!-- Components -->', `        <!-- Baseline boundary label phantoms (below current components) -->\n${baseBoundaryLabelPhantoms.filter(Boolean).join('\n')}\n\n        <!-- Baseline removed and move-from component phantoms -->\n${baseNodePhantoms.join('\n')}\n\n        <!-- Components -->`);
+  delta = delta.replace('        <!-- Boundaries (behind everything) -->', () => `        <!-- Baseline boundary frame phantoms -->\n${baseBoundaryFramePhantoms.filter(Boolean).join('\n')}\n\n        <!-- Boundaries (behind everything) -->`);
+  delta = delta.replace('        <!-- Connection paths (before components for correct z-order) -->', () => `        <!-- Baseline relationship phantoms -->\n${baseEdgePhantoms.join('\n')}\n\n        <!-- Connection paths (before components for correct z-order) -->`);
+  delta = delta.replace('        <!-- Components -->', () => `        <!-- Baseline boundary label phantoms (below current components) -->\n${baseBoundaryLabelPhantoms.filter(Boolean).join('\n')}\n\n        <!-- Baseline removed and move-from component phantoms -->\n${baseNodePhantoms.join('\n')}\n\n        <!-- Components -->`);
 
   for (const change of edges.values()) {
     if (change.status === 'added' || change.status === 'changed' || change.status === 'rerouted') {
@@ -649,7 +649,7 @@ export function buildDeltaSvg(baseSvg, headSvg, receipt) {
     const renderedKey = `${change.kind}:${esc(change.label)}`;
     boundaryMarkers.push(boundarySymbolMarkup(boundaryMarkupByKey(delta, renderedKey), change.status));
   }
-  delta = delta.replace('        <!-- Legend -->', `        <!-- Delta relationship symbols -->\n${edgeMarkers.filter(Boolean).join('\n')}\n\n        <!-- Delta boundary symbols -->\n${boundaryMarkers.filter(Boolean).join('\n')}\n\n        <!-- Legend -->`);
+  delta = delta.replace('        <!-- Legend -->', () => `        <!-- Delta relationship symbols -->\n${edgeMarkers.filter(Boolean).join('\n')}\n\n        <!-- Delta boundary symbols -->\n${boundaryMarkers.filter(Boolean).join('\n')}\n\n        <!-- Legend -->`);
   return prefixSvgIds(staticize(delta), 'delta');
 }
 

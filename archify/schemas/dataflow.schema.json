@@ -34,6 +34,9 @@
         "locale": {
           "$ref": "common.schema.json#/$defs/locale"
         },
+        "translations": {
+          "$ref": "common.schema.json#/$defs/translations"
+        },
         "subtitle": {
           "type": "string"
         },
@@ -139,6 +142,7 @@
           "tag": {
             "type": "string"
           },
+          "icon": { "$ref": "common.schema.json#/$defs/nodeIcon" },
           "brand": {
             "$ref": "common.schema.json#/$defs/brandMark"
           },

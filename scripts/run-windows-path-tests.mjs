@@ -16,6 +16,10 @@ import { stageCleanSkill } from './stage-clean-skill.mjs';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const skillRoot = path.join(repoRoot, 'archify');
 const cli = path.join(skillRoot, 'bin', 'archify.mjs');
+const options = process.argv.slice(2);
+for (const option of options) {
+  if (!['--smoke', '--list'].includes(option)) throw new Error(`Unknown Windows test option: ${option}`);
+}
 
 function commandFailure(label, result) {
   return [
@@ -533,8 +537,11 @@ async function runControlledWindowsPathE2E() {
 
 const fullSuites = [
   'test/release-package-gates.test.mjs',
+  'test/skill-metadata.test.mjs',
+  'test/skill-installation.test.mjs',
   'test/copy-site-assets.test.mjs',
   'test/path-boundary-contract.test.mjs',
+  'test/temp-cleanup.test.mjs',
   'test/path-semantics.test.mjs',
   'test/portable-path.test.mjs',
   'test/native-output-path.test.mjs',
@@ -546,10 +553,12 @@ const fullSuites = [
   'test/open-artifact.test.mjs',
   'test/repository-evidence.test.mjs',
   'test/renderer-atomic-write.test.mjs',
+  'test/atomic-output-recovery.test.mjs',
 ];
 
 const portabilitySuites = [
   'test/checkout-line-endings.test.mjs',
+  'test/readme-showcase.test.mjs',
   'test/clean-skill-staging.test.mjs',
   'test/workflow-migration.test.mjs',
   'test/cli.test.mjs',
@@ -560,6 +569,8 @@ const portabilitySuites = [
 
 const portabilityPattern = [
   'Git checkout preserves',
+  'Windows Git Bash discovery ignores GIT_EXEC_PATH',
+  'Star History publishing advances',
   'clean staging preserves index modes',
   'entry detection',
   'workflow migration cleanup failure',
@@ -591,7 +602,11 @@ const portabilityPattern = [
   'doctor identifies an incomplete installation',
 ].join('|');
 
-const groups = [
+// Both lanes exercise controlled NTFS/UNC/8.3 paths below. Only the canonical
+// lane repeats the detailed fault matrices; the other runs public CLI contracts.
+const groups = options.includes('--smoke') ? [
+  ['--test', '--test-concurrency=1', 'test/core-smoke.test.mjs'],
+] : [
   ['--test', '--test-concurrency=1', ...fullSuites],
   [
     '--test',
@@ -601,20 +616,24 @@ const groups = [
   ],
 ];
 
-await runControlledWindowsPathE2E();
+if (options.includes('--list')) {
+  console.log(JSON.stringify({ controlledPaths: true, groups }));
+} else {
+  await runControlledWindowsPathE2E();
 
-for (const args of groups) {
-  const result = spawnSync(process.execPath, args, {
-    cwd: skillRoot,
-    stdio: 'inherit',
-  });
-  if (result.error) throw result.error;
-  if (result.signal) {
-    process.stderr.write(`Windows path test runner terminated by ${result.signal}\n`);
-    process.exitCode = 1;
-    break;
-  }
-  if (result.status !== 0) {
-    process.exitCode = result.status ?? 1;
+  for (const args of groups) {
+    const result = spawnSync(process.execPath, args, {
+      cwd: repoRoot,
+      stdio: 'inherit',
+    });
+    if (result.error) throw result.error;
+    if (result.signal) {
+      process.stderr.write(`Windows path test runner terminated by ${result.signal}\n`);
+      process.exitCode = 1;
+      break;
+    }
+    if (result.status !== 0) {
+      process.exitCode = result.status ?? 1;
+    }
   }
 }

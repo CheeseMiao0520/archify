@@ -95,6 +95,9 @@ const regularFileBindingGroups = new Map();
 const digestChunkBytes = 64 * 1024;
 const removalCleanupSignal = new Int32Array(new SharedArrayBuffer(4));
 const removalCleanupAttempts = 10;
+const publicationRecoveryRecordName = 'publication-recovery-v1.json';
+const publicationRecoveryRecordVersion = 1;
+const publicationRecoveryRecordMaxBytes = 16 * 1024;
 
 export function removeEmptyDirectoryWithRetry(directory, { retry = true } = {}) {
   const attempts = retry ? removalCleanupAttempts : 1;
@@ -545,6 +548,202 @@ function removalRecovery(subject, code, filePath, quarantineDirectory, quarantin
   };
 }
 
+function decimal(value) {
+  return value.toString();
+}
+
+function parseDecimal(value) {
+  if (typeof value !== 'string' || !/^(?:0|[1-9]\d*)$/.test(value)) return null;
+  try {
+    return BigInt(value);
+  } catch {
+    return null;
+  }
+}
+
+function parseSafeInteger(value) {
+  return Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function serializeRequestedEntry(entry) {
+  if (entry?.kind === 'absent') return { kind: 'absent' };
+  if (entry?.kind !== 'existing' || typeof entry.entryType !== 'string'
+    || typeof entry.device !== 'bigint' || typeof entry.inode !== 'bigint') {
+    return null;
+  }
+  return {
+    kind: 'existing',
+    entryType: entry.entryType,
+    device: decimal(entry.device),
+    inode: decimal(entry.inode),
+    ...(entry.entryType === 'symbolic-link' ? {
+      changedAtNs: decimal(entry.changedAtNs),
+      createdAtNs: decimal(entry.createdAtNs),
+    } : {}),
+  };
+}
+
+function createPublicationRecoveryRecord(directory, snapshot, previous) {
+  const requestedEntry = serializeRequestedEntry(snapshot?.requestedEntry);
+  const slot = snapshot?.slot;
+  if (!requestedEntry || !slot || typeof snapshot?.requestedPath !== 'string'
+    || typeof snapshot?.requestedEntryPolicy !== 'string'
+    || typeof slot.commitPath !== 'string' || typeof slot.parentPath !== 'string'
+    || typeof slot.name !== 'string' || typeof slot.parentDevice !== 'bigint'
+    || typeof slot.parentInode !== 'bigint' || !previous?.identity
+    || !previous?.content || !Number.isSafeInteger(previous.mode)) {
+    return relation('unknown', 'publication-recovery-record-input-invalid');
+  }
+  const recordPath = path.join(directory, publicationRecoveryRecordName);
+  let directoryMetadata;
+  let parentMetadata;
+  try {
+    directoryMetadata = fs.lstatSync(directory, { bigint: true });
+    parentMetadata = fs.statSync(path.dirname(directory), { bigint: true });
+  } catch (error) {
+    return filesystemFailure('publication-recovery-directory-inspection-failed', error, {
+      recoveryDirectory: directory,
+    });
+  }
+  if (!directoryMetadata.isDirectory() || directoryMetadata.ino === 0n
+    || !parentMetadata.isDirectory()
+    || parentMetadata.dev !== slot.parentDevice || parentMetadata.ino !== slot.parentInode
+    || !/^\.archify-remove-[a-f\d]{32}$/.test(path.basename(directory))) {
+    return relation('unknown', 'publication-recovery-directory-invalid', {
+      recoveryDirectory: directory,
+    });
+  }
+  const record = {
+    version: publicationRecoveryRecordVersion,
+    kind: 'archify-retired-output-recovery',
+    backup: {
+      name: 'previous',
+      sha256: previous.content.sha256,
+      bytes: previous.content.bytes,
+      mode: previous.mode,
+      device: decimal(previous.identity.device),
+      inode: decimal(previous.identity.inode),
+    },
+    recovery: {
+      name: path.basename(directory),
+      device: decimal(directoryMetadata.dev),
+      inode: decimal(directoryMetadata.ino),
+    },
+    target: {
+      requestedPath: snapshot.requestedPath,
+      requestedEntryPolicy: snapshot.requestedEntryPolicy,
+      requestedEntry,
+      commitPath: slot.commitPath,
+      parentPath: slot.parentPath,
+      parentDevice: decimal(slot.parentDevice),
+      parentInode: decimal(slot.parentInode),
+      name: slot.name,
+    },
+  };
+  const bytes = Buffer.from(`${JSON.stringify(record)}\n`);
+  let descriptor;
+  let writeFailure;
+  try {
+    descriptor = fs.openSync(
+      recordPath,
+      fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL,
+      0o600,
+    );
+    let offset = 0;
+    while (offset < bytes.byteLength) {
+      const wrote = fs.writeSync(descriptor, bytes, offset, bytes.byteLength - offset);
+      if (wrote <= 0) throw Object.assign(new Error('short recovery record write'), { code: 'EIO' });
+      offset += wrote;
+    }
+    fs.fsyncSync(descriptor);
+  } catch (error) {
+    writeFailure = error;
+  } finally {
+    if (descriptor !== undefined) {
+      try {
+        fs.closeSync(descriptor);
+      } catch (error) {
+        writeFailure ||= error;
+      }
+    }
+  }
+  if (writeFailure) {
+    return filesystemFailure('publication-recovery-record-write-failed', writeFailure, {
+      recoveryDirectory: directory,
+      recoveryFile: recordPath,
+    });
+  }
+  // POSIX requires the parent directory entry to be synced separately. Do not
+  // claim a kill-recovery record is durable where the platform cannot do that.
+  if (process.platform !== 'win32') {
+    let directoryDescriptor;
+    let directoryFailure;
+    try {
+      directoryDescriptor = fs.openSync(directory, fs.constants.O_RDONLY);
+      fs.fsyncSync(directoryDescriptor);
+    } catch (error) {
+      directoryFailure = error;
+    } finally {
+      if (directoryDescriptor !== undefined) {
+        try {
+          fs.closeSync(directoryDescriptor);
+        } catch (error) {
+          directoryFailure ||= error;
+        }
+      }
+    }
+    if (directoryFailure) {
+      return filesystemFailure('publication-recovery-record-directory-sync-failed', directoryFailure, {
+        recoveryDirectory: directory,
+        recoveryFile: recordPath,
+      });
+    }
+  }
+  const captured = captureRegularFileBinding(recordPath, {
+    subject: 'publication-recovery-record',
+    expectedSha256: createHash('sha256').update(bytes).digest('hex'),
+    expectedBytes: bytes.byteLength,
+    // Windows reports a synthetic POSIX mode whose read bits cannot represent
+    // the private ACL established by the exclusive create above.
+    expectedMode: process.platform === 'win32' ? undefined : 0o600,
+    expectedLinks: 1,
+  });
+  if (captured.status !== 'captured') {
+    return {
+      ...captured,
+      recoveryDirectory: directory,
+      recoveryFile: recordPath,
+    };
+  }
+  return {
+    status: 'created',
+    recordPath,
+    binding: captured.binding,
+  };
+}
+
+function discardPublicationRecoveryRecord(record) {
+  if (!record?.binding || typeof record.recordPath !== 'string') return null;
+  let removed;
+  let released;
+  try {
+    removed = quarantineRemoveRegularFileBinding(record.binding, record.recordPath, {
+      subject: 'publication-recovery-record',
+      expectedLinks: 1,
+    });
+  } finally {
+    released = releaseRegularFileBinding(record.binding);
+  }
+  if (released.status !== 'released') return released;
+  return removed.status === 'removed' ? null : removed;
+}
+
+function releasePublicationRecoveryRecord(record) {
+  if (!record?.binding) return null;
+  const released = releaseRegularFileBinding(record.binding);
+  return released.status === 'released' ? null : released;
+}
+
 /**
  * Remove a public regular-file name without a verify-to-unlink race. The
  * public entry is first moved into an unpredictable private directory and is
@@ -938,6 +1137,7 @@ export function publishRegularFileBinding(binding, candidatePath, snapshot, {
   let previousBinding;
   let recoveryDirectory;
   let backupPath;
+  let recoveryRecord;
   let previousBackedUp = false;
   const finishPrevious = () => {
     if (!previousBinding) return null;
@@ -975,6 +1175,10 @@ export function publishRegularFileBinding(binding, candidatePath, snapshot, {
       if (claimantRemoval.status === 'removed') publicRemoval = claimantRemoval;
     }
     const restored = restorePrevious();
+    const recordCleanup = restored?.status === 'match'
+      ? discardPublicationRecoveryRecord(recoveryRecord)
+      : releasePublicationRecoveryRecord(recoveryRecord);
+    recoveryRecord = undefined;
     const released = finishPrevious();
     const directoryCleanup = cleanupRecoveryDirectory();
     return {
@@ -982,11 +1186,12 @@ export function publishRegularFileBinding(binding, candidatePath, snapshot, {
       ...(publicRemoval.status !== 'removed' && publicRemoval.status !== 'absent'
         ? { publicState: publicRemoval.reason } : {}),
       ...(restored && restored.status !== 'match' ? { restoreState: restored.reason } : {}),
+      ...(recordCleanup ? { recoveryRecordState: recordCleanup.reason } : {}),
       ...(released ? { releaseState: released.reason } : {}),
       ...(directoryCleanup ? {
         recoveryDirectory: directoryCleanup.reason?.recoveryDirectory || recoveryDirectory,
       } : {}),
-      ...((restored && restored.status !== 'match') || directoryCleanup
+      ...((restored && restored.status !== 'match') || recordCleanup || directoryCleanup
         ? { recoveryFile: backupPath } : {}),
     };
   };
@@ -1010,6 +1215,18 @@ export function publishRegularFileBinding(binding, candidatePath, snapshot, {
     }
     recoveryDirectory = quarantine.directory;
     backupPath = path.join(recoveryDirectory, 'previous');
+    const recovery = createPublicationRecoveryRecord(recoveryDirectory, snapshot, previous);
+    if (recovery.status !== 'created') {
+      const released = finishPrevious();
+      const directoryCleanup = cleanupRecoveryDirectory();
+      return {
+        ...recovery,
+        ...(recoveryDirectory ? { recoveryDirectory } : {}),
+        ...(released ? { releaseState: released.reason } : {}),
+        ...(directoryCleanup ? { directoryCleanupState: directoryCleanup.reason } : {}),
+      };
+    }
+    recoveryRecord = recovery;
     const backup = backupPublicRegularFileBinding(
       previousBinding,
       commitPath,
@@ -1018,10 +1235,15 @@ export function publishRegularFileBinding(binding, candidatePath, snapshot, {
     );
     previousBackedUp = backup.status === 'backed-up';
     if (!previousBackedUp) {
+      const recordCleanup = backup.backupCreated
+        ? releasePublicationRecoveryRecord(recoveryRecord)
+        : discardPublicationRecoveryRecord(recoveryRecord);
+      recoveryRecord = undefined;
       const released = finishPrevious();
       const directoryCleanup = backup.backupCreated ? null : cleanupRecoveryDirectory();
       return {
         ...backup,
+        ...(recordCleanup ? { recoveryRecordState: recordCleanup.reason } : {}),
         ...(released ? { releaseState: released.reason } : {}),
         ...(directoryCleanup ? { directoryCleanupState: directoryCleanup.reason } : {}),
       };
@@ -1078,6 +1300,11 @@ export function publishRegularFileBinding(binding, candidatePath, snapshot, {
       { subject: 'previous-output-backup', expectedLinks: 1 },
     );
     if (backupRemoval.status !== 'removed') cleanupWarning = backupRemoval;
+    const recordCleanup = backupRemoval.status === 'removed'
+      ? discardPublicationRecoveryRecord(recoveryRecord)
+      : releasePublicationRecoveryRecord(recoveryRecord);
+    recoveryRecord = undefined;
+    cleanupWarning ||= recordCleanup;
   }
   const released = finishPrevious();
   const directoryCleanup = cleanupRecoveryDirectory();
@@ -1378,4 +1605,378 @@ export function verifyAtomicOutput(snapshot) {
     });
   }
   return relation('match', 'atomic-output-match', { commitPath: previousSlot.commitPath });
+}
+
+function parsePublicationRecoveryRecord(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.byteLength > publicationRecoveryRecordMaxBytes) {
+    return relation('unknown', 'publication-recovery-record-too-large');
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(buffer.toString('utf8'));
+  } catch (error) {
+    return filesystemFailure('publication-recovery-record-invalid-json', error);
+  }
+  const backup = parsed?.backup;
+  const recovery = parsed?.recovery;
+  const target = parsed?.target;
+  const requestedEntry = target?.requestedEntry;
+  const validEntry = requestedEntry?.kind === 'absent'
+    || (requestedEntry?.kind === 'existing'
+      && typeof requestedEntry.entryType === 'string'
+      && parseDecimal(requestedEntry.device) !== null
+      && parseDecimal(requestedEntry.inode) !== null
+      && (requestedEntry.entryType !== 'symbolic-link'
+        || (parseDecimal(requestedEntry.changedAtNs) !== null
+          && parseDecimal(requestedEntry.createdAtNs) !== null)));
+  const valid = parsed?.version === publicationRecoveryRecordVersion
+    && parsed?.kind === 'archify-retired-output-recovery'
+    && backup?.name === 'previous'
+    && typeof backup.sha256 === 'string' && /^[a-f\d]{64}$/i.test(backup.sha256)
+    && parseSafeInteger(backup.bytes) !== null
+    && Number.isSafeInteger(backup.mode) && backup.mode >= 0 && backup.mode <= 0o777
+    && parseDecimal(backup.device) !== null && parseDecimal(backup.inode) !== null
+    && typeof recovery?.name === 'string' && /^\.archify-remove-[a-f\d]{32}$/.test(recovery.name)
+    && parseDecimal(recovery.device) !== null
+    && parseDecimal(recovery.inode) !== null
+    && typeof target?.requestedPath === 'string' && path.isAbsolute(target.requestedPath)
+    && typeof target.requestedEntryPolicy === 'string'
+    && ['followable-alias', 'regular-or-absent'].includes(target.requestedEntryPolicy)
+    && validEntry
+    && typeof target.commitPath === 'string' && path.isAbsolute(target.commitPath)
+    && typeof target.parentPath === 'string' && path.isAbsolute(target.parentPath)
+    // path-contract-allow: lexical-capability -- A record must exactly decompose the captured canonical target spelling.
+    && typeof target.name === 'string' && target.name === path.basename(target.commitPath)
+    // path-contract-allow: lexical-capability -- A record must exactly decompose the captured canonical target spelling.
+    && target.parentPath === path.dirname(target.commitPath)
+    && parseDecimal(target.parentDevice) !== null && parseDecimal(target.parentInode) !== null;
+  if (!valid) return relation('unknown', 'publication-recovery-record-invalid');
+  return {
+    status: 'parsed',
+    record: {
+      backup: {
+        ...backup,
+        device: parseDecimal(backup.device),
+        inode: parseDecimal(backup.inode),
+      },
+      recovery: {
+        ...recovery,
+        device: parseDecimal(recovery.device),
+        inode: parseDecimal(recovery.inode),
+      },
+      target: {
+        ...target,
+        parentDevice: parseDecimal(target.parentDevice),
+        parentInode: parseDecimal(target.parentInode),
+        requestedEntry: requestedEntry.kind === 'absent' ? requestedEntry : {
+          ...requestedEntry,
+          device: parseDecimal(requestedEntry.device),
+          inode: parseDecimal(requestedEntry.inode),
+          ...(requestedEntry.entryType === 'symbolic-link' ? {
+            changedAtNs: parseDecimal(requestedEntry.changedAtNs),
+            createdAtNs: parseDecimal(requestedEntry.createdAtNs),
+          } : {}),
+        },
+      },
+    },
+  };
+}
+
+function verifyPublicationRecoveryDirectory(directory, metadata, record) {
+  let parentMetadata;
+  try {
+    parentMetadata = fs.statSync(path.dirname(directory), { bigint: true });
+  } catch (error) {
+    return filesystemFailure('publication-recovery-parent-inspection-failed', error, {
+      recoveryDirectory: directory,
+    });
+  }
+  // path-contract-allow: lexical-capability -- The generated private-directory component is an exact record-bound capability.
+  if (path.basename(directory) !== record.recovery.name
+    || !parentMetadata.isDirectory()
+    || parentMetadata.dev !== record.target.parentDevice
+    || parentMetadata.ino !== record.target.parentInode) {
+    return relation('different', 'publication-recovery-directory-not-target-child', {
+      recoveryDirectory: directory,
+      expectedParentPath: record.target.parentPath,
+    });
+  }
+  if (metadata.dev !== record.recovery.device || metadata.ino !== record.recovery.inode) {
+    return relation('different', 'publication-recovery-directory-identity-changed', {
+      recoveryDirectory: directory,
+    });
+  }
+  return relation('match', 'publication-recovery-directory-match', {
+    recoveryDirectory: directory,
+  });
+}
+
+function verifyRetiredPublicationSlot(record) {
+  const { target } = record;
+  const slot = captureWriteSlot(target.requestedPath);
+  if (slot.status !== 'captured') return slot;
+  // path-contract-allow: lexical-capability -- The recaptured canonical commit spelling must exactly match the recorded capability.
+  const commitPathChanged = slot.slot.commitPath !== target.commitPath;
+  // path-contract-allow: lexical-capability -- The recaptured canonical parent spelling must exactly match the recorded capability.
+  const parentPathChanged = slot.slot.parentPath !== target.parentPath;
+  if (commitPathChanged
+    || parentPathChanged
+    || slot.slot.name !== target.name
+    || slot.slot.parentDevice !== target.parentDevice
+    || slot.slot.parentInode !== target.parentInode) {
+    return relation('different', 'publication-recovery-slot-changed', {
+      requestedPath: target.requestedPath,
+      commitPath: target.commitPath,
+    });
+  }
+  try {
+    fs.lstatSync(target.commitPath, { bigint: true });
+    return relation('preserved', 'publication-recovery-target-present', {
+      commitPath: target.commitPath,
+    });
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      return filesystemFailure('publication-recovery-target-inspection-failed', error, {
+        commitPath: target.commitPath,
+      });
+    }
+  }
+  let requested;
+  try {
+    requested = fs.lstatSync(target.requestedPath, { bigint: true });
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      return filesystemFailure('publication-recovery-requested-entry-inspection-failed', error, {
+        requestedPath: target.requestedPath,
+      });
+    }
+  }
+  if (target.requestedEntry.kind === 'existing'
+    && target.requestedEntry.entryType === 'symbolic-link') {
+    if (!requested?.isSymbolicLink()
+      || requested.dev !== target.requestedEntry.device
+      || requested.ino !== target.requestedEntry.inode
+      || requested.ctimeNs !== target.requestedEntry.changedAtNs
+      || requested.birthtimeNs !== target.requestedEntry.createdAtNs) {
+      return relation('different', 'publication-recovery-requested-alias-changed', {
+        requestedPath: target.requestedPath,
+      });
+    }
+  } else if (requested) {
+    return relation('different', 'publication-recovery-requested-entry-reclaimed', {
+      requestedPath: target.requestedPath,
+    });
+  }
+  return relation('match', 'publication-recovery-slot-match', {
+    commitPath: target.commitPath,
+  });
+}
+
+function releaseRecoveryBindings(result, recordBinding, backupBinding) {
+  const failures = [];
+  if (backupBinding) {
+    const released = releaseRegularFileBinding(backupBinding);
+    if (released.status !== 'released') failures.push(released.reason);
+  }
+  if (recordBinding) {
+    const released = releaseRegularFileBinding(recordBinding);
+    if (released.status !== 'released') failures.push(released.reason);
+  }
+  if (failures.length === 0) return result;
+  return {
+    ...result,
+    status: 'recovery-required',
+    releaseState: failures,
+  };
+}
+
+/**
+ * Explicitly restore one retired output after a process crash. This is not a
+ * directory scanner: callers must name the private recovery directory they
+ * intend to recover. A record is only a claim; the restored byte stream must
+ * still match its recorded inode, mode, SHA-256 and size, the original parent
+ * slot and aliases must still resolve identically, and the public name must be
+ * absent. `linkSync` is deliberately no-clobber, so a later claimant wins.
+ */
+export function recoverRetiredPublication(recoveryDirectory) {
+  const directory = path.resolve(recoveryDirectory);
+  let directoryMetadata;
+  try {
+    directoryMetadata = fs.lstatSync(directory, { bigint: true });
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return relation('absent', 'publication-recovery-already-complete', { recoveryDirectory: directory });
+    }
+    return filesystemFailure('publication-recovery-directory-inspection-failed', error, {
+      recoveryDirectory: directory,
+    });
+  }
+  if (!directoryMetadata.isDirectory()) {
+    return relation('unsupported', 'publication-recovery-directory-not-directory', {
+      recoveryDirectory: directory,
+      entryType: entryType(directoryMetadata),
+    });
+  }
+  if (process.platform !== 'win32' && Number(directoryMetadata.mode & 0o077n) !== 0) {
+    return relation('unsupported', 'publication-recovery-directory-not-private', {
+      recoveryDirectory: directory,
+    });
+  }
+  const recordPath = path.join(directory, publicationRecoveryRecordName);
+  let recordMetadata;
+  try {
+    recordMetadata = fs.lstatSync(recordPath, { bigint: true });
+  } catch (error) {
+    return filesystemFailure('publication-recovery-record-inspection-failed', error, {
+      recoveryDirectory: directory,
+      recoveryFile: recordPath,
+    });
+  }
+  if (!recordMetadata.isFile() || recordMetadata.nlink !== 1n
+    || recordMetadata.size > BigInt(publicationRecoveryRecordMaxBytes)) {
+    return relation('unsupported', 'publication-recovery-record-not-private-regular-file', {
+      recoveryDirectory: directory,
+      recoveryFile: recordPath,
+    });
+  }
+  const capturedRecord = captureRegularFileBinding(recordPath, {
+    subject: 'publication-recovery-record',
+    expectedLinks: 1,
+    includeContent: true,
+  });
+  if (capturedRecord.status !== 'captured') return capturedRecord;
+  const parsed = parsePublicationRecoveryRecord(capturedRecord.content.buffer);
+  if (parsed.status !== 'parsed') {
+    return releaseRecoveryBindings(parsed, capturedRecord.binding);
+  }
+  const recoveryDirectoryState = verifyPublicationRecoveryDirectory(
+    directory,
+    directoryMetadata,
+    parsed.record,
+  );
+  if (recoveryDirectoryState.status !== 'match') {
+    return releaseRecoveryBindings({
+      ...recoveryDirectoryState,
+      recoveryDirectory: directory,
+      recoveryFile: recordPath,
+    }, capturedRecord.binding);
+  }
+  const slot = verifyRetiredPublicationSlot(parsed.record);
+  if (slot.status !== 'match') {
+    return releaseRecoveryBindings({
+      ...slot,
+      recoveryDirectory: directory,
+      recoveryFile: recordPath,
+    }, capturedRecord.binding);
+  }
+  const backupPath = path.join(directory, parsed.record.backup.name);
+  const capturedBackup = captureRegularFileBinding(backupPath, {
+    subject: 'publication-recovery-backup',
+    expectedSha256: parsed.record.backup.sha256,
+    expectedBytes: parsed.record.backup.bytes,
+    expectedMode: parsed.record.backup.mode,
+    expectedIdentity: {
+      device: parsed.record.backup.device,
+      inode: parsed.record.backup.inode,
+    },
+    expectedLinks: 1,
+  });
+  if (capturedBackup.status !== 'captured') {
+    return releaseRecoveryBindings({
+      ...capturedBackup,
+      recoveryDirectory: directory,
+      recoveryFile: backupPath,
+    }, capturedRecord.binding);
+  }
+  // This second check narrows the remaining path-based link window. It cannot
+  // make `linkSync` descriptor-bound, but it avoids linking after an ordinary
+  // observed parent, alias, target, or backup change.
+  const beforeLinkSlot = verifyRetiredPublicationSlot(parsed.record);
+  const beforeLinkBackup = verifyRegularFileBinding(capturedBackup.binding, {
+    filePath: backupPath,
+    expectedLinks: 1,
+  });
+  if (beforeLinkSlot.status !== 'match' || beforeLinkBackup.status !== 'match') {
+    return releaseRecoveryBindings({
+      status: beforeLinkSlot.status === 'match' ? beforeLinkBackup.status : beforeLinkSlot.status,
+      reason: {
+        code: 'publication-recovery-pre-link-verification-failed',
+        slotState: beforeLinkSlot.reason,
+        backupState: beforeLinkBackup.reason,
+      },
+      recoveryDirectory: directory,
+      recoveryFile: backupPath,
+    }, capturedRecord.binding, capturedBackup.binding);
+  }
+  try {
+    fs.linkSync(backupPath, parsed.record.target.commitPath);
+  } catch (error) {
+    return releaseRecoveryBindings(relation(
+      error?.code === 'EEXIST' ? 'preserved' : 'unknown',
+      error?.code === 'EEXIST'
+        ? 'publication-recovery-target-created'
+        : 'publication-recovery-link-failed',
+      {
+        recoveryDirectory: directory,
+        recoveryFile: backupPath,
+        commitPath: parsed.record.target.commitPath,
+        ...(typeof error?.code === 'string' ? { systemCode: error.code } : {}),
+      },
+    ), capturedRecord.binding, capturedBackup.binding);
+  }
+  const publicState = verifyRegularFileBinding(capturedBackup.binding, {
+    filePath: parsed.record.target.commitPath,
+    expectedLinks: 2,
+  });
+  const backupState = verifyRegularFileBinding(capturedBackup.binding, {
+    filePath: backupPath,
+    expectedLinks: 2,
+  });
+  if (publicState.status !== 'match' || backupState.status !== 'match') {
+    // We may have introduced an alias to a pathname that was swapped after the
+    // pre-link checks. Remove only that alias when it is still a verified
+    // two-link pair; otherwise preserve every uncertain name for inspection.
+    const linkedAliasCleanup = quarantineRemoveLinkedRegularFileAlias(
+      backupPath,
+      parsed.record.target.commitPath,
+      { subject: 'publication-recovery-unverified-link' },
+    );
+    return releaseRecoveryBindings(relation('recovery-required', 'publication-recovery-link-verification-failed', {
+      recoveryDirectory: directory,
+      recoveryFile: backupPath,
+      commitPath: parsed.record.target.commitPath,
+      publicState: publicState.reason,
+      backupState: backupState.reason,
+      linkedAliasCleanup: linkedAliasCleanup.reason,
+    }), capturedRecord.binding, capturedBackup.binding);
+  }
+  const backupRemoval = quarantineRemoveRegularFileBinding(capturedBackup.binding, backupPath, {
+    subject: 'publication-recovery-backup',
+    expectedLinks: 2,
+  });
+  if (backupRemoval.status !== 'removed') {
+    return releaseRecoveryBindings({
+      ...backupRemoval,
+      status: 'recovered-with-warning',
+      recoveryDirectory: directory,
+      recoveryFile: backupPath,
+      target: parsed.record.target.commitPath,
+    }, capturedRecord.binding, capturedBackup.binding);
+  }
+  const recordCleanup = discardPublicationRecoveryRecord({
+    recordPath,
+    binding: capturedRecord.binding,
+  });
+  const directoryCleanup = removeEmptyQuarantine(directory);
+  const result = {
+    status: recordCleanup || directoryCleanup ? 'recovered-with-warning' : 'recovered',
+    reason: {
+      code: 'publication-recovery-restored',
+      recoveryDirectory: directory,
+      commitPath: parsed.record.target.commitPath,
+    },
+    ...(recordCleanup ? { recoveryRecordState: recordCleanup.reason } : {}),
+    ...(directoryCleanup ? { directoryCleanupState: directoryCleanup.reason } : {}),
+  };
+  return releaseRecoveryBindings(result, undefined, capturedBackup.binding);
 }

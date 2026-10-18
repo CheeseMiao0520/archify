@@ -3,6 +3,7 @@
 /archify/examples/*.html linguist-generated=true
 /examples/*.html linguist-generated=true
 /docs/cases/*.html linguist-generated=true
+/docs/cases/life/*.html linguist-generated=true
 /docs/gallery.html linguist-generated=true
 /docs/gallery/artifacts/*.html linguist-generated=true
 /docs/guide.html linguist-generated=true
@@ -17,3 +18,6 @@
 # Normalize line endings so working-tree bytes match the index on Windows (core.autocrlf=true).
 # See issue #144: tracked files materialized as CRLF on Windows, breaking byte-exact checks.
 * text=auto eol=lf
+
+# Release archives contain binary bytes and must not be line-normalized.
+archify.zip binary

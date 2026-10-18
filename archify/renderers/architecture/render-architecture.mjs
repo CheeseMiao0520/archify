@@ -1,9 +1,10 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { esc, renderDefinitions, renderSemanticSigil, textUnits } from '../shared/utils.mjs';
+import { NODE_CARD_ATTR, nodeCardStyle } from '../shared/node-card-style.mjs';
 import { animateAttr, focusEdgeAttrs, focusNodeAttrs, focusNodeTitle, loadDiagramWithBrandMarks, writeDiagram, svgAccessibleText, svgRootAttrs } from '../shared/cli.mjs';
 import { componentBox, boundaryBox, connectionPath } from '../shared/layout-report.mjs';
-import { throwDiagnosticProblems } from '../shared/diagnostics.mjs';
+import { rendererFailure, throwDiagnosticProblems } from '../shared/diagnostics.mjs';
 import { legendFootprint, relationshipLegendObstacles, resolveLegend, renderLegend as renderResolvedLegend } from '../shared/legend.mjs';
 import { availableNodeTextWidth, fittedNodeFontSize, minimumNodeTextWidth } from '../shared/text-fit.mjs';
 import { brandLabelFitWidth, brandMetadataFor, brandTopRailProblem, renderBrandMark } from '../shared/brand-marks.mjs';
@@ -11,19 +12,24 @@ import { minimumReadableSourceTextPx } from '../shared/desktop-readability.mjs';
 import { translateMessage as i18nText } from '../shared/i18n.mjs';
 import { gridLayout, resolveComponentPos, validateGridPlacement } from './grid.mjs';
 import { createRouter } from './routing.mjs';
+import { placeAutomaticLabels, reservedLabelRect } from '../shared/automatic-labels.mjs';
+import { cleanRouteDetourProblems } from '../shared/route-quality.mjs';
 import {
   asArray,
   isFinitePoint,
   rectsOverlap,
+  segmentIntersectsRect,
   cleanEndpointSideProblems,
   cleanFlowProblems,
   cleanCrossingProblems,
   cleanAmbiguousCorridorProblems,
+  collectArrowheadCollisions,
   cleanBorderRunProblems,
   cleanRouteRhythmProblems,
   cleanLabelRouteClearanceProblems,
   cleanLabelCanvasContainmentProblems,
   suggestLabelObstacleFix,
+  componentSeparationOptions,
   suggestComponentSeparation,
   polylinePath,
   routePointsValue,
@@ -104,14 +110,24 @@ for (const [index, c] of asArray(arch.components).entries()) {
 function boundaryRect(boundary) {
   const members = asArray(boundary.wraps).map((id) => components.get(id)).filter(Boolean);
   if (!members.length) return null;
-  const minX = Math.min(...members.map((m) => m.x));
-  const minY = Math.min(...members.map((m) => m.y));
-  const maxX = Math.max(...members.map((m) => m.x + m.width));
-  const maxY = Math.max(...members.map((m) => m.y + m.height));
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const member of members) {
+    minX = Math.min(minX, member.x);
+    minY = Math.min(minY, member.y);
+    maxX = Math.max(maxX, member.x + member.width);
+    maxY = Math.max(maxY, member.y + member.height);
+  }
   const pad = boundary.pad ?? layout.boundaryPad;
   const topPad = Math.max(
     pad,
     layout.boundaryLabelBaseline + layout.boundaryLabelClearance,
+    // Routes must avoid the title rail that the final frame will contain.
+    enforcesBoundaryTitleComposition
+      ? layout.boundaryLabelMaskHeight + layout.boundaryLabelClearance + layout.boundaryLabelFrameInset
+      : 0,
   );
   return {
     ...boundary,
@@ -144,9 +160,13 @@ const architectureLegendEntries = resolveLegend(
 // One source for connection label geometry: the rect the containment rule
 // measures is the rect the SVG mask draws, the auto canvas covers, the legend
 // avoids, and the layout report publishes.
+const resolvedLabelPoints = new Map();
 function connectionLabelBox(conn) {
   if (!conn.label) return null;
-  const [lx, ly] = labelPoint(conn, pathFor(conn).points);
+  return connectionLabelBoxAt(conn, resolvedLabelPoints.get(conn) || labelPoint(conn, pathFor(conn).points));
+}
+
+function connectionLabelBoxAt(conn, [lx, ly]) {
   const width = Math.max(30, textUnits(conn.label) * 4.8 + 10);
   return { x: lx - width / 2, y: ly - 10, width, height: 14, lx, ly };
 }
@@ -163,18 +183,14 @@ function connectionLabelRects() {
 }
 
 function autoViewBoxFor(candidateBoundaries, extraRects = []) {
-  const maxX = Math.max(
-    0,
-    ...[...components.values()].map((component) => component.x + component.width),
-    ...candidateBoundaries.map((boundary) => boundary.x + boundary.width),
-    ...extraRects.map((rect) => rect.x + rect.width),
-  );
-  const maxY = Math.max(
-    0,
-    ...[...components.values()].map((component) => component.y + component.height),
-    ...candidateBoundaries.map((boundary) => boundary.y + boundary.height),
-    ...extraRects.map((rect) => rect.y + rect.height),
-  );
+  let maxX = 0;
+  let maxY = 0;
+  for (const rects of [components.values(), candidateBoundaries, extraRects]) {
+    for (const rect of rects) {
+      maxX = Math.max(maxX, rect.x + rect.width);
+      maxY = Math.max(maxY, rect.y + rect.height);
+    }
+  }
   let width = Math.ceil(maxX + layout.margin);
   let footprint = legendFootprint(architectureLegendEntries, {
     width: Math.max(1, width - layout.margin * 2),
@@ -195,7 +211,7 @@ function resolvedViewBoxWidth(candidateBoundaries) {
   if (Array.isArray(arch.meta?.viewBox) && Number.isFinite(arch.meta.viewBox[0])) {
     return arch.meta.viewBox[0];
   }
-  return autoViewBoxFor(candidateBoundaries, connectionLabels)[0];
+  return autoViewBoxFor(candidateBoundaries, connectionGeometry)[0];
 }
 
 function expandBoundaryForReadableTitle(boundary, minimumFontSize) {
@@ -243,6 +259,42 @@ function horizontalOverlap(left, right) {
   return left.x < right.x + right.width && left.x + left.width > right.x;
 }
 
+// A route through a title disappears under its mask and reads as struck-through
+// text. Keep the left rail position when it is clear; otherwise slide the title
+// along its rail to the nearest clear position inside the frame.
+let titleRouteSegments = null;
+function slideTitleOffRoutes(boundary, title, placedTitles) {
+  if (!enforcesBoundaryTitleComposition) return;
+  titleRouteSegments ||= asArray(arch.connections)
+    .filter((conn) => components.has(conn.from) && components.has(conn.to))
+    .flatMap((conn) => {
+      const points = pathFor(conn).points;
+      return points.slice(1).map((end, index) => ({ start: points[index], end }));
+    });
+  const clear = (x) => {
+    const rect = { ...title, x };
+    return !titleRouteSegments.some((segment) => segmentIntersectsRect(segment, rect, 2))
+      && ![...placedTitles, ...components.values(), ...connectionLabels].some((other) => rectsOverlap(rect, other));
+  };
+  if (clear(title.x)) return;
+  const left = boundary.x + layout.boundaryLabelFrameInset;
+  const right = boundary.x + boundary.width - layout.boundaryLabelFrameInset - title.width;
+  const band = titleRouteSegments.filter(({ start, end }) => (
+    Math.max(start[1], end[1]) >= title.y - 2 && Math.min(start[1], end[1]) <= title.y + title.height + 2
+  ));
+  const labelBlockers = connectionLabels.filter((label) => (
+    label.y < title.y + title.height && label.y + label.height > title.y
+  ));
+  const x = [right, ...band.flatMap(({ start, end }) => [
+    Math.max(start[0], end[0]) + 8, Math.min(start[0], end[0]) - 8 - title.width,
+  ]), ...labelBlockers.flatMap((label) => [
+    label.x + label.width + 8, label.x - 8 - title.width,
+  ])].filter((value) => value >= left && value <= right)
+    .sort((a, b) => a - b)
+    .find(clear);
+  if (x !== undefined) title.x = x;
+}
+
 function layoutBoundaryTitles(rawBoundaries, minimumFontSize) {
   const placedTitles = [];
   const measured = new Map();
@@ -266,10 +318,12 @@ function layoutBoundaryTitles(rawBoundaries, minimumFontSize) {
         ...components.values(),
       ].filter((candidate) => horizontalOverlap(title, candidate) && rectsOverlap(title, candidate));
       if (!blockers.length) break;
-      title.y = Math.min(
-        ...blockers.map((blocker) => blocker.y - layout.boundaryLabelRailGap - title.height),
+      title.y = blockers.reduce(
+        (min, blocker) => Math.min(min, blocker.y - layout.boundaryLabelRailGap - title.height),
+        Infinity,
       );
     }
+    slideTitleOffRoutes(boundary, title, placedTitles);
     placedTitles.push(title);
     measured.set(index, { boundary, title });
   }
@@ -297,13 +351,47 @@ function layoutBoundaryTitles(rawBoundaries, minimumFontSize) {
 // part of the derived canvas, so the title convergence must measure the same
 // width the diagram actually renders into (a title sized for a narrower canvas
 // would fall below the desktop-readability floor once labels grow it). Routing
-// reads only components and connections, never boundaries or the viewBox.
-const { pathFor, connectionSides, connectionEndpointSide } = createRouter(components, arch.connections);
+// reads components, connections and the member-derived boundary frames (so an
+// automatic route never borrows a frame border as its corridor), never the
+// title-expanded frames or the viewBox.
+const rawBoundaries = asArray(arch.boundaries).map(boundaryRect).filter(Boolean);
+const routerOptions = {
+  distinctAutomaticPorts: true,
+  preferReadableRoutes: true,
+  // A single outward stub below the scene can remove a crossing without
+  // widening the canvas or shrinking its text. Fixed canvases keep their bounds.
+  readabilityBottomMargin: arch.meta?.viewBox ? 0 : 24,
+  frames: rawBoundaries.map((boundary) => ({
+    ...boundary,
+    radius: boundary.kind === 'security-group' ? 8 : 12,
+  })),
+  labelRectFor: (conn, points, { routes, labels }) => (conn.label ? reservedLabelRect({
+    label: { relation: conn, label: conn.label, ...connectionLabelBoxAt(conn, labelPoint(conn, points)) },
+    points,
+    routes: routes.map((route, index) => ({ relationIndex: index, points: route })),
+    labels,
+    components: [...components.values()],
+  }) : null),
+};
+const { pathFor, connectionSides, connectionEndpointSide } = createRouter(components, arch.connections, routerOptions);
+function hasAutomaticRouteGeometry(connection) {
+  return !Array.isArray(connection?.via)
+    && (!connection?.route || connection.route === 'auto')
+    && connection?.channelX === undefined
+    && connection?.channelY === undefined;
+}
 // The auto canvas has to cover these rects; an authored viewBox is never
 // resized to fit them — there the containment rule reports the clipping.
-const connectionLabels = connectionLabelRects();
+let connectionLabels = connectionLabelRects();
+// Unlabelled outer corridors are geometry too. Fitting only nodes and labels
+// can clip a valid explicit via route while every browser overflow check passes.
+const connectionGeometry = [
+  ...connectionLabels,
+  ...asArray(arch.connections)
+    .filter((conn) => components.has(conn.from) && components.has(conn.to))
+    .flatMap((conn) => pathFor(conn).points.map(([x, y]) => ({ x, y, width: 0, height: 0 }))),
+];
 
-const rawBoundaries = asArray(arch.boundaries).map(boundaryRect).filter(Boolean);
 function resolveBoundaryTitles() {
   if (!enforcesBoundaryTitleComposition || rawBoundaries.length === 0) {
     return {
@@ -360,12 +448,45 @@ function componentContext(component) {
 // Connection labels are diagram content, so an auto canvas that stopped at the
 // component/boundary bbox would clip them; the label rects join the fit here
 // and in the title convergence above, which sizes fonts for this same width.
-const viewBox = arch.meta?.viewBox || autoViewBoxFor(boundaries, connectionLabels);
+const viewBox = arch.meta?.viewBox || autoViewBoxFor(boundaries, connectionGeometry);
 const legendY = () => viewBox[1] - 16;
 
+// Fit titles and canvas from the original geometry first. Fallback labels must
+// fit inside that canvas, so moving a label cannot trigger title reflow or a
+// canvas/label feedback loop. Keep standard and every authored label control.
+if (arch.meta?.quality_profile === 'showcase') {
+  connectionLabels = placeAutomaticLabels({
+    keepFallbackNearRoute: true,
+    labels: connectionLabels,
+    routes: asArray(arch.connections).flatMap((conn, relationIndex) => (
+      components.has(conn.from) && components.has(conn.to)
+        ? [{ relationIndex, points: pathFor(conn).points }] : []
+    )),
+    components: [...components.values()],
+    titles: boundaries.map(boundary => boundary.title),
+    viewBox,
+    // Leave the resolved legend band available; moving a label must not hide
+    // an otherwise visible legend. Existing labels keep their placement.
+    placementBottom: architectureLegendEntries.length
+      ? legendY() - 32 - legendFootprint(architectureLegendEntries, { width: viewBox[0] - layout.margin * 2 }).extraHeight
+      : viewBox[1],
+  });
+  for (const rect of connectionLabels) resolvedLabelPoints.set(rect.relation, [rect.lx, rect.ly]);
+}
+
 // ---- Validation: mechanical correctness, never layout taste -----------------
+function componentDiagnosticBox(component) {
+  return {
+    ...componentBox(component),
+    x: component.x,
+    y: component.y,
+    ...(Array.isArray(component.pos) ? { pos: [...component.pos] } : {}),
+  };
+}
+
 function validateArchitecture() {
   const problems = [];
+  const diagnostics = [];
   if (resolvedBoundaryTitles.readabilityProblem) {
     problems.push(resolvedBoundaryTitles.readabilityProblem);
   }
@@ -383,19 +504,80 @@ function validateArchitecture() {
 
   for (const c of components.values()) {
     if (!isFinitePoint(c.x, c.y, c.width, c.height)) {
-      problems.push(`Component "${c.id}" has non-finite pos/size — pos and size must be [number, number].`);
+      const message = `Component "${c.id}" has non-finite pos/size — pos and size must be [number, number].`;
+      diagnostics.push({
+        code: 'architecture/non-finite-component-geometry', severity: 'error', message,
+        subject: { diagramType: 'architecture', nodeId: c.id },
+        evidence: { pos: c.pos ?? null, size: [c.width, c.height] },
+        supportedFixes: [`replace component "${c.id}" pos and size with finite [number, number] values`],
+      });
+      problems.push(message);
       continue;
     }
     if (c.width <= 0 || c.height <= 0) {
-      problems.push(`Component "${c.id}" has invalid size ${c.width}x${c.height} — width and height must be greater than 0.`);
+      const message = `Component "${c.id}" has invalid size ${c.width}x${c.height} — width and height must be greater than 0.`;
+      diagnostics.push({
+        code: 'architecture/invalid-component-size', severity: 'error', message,
+        subject: { diagramType: 'architecture', nodeId: c.id },
+        evidence: { width: c.width, height: c.height },
+        supportedFixes: [`set component "${c.id}" width and height to values greater than 0`],
+      });
+      problems.push(message);
       continue;
     }
     if (c.x < 0 || c.y < 0 || c.x + c.width > viewBox[0] || c.y + c.height > viewBox[1]) {
-      problems.push(`Component "${c.id}" falls outside the viewBox ${viewBox[0]}x${viewBox[1]} — adjust pos/size or set a larger meta.viewBox.`);
+      const message = `Component "${c.id}" falls outside the viewBox ${viewBox[0]}x${viewBox[1]} — adjust pos/size or set a larger meta.viewBox.`;
+      const overflow = {
+        left: Math.max(0, -c.x),
+        top: Math.max(0, -c.y),
+        right: Math.max(0, c.x + c.width - viewBox[0]),
+        bottom: Math.max(0, c.y + c.height - viewBox[1]),
+      };
+      const widerThanCanvas = overflow.left > 0 && overflow.right > 0;
+      const tallerThanCanvas = overflow.top > 0 && overflow.bottom > 0;
+      const supportedFixes = [];
+      // Move by exactly the overflow: it lands the edge flush (x + (-x) is exact
+      // in IEEE 754), while a rounded-up move pushes the opposite edge past a
+      // tight canvas and a rounded-down one leaves the overflow in place. When
+      // the component is larger than the canvas, the move must shrink it too.
+      if (overflow.left > 0) {
+        const shrink = Math.max(0, c.width - viewBox[0]);
+        supportedFixes.push(shrink > 0
+          ? `move component "${c.id}" right by ${overflow.left}px and shrink its width by at least ${shrink}px`
+          : `move component "${c.id}" right by ${overflow.left}px`);
+      }
+      if (overflow.top > 0) {
+        const shrink = Math.max(0, c.height - viewBox[1]);
+        supportedFixes.push(shrink > 0
+          ? `move component "${c.id}" down by ${overflow.top}px and shrink its height by at least ${shrink}px`
+          : `move component "${c.id}" down by ${overflow.top}px`);
+      }
+      if ((overflow.right > 0 && !widerThanCanvas) || (overflow.bottom > 0 && !tallerThanCanvas)) {
+        const coveredWidth = overflow.right > 0 && !widerThanCanvas ? Math.ceil(c.x + c.width) : viewBox[0];
+        const coveredHeight = overflow.bottom > 0 && !tallerThanCanvas ? Math.ceil(c.y + c.height) : viewBox[1];
+        supportedFixes.push(`set meta.viewBox to at least [${Math.max(viewBox[0], coveredWidth)}, ${Math.max(viewBox[1], coveredHeight)}]`);
+      }
+      diagnostics.push({
+        code: 'layout/component-out-of-bounds', severity: 'error', message,
+        subject: { diagramType: 'architecture', nodeId: c.id },
+        evidence: { bounds: componentDiagnosticBox(c), viewBox: [...viewBox], overflow },
+        supportedFixes,
+      });
+      problems.push(message);
     }
     const estLabelW = textUnits(c.label) * 6.6;
     if (estLabelW > c.width + 8) {
-      problems.push(`Label "${c.label}" (~${Math.round(estLabelW)}px) is wider than component "${c.id}" (${c.width}px) — shorten the label or widen size.`);
+      const message = `Label "${c.label}" (~${Math.round(estLabelW)}px) is wider than component "${c.id}" (${c.width}px) — shorten the label or widen size.`;
+      diagnostics.push({
+        code: 'architecture/component-label-overflow', severity: 'error', message,
+        subject: { diagramType: 'architecture', nodeId: c.id },
+        evidence: { text: c.label, estimatedWidthPx: Math.round(estLabelW), availableWidthPx: c.width },
+        supportedFixes: [
+          `shorten component "${c.id}" label "${c.label}" while preserving its meaning`,
+          `or widen component "${c.id}" to at least ${Math.ceil(estLabelW - 8)}px`,
+        ],
+      });
+      problems.push(message);
     }
     const brandRailProblem = brandTopRailProblem(c, c.width, 8, 'Component');
     if (brandRailProblem) problems.push(brandRailProblem);
@@ -409,7 +591,18 @@ function validateArchitecture() {
       if (!value) continue;
       const minimumW = minimumNodeTextWidth(value, minimum);
       if (minimumW > availableTextW) {
-        problems.push(`${field} "${value}" needs ~${Math.ceil(minimumW)}px at the ${minimum}px legible minimum, but component "${c.id}" provides ${availableTextW}px — shorten the ${field.toLowerCase()} or widen size.`);
+        const fieldKey = field.toLowerCase();
+        const message = `${field} "${value}" needs ~${Math.ceil(minimumW)}px at the ${minimum}px legible minimum, but component "${c.id}" provides ${availableTextW}px — shorten the ${fieldKey} or widen size.`;
+        diagnostics.push({
+          code: `architecture/component-${fieldKey}-overflow`, severity: 'error', message,
+          subject: { diagramType: 'architecture', nodeId: c.id },
+          evidence: { text: value, minimumFontPx: minimum, requiredWidthPx: Math.ceil(minimumW), availableWidthPx: availableTextW },
+          supportedFixes: [
+            `shorten component "${c.id}" ${fieldKey} "${value}" while preserving its meaning`,
+            `or widen component "${c.id}" so the ${fieldKey} keeps at least ${Math.ceil(minimumW)}px of text width at the ${minimum}px legible minimum`,
+          ],
+        });
+        problems.push(message);
       }
     }
   }
@@ -419,7 +612,19 @@ function validateArchitecture() {
   for (let i = 0; i < list.length; i += 1) {
     for (let j = i + 1; j < list.length; j += 1) {
       if (rectsOverlap(list[i], list[j], 8)) {
-        problems.push(`Components "${list[i].id}" and "${list[j].id}" are less than 8px apart — move one or shrink its size.\n${suggestComponentSeparation(list[i], list[j], 8)}`);
+        const separation = componentSeparationOptions(list[i], list[j], 8);
+        const message = `Components "${list[i].id}" and "${list[j].id}" are less than 8px apart — move one or shrink its size.\n${suggestComponentSeparation(list[i], list[j], 8)}`;
+        diagnostics.push({
+          code: 'layout/component-overlap', severity: 'error', message,
+          subject: { diagramType: 'architecture', nodeId: list[i].id },
+          evidence: { otherId: list[j].id, minimumGapPx: 8, boxes: [componentDiagnosticBox(list[i]), componentDiagnosticBox(list[j])] },
+          supportedFixes: [
+            `move component "${list[j].id}" pos to [${separation[0].pos[0]}, ${separation[0].pos[1]}] (${separation[0].relation})`,
+            `or move component "${list[j].id}" pos to [${separation[1].pos[0]}, ${separation[1].pos[1]}] (${separation[1].relation})`,
+            `or shrink "${list[i].id}" or "${list[j].id}" while keeping every label and sublabel readable`,
+          ],
+        });
+        problems.push(message);
       }
     }
   }
@@ -521,18 +726,133 @@ function validateArchitecture() {
   }
   for (const b of boundaries) {
     if (b.x < 0 || b.y < 0 || b.x + b.width > viewBox[0] || b.y + b.height > viewBox[1]) {
-      problems.push(`Boundary "${b.label}" extends outside the viewBox — its members sit too close to the canvas edge; add margin or enlarge meta.viewBox.`);
+      const overflow = {
+        left: Math.max(0, -b.x),
+        top: Math.max(0, -b.y),
+        right: Math.max(0, b.x + b.width - viewBox[0]),
+        bottom: Math.max(0, b.y + b.height - viewBox[1]),
+      };
+      const sides = Object.entries(overflow).filter(([, pixels]) => pixels > 0)
+        .map(([side, pixels]) => `${side} by ${Math.ceil(pixels)}px`).join(', ');
+      const supportedFixes = [];
+      if (overflow.left || overflow.top) {
+        supportedFixes.push(`move the wrapped components right by at least ${Math.ceil(overflow.left)}px and down by at least ${Math.ceil(overflow.top)}px, then revalidate connected routes and the opposite canvas sides; enlarging meta.viewBox cannot fix left/top overflow`);
+      }
+      if (overflow.right || overflow.bottom) {
+        supportedFixes.push(`increase meta.viewBox to at least [${Math.ceil(Math.max(viewBox[0], b.x + b.width))}, ${Math.ceil(Math.max(viewBox[1], b.y + b.height))}] for right/bottom overflow, or move the wrapped components inward; revalidate desktop readability`);
+      }
+      const message = `Boundary "${b.label}" extends outside the viewBox (${sides}) — preserve wraps membership and repair the measured canvas side.`;
+      diagnostics.push({
+        code: 'layout/boundary-out-of-bounds',
+        severity: 'error',
+        message,
+        subject: { diagramType: 'architecture', boundary: { kind: b.kind, label: b.label, wraps: b.wraps } },
+        evidence: {
+          bounds: { x: b.x, y: b.y, width: b.width, height: b.height },
+          viewBox: [...viewBox],
+          overflow,
+          members: asArray(b.wraps).map((id) => components.get(id)).filter(Boolean).map(componentBox),
+        },
+        supportedFixes,
+      });
+      problems.push(message);
     }
   }
 
-  for (const conn of asArray(arch.connections)) {
-    if (!components.has(conn.from)) problems.push(`Connection "${conn.label || conn.from}" references unknown source "${conn.from}".`);
-    if (!components.has(conn.to)) problems.push(`Connection "${conn.label || conn.to}" references unknown target "${conn.to}".`);
+  // A boundary frame is drawn as the padded box around its members, so a
+  // component that is not in `wraps` but sits wholly inside that box reads as
+  // a member. Report it instead of letting the picture claim false ownership.
+  // A box the frame border visibly cuts through does not claim membership,
+  // and earlier valid inputs depend on that, so only full enclosure fails.
+  // This new composition gate applies to showcase; standard keeps its existing
+  // acceptance contract while authors can opt into the stricter check.
+  if (arch.meta?.quality_profile === 'showcase') {
+    for (const b of boundaries) {
+      const members = new Set(asArray(b.wraps));
+      for (const component of components.values()) {
+        if (members.has(component.id) || !rectContains(b, component)) continue;
+        const message = `Component "${component.id}" is not wrapped by boundary "${b.label}" but sits inside its frame — `
+          + 'move it outside the frame, place the wrapped members in one compact axis-aligned cluster (no empty bay for a non-member), or add it to wraps only when it truly belongs there.';
+        problems.push(message);
+        diagnostics.push({
+          code: 'layout/boundary-encloses-non-member',
+          severity: 'error',
+          message,
+          subject: { diagramType: 'architecture', boundary: { kind: b.kind, label: b.label, wraps: b.wraps }, component: component.id },
+          evidence: {
+            bounds: { x: b.x, y: b.y, width: b.width, height: b.height },
+            component: componentBox(component),
+          },
+          supportedFixes: [
+            `move "${component.id}" outside the boundary frame`,
+            'reposition the wrapped members into one compact axis-aligned cluster (no empty bay) that leaves non-members outside',
+          ],
+        });
+      }
+    }
+  }
+
+  const connectionList = asArray(arch.connections);
+  const knownComponentIds = [...components.keys()].sort();
+  for (const conn of connectionList) {
+    const connIndex = connectionList.indexOf(conn);
+    for (const [field, endpoint] of [['from', 'source'], ['to', 'target']]) {
+      if (components.has(conn[field])) continue;
+      const message = `Connection "${conn.label || conn[field]}" references unknown ${endpoint} "${conn[field]}".`;
+      const otherId = conn[field === 'from' ? 'to' : 'from'];
+      const neighbors = new Set();
+      for (const edge of connectionList) {
+        if (edge === conn) continue;
+        if (edge.from === otherId) neighbors.add(edge.to);
+        if (edge.to === otherId) neighbors.add(edge.from);
+      }
+      const candidates = knownComponentIds
+        .filter((id) => id !== otherId)
+        .sort((a, b) => (neighbors.has(b) - neighbors.has(a)) || a.localeCompare(b));
+      diagnostics.push({
+        code: 'architecture/unknown-endpoint', severity: 'error', message,
+        subject: {
+          diagramType: 'architecture',
+          connection: conn.id ?? null,
+          path: `/connections/${connIndex}/${field}`,
+          from: conn.from,
+          to: conn.to,
+        },
+        evidence: { endpoint, unknownNodeId: conn[field], availableNodeIds: knownComponentIds },
+        supportedFixes: candidates.slice(0, 3).map((id) => `set /connections/${connIndex}/${field} to verified node id "${id}"`),
+      });
+      problems.push(message);
+      problems.push(`Connection "${conn.label || conn[field]}" endpoint "${conn[field]}" does not name a declared component.`);
+    }
     if (components.has(conn.from) && components.has(conn.to)) {
       const routed = pathFor(conn);
+      const outsidePoints = routed.points.filter(([x, y]) => x < 0 || y < 0 || x > viewBox[0] || y > viewBox[1]);
+      if (arch.meta?.quality_profile === 'showcase' && outsidePoints.length) {
+        const message = `Connection "${conn.id || `${conn.from}->${conn.to}`}" extends outside the viewBox — move the measured outside route points inward or enlarge an authored viewBox for right/bottom overflow.`;
+        diagnostics.push({
+          code: 'layout/route-out-of-bounds', severity: 'error', message,
+          subject: { diagramType: 'architecture', collection: 'connections', index: asArray(arch.connections).indexOf(conn), ...(conn.id ? { id: conn.id } : {}), from: conn.from, to: conn.to },
+          evidence: { viewBox: [...viewBox], outsidePoints, points: routed.points },
+          supportedFixes: ['move negative route coordinates inside the canvas; for right/bottom overflow, enlarge meta.viewBox or reroute inward; preserve endpoints, direction and labels, then revalidate'],
+        });
+        problems.push(message);
+      }
       const [start, end] = [routed.points[0], routed.points[routed.points.length - 1]];
       const distance = Math.hypot(end[0] - start[0], end[1] - start[1]);
-      if (distance < 24) problems.push(`Connection "${conn.label || `${conn.from}->${conn.to}`}" is too short (${Math.round(distance)}px; minimum 24px) — place its components farther apart.`);
+      if (distance < 24 && conn.from === conn.to) {
+        // "Move the components apart" cannot be executed for a self-loop; the
+        // ports sit on one component and the sides decide how far apart.
+        const message = `Self-loop "${conn.id || conn.label || conn.from}" on component "${conn.from}" has its two ports only ${Math.round(distance)}px apart (minimum 24px) — remove fromSide/toSide so the renderer can choose the loop's sides, or set fromSide and toSide to different sides.`;
+        diagnostics.push({
+          code: 'layout/self-loop-ports', severity: 'error', message,
+          subject: { diagramType: 'architecture', collection: 'connections', index: asArray(arch.connections).indexOf(conn), ...(conn.id ? { id: conn.id } : {}), from: conn.from, to: conn.to },
+          evidence: { distancePx: Math.round(distance), minimumPx: 24, fromSide: connectionEndpointSide(conn, 'source'), toSide: connectionEndpointSide(conn, 'target'), points: routed.points },
+          supportedFixes: ['remove fromSide/toSide from the self-loop', 'set fromSide and toSide to different sides of the component'],
+        });
+        problems.push(message);
+      } else if (distance < 24) {
+        problems.push(`Connection "${conn.label || `${conn.from}->${conn.to}`}" is too short (${Math.round(distance)}px; minimum 24px) — place its components farther apart.`);
+      }
     }
   }
 
@@ -562,6 +882,12 @@ function validateArchitecture() {
     diagramType: 'architecture',
     relationCollection: 'connections',
     profile: arch.meta?.quality_profile,
+    // Automatic architecture routes render with an opaque crossover halo.
+    // That makes a proper X visually unambiguous while explicit authored
+    // crossings remain a blocking composition error.
+    crossingResolved: (left, right) => (
+      hasAutomaticRouteGeometry(left) && hasAutomaticRouteGeometry(right)
+    ),
     routeHint: 'adjust route/via or fromSide/toSide so the connections use separate corridors'
   }));
   problems.push(...cleanAmbiguousCorridorProblems({
@@ -571,8 +897,29 @@ function validateArchitecture() {
     diagramType: 'architecture',
     relationCollection: 'connections',
     profile: arch.meta?.quality_profile,
-    routeHint: 'adjust route/via or fromSide/toSide so unrelated connections do not visually merge'
+    includeSharedEndpoints: (left, right) => hasAutomaticRouteGeometry(left) && !left.labelAt
+      && hasAutomaticRouteGeometry(right) && !right.labelAt,
+    routeHint: 'adjust route/via or fromSide/toSide so distinct connections do not visually merge'
   }));
+  if ((process.env.ARCHIFY_QUALITY_PROFILE || arch.meta?.quality_profile) === 'showcase') {
+    const collisions = collectArrowheadCollisions({
+      routedRelations: asArray(arch.connections)
+        .filter((conn) => components.has(conn.from) && components.has(conn.to) && hasAutomaticRouteGeometry(conn) && !conn.labelAt)
+        .map((relation) => ({ relation, points: pathFor(relation).points })),
+    });
+    for (const hit of collisions) {
+      const left = hit.left.relation;
+      const right = hit.right.relation;
+      const message = `[composition/arrowhead-collision] automatic connections "${left.id || left.from}" and "${right.id || right.from}" into "${left.to}" have arrowheads ${hit.distance}px apart (minimum ${hit.minimum}px) — enlarge or reposition the destination, or choose separate toSide ports.`;
+      problems.push(message);
+      diagnostics.push({
+        code: 'composition/arrowhead-collision', severity: 'error', message,
+        subject: { diagramType: 'architecture', collection: 'connections', id: left.id, from: left.from, to: left.to },
+        evidence: { otherId: right.id, distancePx: hit.distance, minimumPx: hit.minimum, endpoints: [hit.left.tip, hit.right.tip] },
+        supportedFixes: ['enlarge or reposition the destination', 'choose separate toSide ports'],
+      });
+    }
+  }
   problems.push(...cleanBorderRunProblems({
     relations: arch.connections,
     endpointIds: new Set(components.keys()),
@@ -592,12 +939,39 @@ function validateArchitecture() {
     profile: arch.meta?.quality_profile,
     routeHint: 'move route/via points into a wider corridor or move the component so every turn has room to read'
   }));
-
+  problems.push(...cleanRouteDetourProblems({
+    relations: arch.connections,
+    obstacles: components.values(),
+    contentRects: [...components.values(), ...boundaries],
+    endpointIds: new Set(components.keys()),
+    pathFor,
+    fromSideFor: (conn) => connectionEndpointSide(conn, 'source'),
+    toSideFor: (conn) => connectionEndpointSide(conn, 'target'),
+    diagramType: 'architecture',
+    relationCollection: 'connections',
+    profile: arch.meta?.quality_profile,
+  }));
   // Connection labels must not land on top of components.
   const labelRects = connectionLabels;
   for (const rect of labelRects) {
-    for (const c of components.values()) {
-      if (rectsOverlap(rect, c, -2)) {
+    const blockedComponents = [...components.values()].filter(c => rectsOverlap(rect, c, -2));
+    const labelPinned = ['labelAt', 'labelDx', 'labelDy', 'labelSegment'].some(key => rect.relation[key] !== undefined);
+    const points = pathFor(rect.relation).points;
+    const shortHorizontalGap = points.length === 2 && Math.abs(points[0][1] - points[1][1]) < 0.0001
+      ? Math.abs(points[1][0] - points[0][0]) : null;
+    const requiredGap = Math.ceil(rect.width + 16);
+    if (arch.meta?.quality_profile === 'showcase' && !labelPinned && blockedComponents.length
+        && shortHorizontalGap != null && shortHorizontalGap < requiredGap) {
+      const message = `Label "${rect.label}" has only ${Math.round(shortHorizontalGap)}px between "${rect.relation.from}" and "${rect.relation.to}"; it needs at least ${requiredGap}px to stay beside its route — increase that clear gap or place the connected nodes on another readable row, preserving the label.`;
+      problems.push(message);
+      diagnostics.push({
+        code: 'composition/label-gap', severity: 'error', message,
+        subject: { diagramType: 'architecture', collection: 'connections', id: rect.relation.id, from: rect.relation.from, to: rect.relation.to },
+        evidence: { clearGapPx: shortHorizontalGap, minimumGapPx: requiredGap, labelWidthPx: rect.width, obstacles: blockedComponents.map(c => c.id) },
+        supportedFixes: [`increase the clear gap between the connected nodes to at least ${requiredGap}px`, 'reposition the connected nodes together while preserving the full relationship label'],
+      });
+    } else {
+      for (const c of blockedComponents) {
         problems.push(`Label "${rect.label}" overlaps component "${c.id}" — adjust labelDx/labelDy/labelSegment or set labelAt.\n${suggestLabelObstacleFix(rect, rect.lx, rect.ly, c, 'component', viewBox, components.values())}`);
       }
     }
@@ -633,6 +1007,7 @@ function validateArchitecture() {
   if (problems.length) {
     throwDiagnosticProblems('Architecture layout validation failed', problems, {
       subject: { diagramType: 'architecture' },
+      diagnostics,
     });
   }
 }
@@ -657,7 +1032,7 @@ function buildLayoutReport() {
       .filter((conn) => components.has(conn.from) && components.has(conn.to))
       .map((conn) => {
         const routed = pathFor(conn);
-        const labelAt = conn.label ? labelPoint(conn, routed.points) : null;
+        const labelAt = conn.label ? resolvedLabelPoints.get(conn) || labelPoint(conn, routed.points) : null;
         return connectionPath(conn, routed, labelAt);
       }),
     labels,
@@ -683,7 +1058,17 @@ function renderConnectionPath(conn, index) {
   const [cls, marker] = arrowClassMap[conn.variant || 'default'] || arrowClassMap.default;
   const routed = pathFor(conn);
   const strokeWidth = conn.width || (conn.variant === 'emphasis' ? 1.8 : 1.5);
-  return `        <path ${focusEdgeAttrs(conn.from, conn.to, conn.label, index, conn.id)} data-composition-points="${routePointsValue(routed.points)}"${authoredStraightRouteAttrs(conn, routed.points)} d="${routed.d}" class="${cls}"${animateAttr(arch.meta, 'edge', index)} stroke-width="${strokeWidth}" marker-end="url(#${marker})"/>`;
+  const automaticRoute = hasAutomaticRouteGeometry(conn);
+  const underlay = automaticRoute
+    ? `          <path data-graph-role="automatic-crossover-underlay" d="${routed.d}" fill="none" stroke="var(--mask)" stroke-width="${strokeWidth + 4}" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>\n`
+    : '';
+  const crossover = automaticRoute
+    ? ` data-composition-crossover="halo"${conn.labelAt ? '' : ' data-composition-independent="true"'}` : '';
+  const edge = `        <path ${focusEdgeAttrs(conn.from, conn.to, conn.label, index, conn.id)} data-composition-points="${routePointsValue(routed.points)}"${crossover}${authoredStraightRouteAttrs(conn, routed.points)} d="${routed.d}" class="${cls}"${animateAttr(arch.meta, 'edge', index)} stroke-width="${strokeWidth}" marker-end="url(#${marker})"/>`;
+  if (!automaticRoute) return edge;
+  // The wrapper is presentation-only: viewer state remains on the one semantic
+  // edge, while CSS can keep its preceding mask underlay at the same opacity.
+  return `        <g data-graph-role="automatic-crossover" style="--step:${index}">\n${underlay}${edge.replace(/^        /, '          ')}\n        </g>`;
 }
 
 function renderConnectionLabel(conn, index) {
@@ -712,9 +1097,9 @@ function renderComponent(c) {
   const passport = { kind: c.type, sublabel: c.sublabel, tag: c.tag, context: componentContext(c), ...brandMetadataFor(c) };
   return `        <g ${focusNodeAttrs(c.id, c.label, passport, arch.meta.locale)}>
           ${focusNodeTitle(c.label, passport)}
-          <rect x="${c.x}" y="${c.y}" width="${c.width}" height="${c.height}" rx="6" class="c-mask"/>
-          <rect x="${c.x}" y="${c.y}" width="${c.width}" height="${c.height}" rx="6" class="${fill}"${animateAttr(arch.meta, 'node', componentSteps.get(c.id))} stroke-width="1.5"/>
-          ${renderSemanticSigil(c.type, { x: c.x + 6, y: c.y + 6 })}${brand ? `\n          ${brand}` : ''}
+          <rect x="${c.x}" y="${c.y}" width="${c.width}" height="${c.height}" rx="8" class="c-mask"/>
+          <rect x="${c.x}" y="${c.y}" width="${c.width}" height="${c.height}" rx="8" class="${fill}"${animateAttr(arch.meta, 'node', componentSteps.get(c.id))} stroke-width="1.5"/>
+          ${renderSemanticSigil(c.type, { icon: c.icon, x: c.x + 6, y: c.y + 6 })}${brand ? `\n          ${brand}` : ''}
           <text data-node-label=""${hasSub ? ' data-detail-anchor=""' : ''} x="${cx}" y="${labelY}" class="t-primary" font-size="${labelFontSize}" font-weight="600" text-anchor="middle">${esc(c.label)}</text>${sub}${tag}
         </g>`;
 }
@@ -725,11 +1110,13 @@ function renderLegend() {
     pointsFor: (connection) => pathFor(connection).points,
     labelRectFor: connectionLabelBox,
   });
-  const contentBottom = Math.max(
-    0,
-    ...[...components.values()].map((component) => component.y + component.height),
-    ...boundaries.map((boundary) => boundary.y + boundary.height),
-  );
+  let contentBottom = 0;
+  for (const component of components.values()) {
+    contentBottom = Math.max(contentBottom, component.y + component.height);
+  }
+  for (const boundary of boundaries) {
+    contentBottom = Math.max(contentBottom, boundary.y + boundary.height);
+  }
   return renderResolvedLegend({
     entries,
     locale: arch.meta.locale,
@@ -747,9 +1134,23 @@ function renderLegend() {
 }
 
 function renderSvg() {
-  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}" ${svgRootAttrs(arch.meta)}>
+  // An automatic architecture canvas is compiler-measured geometry. Let the
+  // Reader spend the real desktop height budget on it, including when an
+  // outer route makes the canvas taller than the ordinary wide-diagram
+  // threshold. Authored viewBoxes keep their geometry and existing Reader width policy;
+  // their declared height may use readable document scrolling without reflow.
+  const readerFit = arch.meta?.viewBox
+    ? ' data-diagram-type="architecture" data-reader-fit="authored-height"'
+    : ' data-reader-fit="intrinsic-height"';
+  // A complete repository architecture is allowed to use normal page scroll;
+  // keep its common-desktop text at a comfortable reading size instead of
+  // shrinking a semantically rich graph to the universal emergency floor.
+  const readerMinimumText = arch.meta?.viewBox ? '' : ' data-reader-min-text="7.5"';
+  const readerPrimaryText = arch.meta?.viewBox ? '' : ' data-reader-primary-text="14"';
+  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}" ${svgRootAttrs(arch.meta)} ${NODE_CARD_ATTR}${readerFit}${readerMinimumText}${readerPrimaryText}>
 ${svgAccessibleText(arch.meta, 'architecture')}
 ${renderDefinitions()}
+${nodeCardStyle()}
 
         <!-- Background Grid -->
         <rect width="100%" height="100%" fill="url(#grid)" />
@@ -774,17 +1175,30 @@ ${renderLegend()}
       </svg>`;
 }
 
-validateArchitecture();
 if (layoutJsonMode) {
-  console.log(JSON.stringify(buildLayoutReport(), null, 2));
-  process.exit(0);
+  try {
+    validateArchitecture();
+  } catch (error) {
+    // A rejected layout is still useful repair evidence. Input/implementation
+    // failures must retain their existing failure boundary, not partial geometry.
+    if (!error.archifyDiagnostics?.length) throw error;
+    console.log(JSON.stringify({
+      ...buildLayoutReport(),
+      ...rendererFailure(error),
+      contract: 'archify-architecture-layout-v1',
+    }, null, 2));
+    process.exitCode = 1;
+  }
+  if (!process.exitCode) console.log(JSON.stringify(buildLayoutReport(), null, 2));
+} else {
+  validateArchitecture();
+  writeDiagram({
+    outPath,
+    template,
+    diagramType: 'architecture',
+    meta: arch.meta,
+    svg: renderSvg(),
+    cards: arch.cards,
+    sourceEvidence,
+  });
 }
-writeDiagram({
-  outPath,
-  template,
-  diagramType: 'architecture',
-  meta: arch.meta,
-  svg: renderSvg(),
-  cards: arch.cards,
-  sourceEvidence,
-});
