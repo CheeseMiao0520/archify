@@ -1,0 +1,10 @@
+{
+  "templateVersion": 1,
+  "repository": "tt-a1i/archify",
+  "number": 989,
+  "author": "tt-a1i",
+  "title": "test(website): wait for stable Guide pointer targets and verify native events",
+  "mergedAt": "2026-10-18T03:50:06Z",
+  "mergeCommit": "509bcb466e61816c90e570dfcf319eb1a22ad33c",
+  "url": "https://github.com/tt-a1i/archify/pull/989"
+}
