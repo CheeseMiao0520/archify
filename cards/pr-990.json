@@ -1,0 +1,10 @@
+{
+  "templateVersion": 1,
+  "repository": "tt-a1i/archify",
+  "number": 990,
+  "author": "tt-a1i",
+  "title": "docs(website): clarify agent prerequisites and static setup answers",
+  "mergedAt": "2026-10-18T04:39:33Z",
+  "mergeCommit": "b25142deac4b19b293e45b6bf6d69351d3c8f3b6",
+  "url": "https://github.com/tt-a1i/archify/pull/990"
+}
