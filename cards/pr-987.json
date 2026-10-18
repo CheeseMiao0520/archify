@@ -1,0 +1,10 @@
+{
+  "templateVersion": 1,
+  "repository": "tt-a1i/archify",
+  "number": 987,
+  "author": "tt-a1i",
+  "title": "fix(website): make copy feedback truthful and recover safely",
+  "mergedAt": "2026-10-18T02:09:08Z",
+  "mergeCommit": "869f4731dd822921945fc4a52d81e840da21e83d",
+  "url": "https://github.com/tt-a1i/archify/pull/987"
+}
