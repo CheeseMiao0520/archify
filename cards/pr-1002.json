@@ -1,0 +1,10 @@
+{
+  "templateVersion": 1,
+  "repository": "tt-a1i/archify",
+  "number": 1002,
+  "author": "tt-a1i",
+  "title": "release: promote dev and prepare v3.2.0",
+  "mergedAt": "2026-10-18T15:27:26Z",
+  "mergeCommit": "208acba8d412335185b2056fedf54b3405df43fb",
+  "url": "https://github.com/tt-a1i/archify/pull/1002"
+}
