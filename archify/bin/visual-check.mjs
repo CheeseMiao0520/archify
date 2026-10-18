@@ -1,4 +1,7 @@
 import { spawn } from 'node:child_process';
+import { isExplainerHtml } from '../explainer/check.mjs';
+import { EXPLAINER_VIEWPORTS, inspectExplainerBrowser, explainerObservation, explainerObservationDiagnostics } from '../explainer/browser-check.mjs';
+import { createOwnedTempDirectory } from '../renderers/shared/owned-temp-directory.mjs';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -37,11 +40,11 @@ export const VISUAL_CHECK_VIEWPORTS = Object.freeze([
   Object.freeze({ width: 2048, height: 1320 }),
 ]);
 
-const CAPTURE_VIEWPORTS = Object.freeze([
+export const CAPTURE_VIEWPORTS = Object.freeze([
   VISUAL_CHECK_VIEWPORTS[0],
   VISUAL_CHECK_VIEWPORTS[VISUAL_CHECK_VIEWPORTS.length - 1],
 ]);
-const THEMES = Object.freeze(['light', 'dark']);
+export const THEMES = Object.freeze(['light', 'dark']);
 const EXIT = Object.freeze({ pass: 0, fail: 1, skipped: 2 });
 export const CHROME_NO_SANDBOX_ENV = 'ARCHIFY_CHROME_NO_SANDBOX';
 const VISUAL_SIDECAR_SUFFIXES = Object.freeze([
@@ -52,6 +55,7 @@ const VISUAL_SIDECAR_SUFFIXES = Object.freeze([
   )),
 ]);
 const visualEvidenceOwnerships = new WeakSet();
+export const CHROME_STARTUP_TIMEOUT_MS = 90000;
 
 function sha256(buffer) {
   return createHash('sha256').update(buffer).digest('hex');
@@ -73,7 +77,7 @@ function pathEntry(file) {
 }
 
 function visualEvidencePaths(outputs) {
-  return [outputs.contactSheet, ...outputs.screenshots.map((entry) => entry.path)];
+  return outputs.capture === false ? [] : [outputs.contactSheet, ...outputs.screenshots.map((entry) => entry.path)];
 }
 
 function regularFileEvidence(file, { expectedLinks = 1 } = {}) {
@@ -185,7 +189,7 @@ function targetSidecarNamespace(directory, component) {
   throw error;
 }
 
-export function sidecarPaths(artifactPath, { outDir } = {}) {
+function evidenceSidecarPaths(artifactPath, { outDir, command = 'visual-check', capture = true, captureViewports = CAPTURE_VIEWPORTS } = {}) {
   let artifact = path.resolve(artifactPath);
   try {
     // Existing aliases, including Windows 8.3 spellings, must share the
@@ -209,30 +213,38 @@ export function sidecarPaths(artifactPath, { outDir } = {}) {
     || portableTargetKey !== namespace.componentKey;
   const stem = boundedSidecarStem(
     namespaceStem.stem,
-    VISUAL_SIDECAR_SUFFIXES,
+    capture ? VISUAL_SIDECAR_SUFFIXES : ['.browser-check.json'],
     targetAliasesSourceSpelling ? {
       force: true,
-      hashDomain: `visual-check-artifact\0${artifact}\0target-component\0${portableTargetKey}`,
+      hashDomain: `${command}-artifact\0${artifact}\0target-component\0${portableTargetKey}`,
     } : namespaceStem.options,
   );
-  const base = path.join(directory, `${stem}.visual-check`);
-  const screenshots = CAPTURE_VIEWPORTS.flatMap(({ width, height }) => THEMES.map((theme) => ({
+  const base = path.join(directory, `${stem}.${command}`);
+  const screenshots = (capture ? captureViewports : []).flatMap(({ width, height }) => THEMES.map((theme) => ({
     width,
     height,
     theme,
     path: `${base}.${width}x${height}.${theme}.png`,
   })));
   return {
-    base,
+    base, command, capture,
     receipt: `${base}.json`,
     contactSheet: `${base}.html`,
     screenshots,
   };
 }
 
+export function sidecarPaths(artifactPath, options = {}) {
+  return evidenceSidecarPaths(artifactPath, options);
+}
+
+export function browserCheckSidecarPaths(artifactPath, options = {}) {
+  return evidenceSidecarPaths(artifactPath, { ...options, command: 'browser-check', capture: false });
+}
+
 function evidencePathConflict(artifactPath, outputs, file, reason) {
   const target = file || outputs.receipt;
-  const error = `visual-check will not replace the existing unowned evidence path "${target}".`;
+  const error = `${outputs.command} will not replace the existing unowned evidence path "${target}".`;
   return {
     ok: false,
     error,
@@ -242,7 +254,7 @@ function evidencePathConflict(artifactPath, outputs, file, reason) {
       subject: { artifact: path.resolve(artifactPath), evidencePath: target },
       evidence: { reason },
       supportedFixes: [
-        'move the conflicting file aside, or choose a separate --out-dir, then rerun visual-check',
+        `move the conflicting file aside, or choose a separate --out-dir, then rerun ${outputs.command}`,
       ],
     }),
   };
@@ -258,7 +270,7 @@ function visualEvidenceOwnershipMatches(ownership, artifactPath, outputs) {
 function visualEvidenceTargets(outputs) {
   return [
     { kind: 'receipt', path: outputs.receipt },
-    { kind: 'contact-sheet', path: outputs.contactSheet },
+    ...(outputs.capture === false ? [] : [{ kind: 'contact-sheet', path: outputs.contactSheet }]),
     ...outputs.screenshots.map((entry, index) => ({
       kind: 'screenshot',
       index,
@@ -674,7 +686,7 @@ function beginVisualEvidenceWrite(artifactPath, artifactBytes, outputs) {
       ...previousReceipt.evidence,
     });
 
-    if (previous?.schemaVersion !== 1 || previous?.command !== 'visual-check') {
+    if (previous?.schemaVersion !== 1 || previous?.command !== outputs.command) {
       return evidencePathConflict(artifactPath, outputs, outputs.receipt, {
         code: 'ownership-receipt-schema-mismatch',
       });
@@ -685,12 +697,12 @@ function beginVisualEvidenceWrite(artifactPath, artifactBytes, outputs) {
     const receiptNameSafe = typeof recordedReceiptName === 'string'
       // path-contract-allow: portable-logical-path -- receipt filenames are serialized logical basenames.
       && path.basename(recordedReceiptName) === recordedReceiptName;
-    const contactNameSafe = typeof recordedContactName === 'string'
+    const contactNameSafe = outputs.capture === false || typeof recordedContactName === 'string'
       // path-contract-allow: portable-logical-path -- contact-sheet filenames are serialized logical basenames.
       && path.basename(recordedContactName) === recordedContactName;
     if (!path.isAbsolute(recordedDirectory) || !receiptNameSafe || !contactNameSafe
       || sameLocation(path.join(recordedDirectory, recordedReceiptName), outputs.receipt).status !== 'match'
-      || sameLocation(path.join(recordedDirectory, recordedContactName), outputs.contactSheet).status !== 'match') {
+      || (outputs.capture !== false && sameLocation(path.join(recordedDirectory, recordedContactName), outputs.contactSheet).status !== 'match')) {
       return evidencePathConflict(artifactPath, outputs, outputs.receipt, {
         code: 'ownership-sidecar-path-mismatch',
       });
@@ -1282,7 +1294,11 @@ function executable(file, platform = process.platform) {
 }
 
 function findOnPath(command, env, platform, resolveExecutable) {
-  const pathApi = platform === 'win32' ? path.win32 : path;
+  // Use the target platform's path grammar, not the host's: these candidates
+  // are checked through an injected platform (see the findChrome tests), and
+  // the host `path` object on Windows would join POSIX directories with
+  // backslashes and split PATH on ';'.
+  const pathApi = platform === 'win32' ? path.win32 : path.posix;
   const directories = String(env.PATH || '').split(pathApi.delimiter).filter(Boolean);
   const extensions = platform === 'win32'
     ? String(env.PATHEXT || '.EXE;.CMD;.BAT;.COM').split(';').filter(Boolean)
@@ -1302,6 +1318,11 @@ export function findChrome({
   platform = process.platform,
   resolveExecutable = executable,
 } = {}) {
+  // Windows environment names are case-insensitive, including when callers
+  // provide a plain object instead of the special process.env object.
+  if (platform === 'win32') {
+    env = Object.fromEntries(Object.entries(env).map(([name, value]) => [name.toUpperCase(), value]));
+  }
   if (Object.prototype.hasOwnProperty.call(env, 'ARCHIFY_CHROME')) {
     return resolveExecutable(env.ARCHIFY_CHROME, platform);
   }
@@ -1334,6 +1355,28 @@ export function findChrome({
     const resolved = findOnPath(command, env, platform, resolveExecutable);
     if (resolved) return resolved;
   }
+  // Preserve every Chrome/Chromium candidate's priority, including portable
+  // PATH installations, before falling back to Windows' bundled browser.
+  if (platform === 'win32') {
+    for (const root of [env['PROGRAMFILES(X86)'], env.PROGRAMFILES, env.LOCALAPPDATA].filter(Boolean)) {
+      const candidate = path.win32.join(root, 'Microsoft', 'Edge', 'Application', 'msedge.exe');
+      const resolved = resolveExecutable(candidate, platform);
+      if (resolved) return resolved;
+    }
+    return findOnPath('msedge', env, platform, resolveExecutable);
+  }
+  // macOS and Linux: probe Edge behind every Chrome/Chromium candidate, the
+  // same way Windows does. #920 asked for `microsoft-edge`,
+  // `microsoft-edge-stable`, and the macOS application bundle.
+  if (platform === 'darwin') {
+    const edgeApp = '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge';
+    const resolved = resolveExecutable(edgeApp, platform);
+    if (resolved) return resolved;
+  }
+  for (const command of ['microsoft-edge', 'microsoft-edge-stable']) {
+    const resolved = findOnPath(command, env, platform, resolveExecutable);
+    if (resolved) return resolved;
+  }
   return null;
 }
 
@@ -1349,6 +1392,7 @@ class PipeCdp {
     this.writtenBytes = 0;
     this.pending = new Map();
     this.waiters = [];
+    this.subscribers = new Set();
     this.writePipe = child.stdio[3];
     this.readPipe = child.stdio[4];
     this.readPipe.setEncoding('utf8');
@@ -1368,13 +1412,16 @@ class PipeCdp {
   failure(stage, error) {
     const code = error?.code ? ` [${error.code}]` : '';
     const details = this.failureDetails();
-    return new Error([
+    const failure = new Error([
       `Chrome DevTools ${stage} failed: ${error?.message || String(error)}${code}`,
       details,
       `Chrome transport: Node ${process.version}, libuv ${process.versions.uv}, ${process.platform}; pid=${this.child.pid ?? 'unavailable'}, exitCode=${this.child.exitCode}, signalCode=${this.child.signalCode}.`,
       `Chrome read pipe: readable=${this.readPipe.readable}, ended=${this.readPipe.readableEnded}, destroyed=${this.readPipe.destroyed}, receivedBytes=${this.receivedBytes}, messages=${this.receivedMessages}, bufferedBytes=${Buffer.byteLength(this.buffer)}.`,
       `Chrome write pipe: writable=${this.writePipe.writable}, ended=${this.writePipe.writableEnded}, destroyed=${this.writePipe.destroyed}, completedWrites=${this.completedWrites}, writtenBytes=${this.writtenBytes}, bufferedBytes=${this.writePipe.writableLength}.`,
     ].filter(Boolean).join('\n'));
+    if (error?.code) failure.code = error.code;
+    if (error?.method) failure.method = error.method;
+    return failure;
   }
 
   consume(chunk) {
@@ -1402,6 +1449,7 @@ class PipeCdp {
         else pending.resolve(message.result || {});
         continue;
       }
+      for (const subscriber of this.subscribers) subscriber(message);
       for (const waiter of [...this.waiters]) {
         if (waiter.method !== message.method) continue;
         if (waiter.sessionId && waiter.sessionId !== message.sessionId) continue;
@@ -1412,6 +1460,11 @@ class PipeCdp {
     }
   }
 
+  subscribe(callback) {
+    this.subscribers.add(callback);
+    return () => this.subscribers.delete(callback);
+  }
+
   send(method, params = {}, sessionId = undefined, timeoutMs = 15000) {
     const id = this.nextId++;
     const message = { id, method, params };
@@ -1419,7 +1472,10 @@ class PipeCdp {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(this.failure('command timeout', new Error(`${method}: timed out after ${timeoutMs}ms`)));
+        const error = new Error(`${method}: timed out after ${timeoutMs}ms`);
+        error.code = 'ERR_CHROME_CDP_TIMEOUT';
+        error.method = method;
+        reject(this.failure('protocol timeout', error));
       }, timeoutMs);
       this.pending.set(id, { method, resolve, reject, timer });
       try {
@@ -1506,16 +1562,35 @@ async function evaluate(cdp, sessionId, expression, awaitPromise = false) {
   return response.result?.value;
 }
 
+function browserEnvironment(env, platform) {
+  if (platform !== 'win32') return env;
+  // Agent-launched Git Bash can inherit this app-health shim. Edge then
+  // relaunches and loses the DevTools pipes (#790). Change the browser's copy
+  // only, and leave unknown/combined layers (including privilege settings) alone.
+  return Object.fromEntries(Object.entries(env).filter(([name, value]) =>
+    !(name.toUpperCase() === '__COMPAT_LAYER'
+      && /^\s*DetectorsAppHealth\s*$/i.test(String(value)))));
+}
+
 export class ChromeVisualBrowser {
+  #profile;
   constructor(chromePath, {
+    platform = process.platform,
     env = process.env,
     getuid = typeof process.getuid === 'function' ? () => process.getuid() : null,
     spawnImpl = spawn,
+    startupTimeoutMs = CHROME_STARTUP_TIMEOUT_MS,
+    shutdownTimeoutMs = 1500,
   } = {}) {
-    this.profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-visual-check-profile-'));
+    this.#profile = createOwnedTempDirectory('archify-visual-check-profile-');
+    this.profileRoot = this.#profile.path;
+    this.shutdownTimeoutMs = shutdownTimeoutMs;
     this.stderr = '';
     const args = chromeVisualBrowserArgs(this.profileRoot, { env, getuid });
-    this.child = spawnImpl(chromePath, args, { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });
+    this.child = spawnImpl(chromePath, args, {
+      stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'],
+      env: browserEnvironment(env, platform),
+    });
     this.child.stderr.setEncoding('utf8');
     this.child.stderr.on('data', (chunk) => {
       this.stderr = `${this.stderr}${chunk}`.slice(-8000);
@@ -1532,19 +1607,31 @@ export class ChromeVisualBrowser {
         return [
           `Chrome process: ${exit}.`,
           stderr ? `Chrome stderr:\n${stderr}` : '',
+          platform === 'win32' && this.cdp?.receivedBytes === 0
+            ? 'Windows browser startup may have relaunched before connecting to the DevTools pipe. '
+              + 'Retry from a non-elevated PowerShell opened normally, outside an elevated or compatibility-mode parent. '
+              + 'Archify does not disable browser de-elevation or the sandbox to preserve pipe handles.'
+            : '',
         ].filter(Boolean).join('\n');
       },
     });
+    this.startupTimeoutMs = startupTimeoutMs;
     this.sessionPromise = this.attach();
   }
 
   async attach() {
-    const targets = await this.cdp.send('Target.getTargets');
+    // Process launch can be delayed substantially on a busy desktop. Keep the
+    // longer allowance inside one gate invocation so an authoring agent does
+    // not turn startup jitter into repeated tool calls or candidate edits.
+    const targets = await this.cdp.send(
+      'Target.getTargets', {}, undefined, this.startupTimeoutMs,
+    );
     let target = targets.targetInfos?.find((item) => item.type === 'page');
     if (!target) {
       const created = await this.cdp.send('Target.createTarget', { url: 'about:blank' });
       target = { targetId: created.targetId };
     }
+    this.targetId = target.targetId;
     const attached = await this.cdp.send('Target.attachToTarget', {
       targetId: target.targetId,
       flatten: true,
@@ -1552,6 +1639,20 @@ export class ChromeVisualBrowser {
     await this.cdp.send('Page.enable', {}, attached.sessionId);
     await this.cdp.send('Runtime.enable', {}, attached.sessionId);
     return attached.sessionId;
+  }
+
+  async resetPage() {
+    await this.sessionPromise;
+    const previousTarget = this.targetId;
+    const created = await this.cdp.send('Target.createTarget', { url: 'about:blank' });
+    const attached = await this.cdp.send('Target.attachToTarget', { targetId: created.targetId, flatten: true });
+    await this.cdp.send('Page.enable', {}, attached.sessionId);
+    await this.cdp.send('Runtime.enable', {}, attached.sessionId);
+    this.targetId = created.targetId;
+    this.sessionPromise = Promise.resolve(attached.sessionId);
+    if (previousTarget) await this.cdp.send('Target.closeTarget', { targetId: previousTarget });
+    await this.cdp.send('Target.activateTarget', { targetId: this.targetId });
+    await this.cdp.send('Page.bringToFront', {}, attached.sessionId);
   }
 
   async inspect({ artifactPath, width, height, theme, screenshotPath, writeScreenshot }) {
@@ -1580,6 +1681,9 @@ export class ChromeVisualBrowser {
       var fontsReady = document.fonts && document.fonts.ready
         ? document.fonts.ready.catch(function () {})
         : Promise.resolve();
+      if (window.Archify && Archify.layoutStability && typeof Archify.layoutStability.whenStable === 'function') {
+        return fontsReady.then(function () { return Archify.layoutStability.whenStable(); });
+      }
       return fontsReady.then(function () {
         if (window.Archify && Archify.readerLayout && typeof Archify.readerLayout.whenStable === 'function') {
           return Archify.readerLayout.whenStable();
@@ -1617,22 +1721,40 @@ export class ChromeVisualBrowser {
       var viewBoxWidth = viewBox ? viewBox.width : 0;
       var scale = viewBoxWidth > 0 ? Math.min(1, diagramWidth / viewBoxWidth) : 0;
       var minimum = null;
+      var minimumNonEdge = null;
+      var minimumEdge = null;
       if (svg && scale > 0) {
-        Array.from(svg.querySelectorAll('text[data-node-label], text[data-boundary-label], text[data-detail="context"], [data-edge-id] g[data-detail="context"] > text')).forEach(function (text) {
-          var detail = text.closest('[data-edge-id]') ? 'message' : text.hasAttribute('data-node-label')
+        Array.from(svg.querySelectorAll('text[data-node-label], text[data-boundary-label], text[data-detail="context"], g[data-detail="context"] text')).forEach(function (text) {
+          if (text.getAttribute('data-detail') === 'fine' || text.closest('[data-detail="fine"]')) return;
+          var edge = text.closest('[data-edge-from][data-edge-to]');
+          var node = text.closest('[data-node-id]');
+          var context = text.getAttribute('data-detail') === 'context' || Boolean(text.closest('g[data-detail="context"]'));
+          var detail = text.hasAttribute('data-node-label')
             ? 'primary'
-            : text.hasAttribute('data-boundary-label') ? 'boundary' : 'context';
-          if (detail === 'context' && !text.closest('[data-node-id]')) return;
+            : text.hasAttribute('data-boundary-label') ? 'boundary'
+              : context && edge ? 'edge' : 'context';
+          if (detail === 'context' && !node) return;
           var sourceFontPx = parseFloat(text.getAttribute('font-size') || '');
           if (!Number.isFinite(sourceFontPx)) return;
           var projectedFontPx = sourceFontPx * scale;
-          if (!minimum || projectedFontPx < minimum.projectedFontPx) {
-            minimum = {
-              text: (text.textContent || '').trim(),
-              detail: detail,
-              sourceFontPx: sourceFontPx,
-              projectedFontPx: projectedFontPx
-            };
+          var entry = {
+            text: (text.textContent || '').trim(),
+            detail: detail,
+            owner: edge ? {
+              kind: 'edge',
+              id: edge.getAttribute('data-edge-id'),
+              from: edge.getAttribute('data-edge-from'),
+              to: edge.getAttribute('data-edge-to')
+            } : node ? { kind: 'node', id: node.getAttribute('data-node-id') }
+              : detail === 'boundary' ? { kind: 'boundary', id: null } : null,
+            sourceFontPx: sourceFontPx,
+            projectedFontPx: projectedFontPx
+          };
+          if (!minimum || projectedFontPx < minimum.projectedFontPx) minimum = entry;
+          if (detail === 'edge') {
+            if (!minimumEdge || projectedFontPx < minimumEdge.projectedFontPx) minimumEdge = entry;
+          } else if (!minimumNonEdge || projectedFontPx < minimumNonEdge.projectedFontPx) {
+            minimumNonEdge = entry;
           }
         });
       }
@@ -1647,7 +1769,12 @@ export class ChromeVisualBrowser {
         && typeof Archify.viewerChromeLayout.stageRect === 'function'
         ? Archify.viewerChromeLayout.stageRect()
         : (stage ? stage.getBoundingClientRect() : null);
-      var navigationDockRect = navigationDock ? navigationDock.getBoundingClientRect() : null;
+      // The dock may lift to the viewport floor while the page scrolls; the
+      // stage contract is about its resting position.
+      var navigationDockRect = !navigationDock ? null
+        : window.Archify && Archify.viewerChromeLayout && typeof Archify.viewerChromeLayout.dockRect === 'function'
+          ? Archify.viewerChromeLayout.dockRect()
+          : navigationDock.getBoundingClientRect();
       var stageDockIntersectionArea = intersectionArea(stageRect, navigationDockRect);
       var viewerChromeReceipt = window.Archify && Archify.viewerChromeLayout
         && typeof Archify.viewerChromeLayout.receipt === 'function'
@@ -1676,19 +1803,62 @@ export class ChromeVisualBrowser {
           spaceBelowNodesPx: bottom === null ? null : Math.round(rect.bottom - bottom)
         };
       }).sort(function (a, b) { return b.heightPx - a.heightPx; }).slice(0, 6) : [];
+      // Vertical page budget: every block that stacks above or below the SVG,
+      // so an overflow receipt can say which part must give up how many pixels.
+      function outerHeight(element) {
+        if (!element) return 0;
+        var style = window.getComputedStyle(element);
+        if (element.hidden || style.display === 'none') return 0;
+        return element.getBoundingClientRect().height
+          + (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
+      }
+      var bodyStyle = window.getComputedStyle(document.body);
+      var diagramStyle = diagram ? window.getComputedStyle(diagram) : null;
+      var svgHeight = svg ? svg.getBoundingClientRect().height : 0;
+      var notesBelowFold = Boolean(reader) && document.documentElement.getAttribute('data-reader-rail') === 'bottom';
+      var pageComposition = {
+        bodyPaddingPx: Math.round((parseFloat(bodyStyle.paddingTop) || 0) + (parseFloat(bodyStyle.paddingBottom) || 0)),
+        headerPx: Math.round(outerHeight(reader && reader.querySelector('.header'))),
+        diagramChromePx: Math.round(outerHeight(diagram) - svgHeight),
+        svgPx: Math.round(svgHeight),
+        cardsPx: notesBelowFold ? 0 : Math.round(outerHeight(reader && reader.querySelector('.cards'))),
+        viewBoxHeight: viewBox ? viewBox.height : 0
+      };
+      var svgRect = svg && svg.getBoundingClientRect();
+      var diagramRect = diagram && diagram.getBoundingClientRect();
+      var documentScrollUnclipped = Boolean(svgRect && diagramRect
+        && svgRect.top >= diagramRect.top - 1 && svgRect.left >= diagramRect.left - 1
+        && svgRect.bottom <= diagramRect.bottom + 1 && svgRect.right <= diagramRect.right + 1
+        && diagram.scrollHeight <= diagram.clientHeight + 1
+        && diagram.scrollWidth <= diagram.clientWidth + 1
+        && [document.documentElement, document.body].every(function (element) {
+          return !['hidden', 'clip'].includes(window.getComputedStyle(element).overflowY);
+        }));
       return {
+        pageComposition: pageComposition,
         innerWidth: window.innerWidth,
         innerHeight: window.innerHeight,
         scrollWidth: Math.ceil(document.documentElement.scrollWidth),
-        scrollHeight: Math.ceil(document.documentElement.scrollHeight),
+        // Bottom notes and index are reading material below the fold; the
+        // Reader excludes them from the one-screen fit, and so does this check.
+        scrollHeight: Math.max(window.innerHeight, Math.ceil(document.documentElement.scrollHeight - (
+          notesBelowFold ? outerHeight(reader.querySelector('.reader-rail')) : 0))),
         resolvedTheme: document.documentElement.getAttribute('data-theme') || '',
+        readerLayout: document.documentElement.getAttribute('data-reader-layout') || null,
+        readerOverflow: document.documentElement.getAttribute('data-reader-overflow') || null,
+        readerFit: svg ? svg.getAttribute('data-reader-fit') : null,
+        diagramType: svg ? svg.getAttribute('data-diagram-type') : null,
+        documentScrollUnclipped: documentScrollUnclipped,
         readerWidth: reader ? reader.getBoundingClientRect().width : 0,
         diagramWidth: diagramWidth,
         viewBoxWidth: viewBoxWidth,
         workflowLanes: workflowLanes,
         minimumProjectedNodeTextPx: minimum ? minimum.projectedFontPx : null,
+        minimumProjectedNonEdgeTextPx: minimumNonEdge ? minimumNonEdge.projectedFontPx : null,
+        minimumProjectedEdgeTextPx: minimumEdge ? minimumEdge.projectedFontPx : null,
         minimumProjectedNodeText: minimum ? minimum.text : null,
         minimumProjectedNodeTextDetail: minimum ? minimum.detail : null,
+        minimumProjectedNodeTextOwner: minimum ? minimum.owner : null,
         hasLegend: Boolean(legendRect && legendRect.width && legendRect.height),
         hasNavigationDock: Boolean(navigationDockRect && navigationDockRect.width && navigationDockRect.height),
         legendDockIntersectionArea: stageDockIntersectionArea > 0
@@ -1719,26 +1889,52 @@ export class ChromeVisualBrowser {
     return metrics;
   }
 
-  async close() {
+  close() {
+    if (!this.closePromise) this.closePromise = this.finishClose();
+    return this.closePromise;
+  }
+
+  async finishClose() {
     this.cdp.failAll(new Error('visual-check finished'));
-    if (this.child.exitCode === null && this.child.signalCode === null) {
-      this.child.kill('SIGTERM');
-      await new Promise((resolve) => {
-        const timer = setTimeout(() => {
-          if (this.child.exitCode === null && this.child.signalCode === null) this.child.kill('SIGKILL');
-          resolve();
-        }, 1500);
-        this.child.once('exit', () => {
-          clearTimeout(timer);
-          resolve();
-        });
-      });
-    }
     try {
-      fs.rmSync(this.profileRoot, { recursive: true, force: true });
-    } catch {
-      // Chrome may briefly retain profile files on Windows; evidence is done.
+      if (this.child.exitCode === null && this.child.signalCode === null) {
+        const exited = () => this.child.exitCode !== null || this.child.signalCode !== null;
+        const signalAndWait = (signal) => new Promise((resolve, reject) => {
+          let timer;
+          const finish = () => {
+            clearTimeout(timer);
+            this.child.removeListener('exit', finish);
+            resolve(true);
+          };
+          this.child.once('exit', finish);
+          timer = setTimeout(() => {
+            this.child.removeListener('exit', finish);
+            resolve(exited());
+          }, this.shutdownTimeoutMs);
+          try {
+            this.child.kill(signal);
+          } catch (error) {
+            clearTimeout(timer);
+            this.child.removeListener('exit', finish);
+            reject(error);
+          }
+        });
+        if (!await signalAndWait('SIGTERM') && !await signalAndWait('SIGKILL')) {
+          const error = new Error(`Chrome did not exit; retained temporary profile "${this.#profile.path}".`);
+          error.code = 'ARCHIFY_TEMP_CLEANUP';
+          error.directory = this.#profile.path;
+          throw error;
+        }
+      }
+    } finally {
+      // `exit` only reports that Chrome's main process is gone. A helper may
+      // still hold an inherited pipe open, so explicitly release every stream
+      // this browser instance owns before its test cleanup hook resolves.
+      for (const stream of [this.child.stderr, this.child.stdio[3], this.child.stdio[4]]) {
+        if (stream && !stream.destroyed) stream.destroy();
+      }
     }
+    await this.#profile.cleanup();
   }
 }
 
@@ -1752,8 +1948,29 @@ function observation({ width, height, theme, metrics }) {
   const minimumProjectedNodeTextPx = metrics.minimumProjectedNodeTextPx == null
     ? null
     : Number(metrics.minimumProjectedNodeTextPx);
+  const minimumProjectedNonEdgeTextPx = metrics.minimumProjectedNonEdgeTextPx == null
+    ? null
+    : Number(metrics.minimumProjectedNonEdgeTextPx);
+  const minimumProjectedEdgeTextPx = metrics.minimumProjectedEdgeTextPx == null
+    ? null
+    : Number(metrics.minimumProjectedEdgeTextPx);
   const readabilityOk = minimumProjectedNodeTextPx == null
     || minimumProjectedNodeTextPx >= MIN_PROJECTED_NODE_TEXT_PX;
+  const readerLayout = metrics.readerLayout || null;
+  const readerOverflow = metrics.readerOverflow || null;
+  const readerFit = metrics.readerFit || null;
+  const verticalScrollAccepted = Boolean(
+    overflowY
+    && !overflowX
+    && readabilityOk
+    && Number.isFinite(minimumProjectedNodeTextPx)
+    && ((readerLayout === 'adaptive' && readerOverflow === 'authored' && (readerFit === 'intrinsic-height' || readerFit === 'width-first'))
+      || (readerFit === 'authored-height' && metrics.diagramType === 'architecture'
+        && metrics.documentScrollUnclipped === true))
+  );
+  const authoredClipped = readerFit === 'authored-height' && metrics.diagramType === 'architecture'
+    && metrics.documentScrollUnclipped !== true;
+  const containmentOk = !authoredClipped && !overflowX && (!overflowY || verticalScrollAccepted);
   const legendDockIntersectionArea = Number(metrics.legendDockIntersectionArea) || 0;
   const dockStageIntersectionArea = Number(metrics.dockStageIntersectionArea) || 0;
   const dockStageGap = metrics.dockStageGap == null ? null : Number(metrics.dockStageGap);
@@ -1777,14 +1994,26 @@ function observation({ width, height, theme, metrics }) {
     scrollHeight,
     overflowX,
     overflowY,
-    ok: !overflowX && !overflowY,
+    verticalScrollAccepted,
+    overflowDisposition: authoredClipped || overflowX || (overflowY && !verticalScrollAccepted)
+      ? 'unexpected-overflow'
+      : verticalScrollAccepted ? 'readable-vertical-scroll' : 'contained',
+    readerLayout,
+    readerOverflow,
+    readerFit,
+    ...(readerFit === 'authored-height' ? { diagramType: metrics.diagramType, documentScrollUnclipped: metrics.documentScrollUnclipped === true } : {}),
+    ok: containmentOk,
     readerWidth: Number(metrics.readerWidth) || null,
     diagramWidth: Number(metrics.diagramWidth) || null,
+    ...(metrics.pageComposition ? { pageComposition: metrics.pageComposition } : {}),
     viewBoxWidth: Number(metrics.viewBoxWidth) || null,
     ...(metrics.workflowLanes?.length ? { workflowLanes: metrics.workflowLanes } : {}),
     minimumProjectedNodeTextPx,
+    minimumProjectedNonEdgeTextPx,
+    minimumProjectedEdgeTextPx,
     minimumProjectedNodeText: metrics.minimumProjectedNodeText || null,
     minimumProjectedNodeTextDetail: metrics.minimumProjectedNodeTextDetail || null,
+    minimumProjectedNodeTextOwner: metrics.minimumProjectedNodeTextOwner || null,
     minimumRequiredNodeTextPx: MIN_PROJECTED_NODE_TEXT_PX,
     readabilityOk,
     hasLegend: Boolean(metrics.hasLegend),
@@ -1805,7 +2034,7 @@ function contactSheetHtml({ artifactPath, receipt, screenshots }) {
   const cards = screenshots.map((entry) => `
       <figure>
         <img src="${htmlEscape(entry.file)}" alt="${htmlEscape(`${entry.theme} ${entry.width} by ${entry.height}`)}">
-        <figcaption><strong>${htmlEscape(entry.theme.toUpperCase())}</strong> · ${entry.width}×${entry.height} · containment ${entry.ok ? 'pass' : 'fail'}</figcaption>
+        <figcaption><strong>${htmlEscape(entry.theme.toUpperCase())}</strong> · ${entry.width}×${entry.height} · containment ${entry.ok ? 'pass' : 'fail'}${entry.verticalScrollAccepted ? ' · readable vertical scroll' : ''}</figcaption>
       </figure>`).join('');
   return `<!doctype html>
 <html lang="en">
@@ -1824,6 +2053,46 @@ function contactSheetHtml({ artifactPath, receipt, screenshots }) {
 </body>
 </html>
 `;
+}
+
+const publishedBrowserEvidenceReceipts = new WeakSet();
+
+// Keep detailed observations in the bound receipt; expose every review image and
+// every failure without repeating the same viewport metrics in CLI context.
+export function summarizeBrowserEvidence(receipt) {
+  const directory = receipt.sidecars?.directory || path.dirname(receipt.artifact.path);
+  const evidencePath = (file) => file ? path.resolve(directory, file) : undefined;
+  const published = publishedBrowserEvidenceReceipts.has(receipt);
+  return {
+    schemaVersion: receipt.schemaVersion,
+    command: receipt.command,
+    ok: receipt.ok,
+    status: receipt.status,
+    evidenceKind: receipt.evidenceKind,
+    visualReview: receipt.visualReview,
+    artifact: receipt.artifact,
+    provenance: receipt.provenance,
+    deliveryReceiptId: receipt.deliveryReceiptId,
+    state: receipt.state,
+    chrome: receipt.chrome,
+    checks: Object.fromEntries(['containment', 'readability', 'viewerChrome', 'themeStates', 'captures']
+      .filter((key) => receipt[key])
+      .map((key) => [key, receipt[key].status])),
+    error: receipt.error,
+    publication: receipt.publication,
+    diagnostics: receipt.diagnostics || [],
+    evidence: {
+      receipt: published ? evidencePath(receipt.sidecars?.receipt) : undefined,
+      contactSheet: published ? evidencePath(receipt.captures?.contactSheet) : undefined,
+      screenshots: (published ? receipt.captures?.screenshots || [] : []).map((entry) => ({
+        path: evidencePath(entry.file),
+        width: entry.width,
+        height: entry.height,
+        theme: entry.theme,
+        resolvedTheme: entry.resolvedTheme,
+      })),
+    },
+  };
 }
 
 function viewportSubject(artifact, entry) {
@@ -1846,7 +2115,7 @@ function resolveSidecarDirectory(artifactPath, outputs, compareParents) {
   const sidecars = {
     ...(comparison?.status === 'different' ? { directory: sidecarDirectory } : {}),
     receipt: path.basename(outputs.receipt),
-    contactSheet: path.basename(outputs.contactSheet),
+    ...(outputs.capture === false ? {} : { contactSheet: path.basename(outputs.contactSheet) }),
   };
   if (comparison?.status === 'match' || comparison?.status === 'different') {
     return { ok: true, sidecars };
@@ -1870,13 +2139,59 @@ function resolveSidecarDirectory(artifactPath, outputs, compareParents) {
   };
 }
 
-function observationDiagnostics({ artifact, allObservations, readabilityObservations }) {
+// Turn a measured vertical overflow into the pixel budget an author can act on:
+// which stacked block holds the height, and what the SVG or cards must shrink to.
+export function verticalBudgetFixes(entry) {
+  const page = entry.pageComposition;
+  if (!entry.overflowY || !page) return [];
+  const excess = entry.scrollHeight - entry.innerHeight;
+  const fixes = [];
+  const stacked = `${page.bodyPaddingPx}px body padding + ${page.headerPx}px header + ${page.diagramChromePx}px diagram chrome + ${page.svgPx}px SVG + ${page.cardsPx}px cards = ${entry.scrollHeight}px against ${entry.innerHeight}px`;
+  if (page.svgPx > 0 && page.viewBoxHeight > 0) {
+    const targetSvg = page.svgPx - excess;
+    const targetViewBoxHeight = Math.floor(page.viewBoxHeight * targetSvg / page.svgPx);
+    if (entry.readerLayout === 'adaptive') {
+      fixes.push(targetSvg > 0
+        ? `the page is ${excess}px too tall (${stacked}); the Reader already narrowed the stage to its ${entry.diagramWidth}px minimum, so the SVG height only follows meta.viewBox: keep every node and relationship and reduce the viewBox height to at most ${targetViewBoxHeight} (from ${page.viewBoxHeight}) by tightening vertical gaps and empty rows`
+        : `the page is ${excess}px too tall (${stacked}) and the SVG alone exceeds the viewport at the minimum reader width; split the diagram into two`);
+    } else {
+      fixes.push(`the page is ${excess}px too tall (${stacked}); the SVG spans the full ${entry.diagramWidth}px reader width because its viewBox ratio is below 1.55 and it declares no automatic Reader fit, so the Reader can neither narrow it nor accept readable vertical scroll: either remove meta.viewBox so the renderer sizes the canvas and declares the fit, or make the viewBox at least 1.55x wider than tall`);
+    }
+  }
+  if (page.cardsPx >= excess) {
+    fixes.push(`alternatively, conclusion cards occupy ${page.cardsPx}px below the diagram; shortening card copy or dropping a card row so cards take at most ${page.cardsPx - excess}px also fits`);
+  }
+  return fixes;
+}
+
+function observationDiagnostics({ artifact, allObservations, readabilityObservations, command }) {
   const diagnostics = [];
   for (const entry of allObservations) {
-    if (!entry.ok) {
+    if (entry.resolvedTheme !== entry.theme) {
       diagnostics.push(failureDiagnostic({
-        code: 'viewer/viewport-overflow',
-        message: `The rendered artifact overflows the ${entry.width}x${entry.height} ${entry.theme} viewport.`,
+        code: 'viewer/theme-state',
+        message: `The rendered artifact resolved ${entry.resolvedTheme || 'no theme'} instead of the requested ${entry.theme} theme at ${entry.width}x${entry.height}.`,
+        subject: viewportSubject(artifact, entry),
+        evidence: {
+          requestedTheme: entry.theme,
+          resolvedTheme: entry.resolvedTheme,
+        },
+        supportedFixes: [
+          `restore deterministic ${entry.theme} theme resolution, then rerun ${command}`,
+        ],
+      }));
+    }
+    if (!entry.ok) {
+      const authoredClipped = entry.readerFit === 'authored-height' && entry.diagramType === 'architecture'
+        && !entry.documentScrollUnclipped;
+      const budgetFixes = authoredClipped
+        ? ['restore the full SVG inside the diagram panel and allow normal document scrolling; remove internal scrollers and clipping without changing authored geometry']
+        : verticalBudgetFixes(entry);
+      diagnostics.push(failureDiagnostic({
+        code: authoredClipped ? 'viewer/diagram-clipped' : 'viewer/viewport-overflow',
+        message: authoredClipped
+          ? `The authored Architecture canvas is clipped or cannot scroll in the document at ${entry.width}x${entry.height} (${entry.theme}).`
+          : `The rendered artifact overflows the ${entry.width}x${entry.height} ${entry.theme} viewport.`,
         subject: viewportSubject(artifact, entry),
         evidence: {
           innerWidth: entry.innerWidth,
@@ -1885,17 +2200,27 @@ function observationDiagnostics({ artifact, allObservations, readabilityObservat
           scrollHeight: entry.scrollHeight,
           overflowX: entry.overflowX,
           overflowY: entry.overflowY,
+          overflowDisposition: entry.overflowDisposition,
+          readerLayout: entry.readerLayout,
+          readerOverflow: entry.readerOverflow,
+          readerFit: entry.readerFit,
+          ...(authoredClipped ? { documentScrollUnclipped: false } : {}),
+          ...(entry.overflowY && entry.pageComposition ? {
+            pageComposition: entry.pageComposition,
+            pageCompositionMeasurement: 'CSS pixels at this viewport; body padding, header, diagram chrome, SVG and cards stack vertically and sum to scrollHeight',
+          } : {}),
           ...(entry.overflowY && entry.workflowLanes?.length ? {
             workflowLanes: entry.workflowLanes,
             measurement: 'CSS pixels; rendered node boxes geometrically contained in each lane frame; spaces include headers and routing, not guaranteed removable space',
           } : {}),
         },
         supportedFixes: [
+          ...budgetFixes,
           ...(entry.overflowY && entry.workflowLanes?.length ? [
             'run validate workflow <source.json> --layout-json and compare the tallest rendered lane frames with source lanes, col and yOffset; frame IDs are rendered indices, not source lane IDs',
             'where ownership and explicit geometry permit, distribute stacked steps across logical columns and meaningful lanes before increasing yOffset; preserve nodes, branches, labels and hard pins',
-            'read references/authoring-contract.md#workflow-viewport-repair, then validate and deliver the changed source before rerunning visual-check on the new artifact; this is inspection guidance, not a verified coordinate fix',
-          ] : [`contain the rendered layout within ${entry.width}x${entry.height}, then rerun visual-check`]),
+            `read references/authoring-contract.md#workflow-viewport-repair, then validate and deliver the changed source before rerunning ${command} on the new artifact; this is inspection guidance, not a verified coordinate fix`,
+          ] : budgetFixes.length ? [] : [`contain the rendered layout within ${entry.width}x${entry.height}, then rerun ${command}`]),
         ],
       }));
     }
@@ -1906,7 +2231,7 @@ function observationDiagnostics({ artifact, allObservations, readabilityObservat
         subject: viewportSubject(artifact, entry),
         evidence: { legendDockIntersectionArea: entry.legendDockIntersectionArea },
         supportedFixes: [
-          'move the SVG Legend or Viewer Dock until legendDockIntersectionArea is 0, then rerun visual-check',
+          `move the SVG Legend or Viewer Dock until legendDockIntersectionArea is 0, then rerun ${command}`,
         ],
       }));
     }
@@ -1924,7 +2249,7 @@ function observationDiagnostics({ artifact, allObservations, readabilityObservat
           requiredDockStageGap: entry.requiredDockStageGap,
         },
         supportedFixes: [
-          `adjust Viewer stage reservation or clipping until dockStageGap is at least ${entry.requiredDockStageGap} and dockStageIntersectionArea is 0, then rerun visual-check`,
+          `adjust Viewer stage reservation or clipping until dockStageGap is at least ${entry.requiredDockStageGap} and dockStageIntersectionArea is 0, then rerun ${command}`,
         ],
       }));
     }
@@ -1938,25 +2263,26 @@ function observationDiagnostics({ artifact, allObservations, readabilityObservat
       evidence: {
         text: entry.minimumProjectedNodeText,
         detail: entry.minimumProjectedNodeTextDetail,
+        owner: entry.minimumProjectedNodeTextOwner,
         minimumProjectedNodeTextPx: entry.minimumProjectedNodeTextPx,
         minimumRequiredNodeTextPx: entry.minimumRequiredNodeTextPx,
       },
       supportedFixes: [
-        `increase projected node text to at least ${entry.minimumRequiredNodeTextPx}px at ${entry.width}x${entry.height}, then rerun visual-check`,
+        `increase projected ${entry.minimumProjectedNodeTextOwner?.kind === 'edge' ? 'relationship label' : entry.minimumProjectedNodeTextOwner?.kind === 'boundary' ? 'boundary label' : 'node text'} to at least ${entry.minimumRequiredNodeTextPx}px at ${entry.width}x${entry.height}, then rerun ${command}`,
       ],
     }));
   }
   return diagnostics;
 }
 
-function baseReceipt({ artifactPath, artifact, sidecars, chrome, deliveryProvenance }) {
+function baseReceipt({ artifactPath, artifact, sidecars, chrome, deliveryProvenance, command, capture }) {
   return {
     schemaVersion: 1,
     ok: false,
-    command: 'visual-check',
+    command,
     evidenceKind: 'automated-browser',
     status: 'fail',
-    visualReview: 'pending',
+    visualReview: capture ? 'pending' : 'not-requested',
     ...(deliveryProvenance ? {
       provenance: deliveryProvenance.status,
       ...(deliveryProvenance.receiptId ? { deliveryReceiptId: deliveryProvenance.receiptId } : {}),
@@ -1969,10 +2295,15 @@ function baseReceipt({ artifactPath, artifact, sidecars, chrome, deliveryProvena
     state: { detail: 'read', motion: 'still' },
     chrome,
     diagnostics: [],
-    containment: { status: 'fail', viewports: [] },
+    containment: {
+      status: 'fail',
+      policy: 'fit-or-reader-declared-readable-vertical-scroll',
+      viewports: [],
+    },
+    themeStates: { status: 'fail', viewports: [] },
     readability: { status: 'fail', minimumProjectedNodeTextPx: MIN_PROJECTED_NODE_TEXT_PX, viewports: [] },
     viewerChrome: { status: 'fail', viewports: [] },
-    captures: { status: 'fail', screenshots: [], contactSheet: null },
+    captures: { status: capture ? 'fail' : 'not-requested', screenshots: [], contactSheet: null },
     sidecars: { ...sidecars, files: [] },
   };
 }
@@ -2050,12 +2381,12 @@ function publishReceiptOnly(artifactPath, outputs, receipt, ownership) {
   return commitVisualEvidence(artifactPath, outputs, ownership, [outputs.receipt]);
 }
 
-export function persistVisualCheckFailure(
+function persistBrowserEvidenceFailure(
   artifactPath,
   failure,
-  { outDir, compareSidecarParents = sameParent, ownership } = {},
+  { outDir, compareSidecarParents = sameParent, ownership, command = 'visual-check', capture = true, captureViewports = CAPTURE_VIEWPORTS } = {},
 ) {
-  const outputs = sidecarPaths(artifactPath, { outDir });
+  const outputs = evidenceSidecarPaths(artifactPath, { outDir, command, capture, captureViewports });
   const directory = resolveSidecarDirectory(artifactPath, outputs, compareSidecarParents);
   const capturedArtifact = readRegularFileContents(artifactPath, {
     subject: 'failure-artifact',
@@ -2071,8 +2402,12 @@ export function persistVisualCheckFailure(
         bytes: artifactBytes.byteLength,
       },
     } : {}),
-    containment: { status: 'fail', viewports: [] },
-    captures: { status: 'fail', screenshots: [], contactSheet: null },
+    containment: {
+      status: 'fail',
+      policy: 'fit-or-reader-declared-readable-vertical-scroll',
+      viewports: [],
+    },
+    captures: { status: capture ? 'fail' : 'not-requested', screenshots: [], contactSheet: null },
     sidecars: { ...directory.sidecars, files: [] },
   };
   if (!directory.ok) {
@@ -2099,12 +2434,13 @@ export function persistVisualCheckFailure(
     activeOwnership = preflight.ownership;
   }
   const publication = publishReceiptOnly(artifactPath, outputs, receipt, activeOwnership);
+  if (publication.ok) publishedBrowserEvidenceReceipts.add(receipt);
   appendEvidencePublicationFailure(receipt, publication);
   appendEvidenceCleanupWarning(receipt, publication);
   return receipt;
 }
 
-export async function runVisualCheck({
+async function runBrowserEvidence({
   artifactPath,
   outDir,
   chromePath,
@@ -2113,10 +2449,11 @@ export async function runVisualCheck({
   deliveryProvenance,
   verifyArtifact,
   compareSidecarParents = sameParent,
+  command, capture,
 } = {}) {
-  if (!artifactPath) throw new Error('visual-check requires one delivered HTML artifact.');
+  if (!artifactPath) throw new Error(`${command} requires one delivered HTML artifact.`);
   const artifact = path.resolve(artifactPath);
-  if (!/\.html?$/i.test(artifact)) throw new Error('visual-check requires an .html artifact.');
+  if (!/\.html?$/i.test(artifact)) throw new Error(`${command} requires an .html artifact.`);
   const capturedArtifact = captureRegularFileBinding(artifact, {
     subject: 'visual-check-artifact',
     expectedLinks: 1,
@@ -2126,16 +2463,25 @@ export async function runVisualCheck({
     throw regularFileCaptureError('The visual-check artifact', capturedArtifact);
   }
   const artifactBytes = capturedArtifact.content.buffer;
+  const explainer = isExplainerHtml(artifactBytes.toString('utf8'));
+  const inspectionViewports = explainer ? EXPLAINER_VIEWPORTS : VISUAL_CHECK_VIEWPORTS;
+  const captureViewports = explainer ? EXPLAINER_VIEWPORTS : CAPTURE_VIEWPORTS;
+  const observe = explainer ? explainerObservation : observation;
   try {
-  const outputs = sidecarPaths(artifact, { outDir });
+  const outputs = evidenceSidecarPaths(artifact, { outDir, command, capture, captureViewports });
   const directory = resolveSidecarDirectory(artifact, outputs, compareSidecarParents);
   const receipt = baseReceipt({
     artifactPath: artifact,
     artifact: artifactBytes,
     sidecars: directory.sidecars,
     chrome: { status: 'not-checked', executable: null },
-    deliveryProvenance,
+    deliveryProvenance, command, capture,
   });
+  if (explainer) {
+    receipt.family = 'explainer';
+    receipt.viewportPolicy = 'explainer-desktop-v1';
+    receipt.containment.policy = 'horizontal-containment-readable-document-scroll';
+  }
   if (!directory.ok) {
     receipt.error = directory.error;
     receipt.diagnostics = [directory.diagnostic];
@@ -2164,7 +2510,7 @@ export async function runVisualCheck({
     ownership.stagingPaths.set(artifact, inspectionArtifact);
     writeStagedEvidence(ownership, artifact, artifactBytes);
   } catch (error) {
-    return { exitCode: EXIT.fail, receipt: persistVisualCheckFailure(artifact, {
+    return { exitCode: EXIT.fail, receipt: persistBrowserEvidenceFailure(artifact, {
       ...receipt,
       status: 'fail',
       ok: false,
@@ -2176,7 +2522,7 @@ export async function runVisualCheck({
         evidence: { reason: error.message },
         supportedFixes: ['retry after resolving the reported staging filesystem error'],
       })],
-    }, { outDir, compareSidecarParents, ownership }) };
+    }, { outDir, compareSidecarParents, ownership, command, capture, captureViewports }) };
   }
   const verifyInspectionArtifact = () => {
     const entry = ownership.stagedEntries.get(artifact);
@@ -2187,12 +2533,12 @@ export async function runVisualCheck({
   try {
     verifyArtifact?.(artifactBytes);
   } catch (error) {
-    return { exitCode: EXIT.fail, receipt: persistVisualCheckFailure(artifact, {
-      schemaVersion: 1, command: 'visual-check', evidenceKind: 'automated-browser', visualReview: 'pending',
+    return { exitCode: EXIT.fail, receipt: persistBrowserEvidenceFailure(artifact, {
+      schemaVersion: 1, command, evidenceKind: 'automated-browser', visualReview: capture ? 'pending' : 'not-requested',
       artifact: { path: artifact, sha256: sha256(artifactBytes), bytes: artifactBytes.byteLength },
       provenance: error.deliveryProvenance?.status, error: error.message,
       diagnostics: error.archifyDiagnostics || [],
-    }, { outDir, compareSidecarParents, ownership }) };
+    }, { outDir, compareSidecarParents, ownership, command, capture, captureViewports }) };
   }
 
   const resolvedChrome = chromePath || resolveChrome();
@@ -2205,17 +2551,19 @@ export async function runVisualCheck({
     receipt.containment.status = 'skipped';
     receipt.readability.status = 'skipped';
     receipt.viewerChrome.status = 'skipped';
-    receipt.captures.status = 'skipped';
-    receipt.error = 'Chrome or Chromium is unavailable. Set ARCHIFY_CHROME to its executable path.';
+    receipt.themeStates.status = 'skipped';
+    if (capture) receipt.captures.status = 'skipped';
+    receipt.error = 'No supported browser found. Install Chrome/Chromium (or Microsoft Edge), or set ARCHIFY_CHROME to its executable path.';
     receipt.diagnostics = [failureDiagnostic({
       code: 'viewer/chrome-unavailable',
       severity: 'warning',
       message: receipt.error,
       subject: { artifact },
       evidence: { executable: null },
-      supportedFixes: ['set ARCHIFY_CHROME to a Chrome or Chromium executable and rerun visual-check'],
+      supportedFixes: [`set ARCHIFY_CHROME to a Chrome/Chromium executable (or Microsoft Edge) and rerun ${command}`],
     })];
     const publication = publishReceiptOnly(artifact, outputs, receipt, ownership);
+    if (publication.ok) publishedBrowserEvidenceReceipts.add(receipt);
     if (!publication.ok) {
       appendEvidencePublicationFailure(receipt, publication);
       return { exitCode: EXIT.fail, receipt };
@@ -2235,64 +2583,72 @@ export async function runVisualCheck({
       { ...entry, stagedPath: ownership.stagedOutputs.screenshots[index].path },
     ]));
 
-    for (const viewport of VISUAL_CHECK_VIEWPORTS) {
-      const key = screenshotKey(viewport.width, viewport.height, 'light');
-      const screenshot = screenshotsByKey.get(key);
-      const metrics = await browser.inspect({
-        artifactPath: inspectionArtifact,
-        ...viewport,
-        theme: 'light',
-        ...(screenshot ? {
-          screenshotPath: screenshot.stagedPath,
-          writeScreenshot: (bytes) => writeStagedEvidence(ownership, screenshot.path, bytes),
-        } : {}),
-      });
-      verifyInspectionArtifact();
-      if (screenshot) {
-        if (!ownership.stagedEntries.has(screenshot.path)) {
+    try {
+      const inspect = (options) => explainer ? inspectExplainerBrowser(browser, options) : browser.inspect(options);
+      for (const viewport of inspectionViewports) {
+        const key = screenshotKey(viewport.width, viewport.height, 'light');
+        const screenshot = screenshotsByKey.get(key);
+        const metrics = await inspect({
+          artifactPath: inspectionArtifact,
+          ...viewport,
+          theme: 'light',
+          ...(screenshot ? {
+            screenshotPath: screenshot.stagedPath,
+            writeScreenshot: (bytes) => writeStagedEvidence(ownership, screenshot.path, bytes),
+          } : {}),
+        });
+        verifyInspectionArtifact();
+        if (screenshot) {
+          if (screenshot && !ownership.stagedEntries.has(screenshot.path)) {
+            registerStagedEvidence(ownership, screenshot.path);
+          } else {
+            const staged = ownership.stagedEntries.get(screenshot.path);
+            if (!currentEvidenceMatches(staged.path, staged.identity, staged.evidence)) {
+              throw new Error('The staged visual-check screenshot changed after capture.');
+            }
+          }
+        }
+        observations.set(key, observe({ ...viewport, theme: 'light', metrics }));
+      }
+      for (const viewport of captureViewports) {
+        const key = screenshotKey(viewport.width, viewport.height, 'dark');
+        const screenshot = screenshotsByKey.get(key);
+        const metrics = await inspect({
+          artifactPath: inspectionArtifact,
+          ...viewport,
+          theme: 'dark',
+          ...(screenshot ? {
+            screenshotPath: screenshot.stagedPath,
+            writeScreenshot: (bytes) => writeStagedEvidence(ownership, screenshot.path, bytes),
+          } : {}),
+        });
+        verifyInspectionArtifact();
+        if (screenshot && !ownership.stagedEntries.has(screenshot.path)) {
           registerStagedEvidence(ownership, screenshot.path);
-        } else {
+        } else if (screenshot) {
           const staged = ownership.stagedEntries.get(screenshot.path);
           if (!currentEvidenceMatches(staged.path, staged.identity, staged.evidence)) {
             throw new Error('The staged visual-check screenshot changed after capture.');
           }
         }
+        observations.set(key, observe({ ...viewport, theme: 'dark', metrics }));
       }
-      observations.set(key, observation({ ...viewport, theme: 'light', metrics }));
-    }
-    for (const viewport of CAPTURE_VIEWPORTS) {
-      const key = screenshotKey(viewport.width, viewport.height, 'dark');
-      const screenshot = screenshotsByKey.get(key);
-      const metrics = await browser.inspect({
-        artifactPath: inspectionArtifact,
-        ...viewport,
-        theme: 'dark',
-        screenshotPath: screenshot.stagedPath,
-        writeScreenshot: (bytes) => writeStagedEvidence(ownership, screenshot.path, bytes),
-      });
-      verifyInspectionArtifact();
-      if (!ownership.stagedEntries.has(screenshot.path)) {
-        registerStagedEvidence(ownership, screenshot.path);
-      } else {
-        const staged = ownership.stagedEntries.get(screenshot.path);
-        if (!currentEvidenceMatches(staged.path, staged.identity, staged.evidence)) {
-          throw new Error('The staged visual-check screenshot changed after capture.');
-        }
-      }
-      observations.set(key, observation({ ...viewport, theme: 'dark', metrics }));
+
+    } finally {
+      if (browser?.close) await browser.close();
     }
 
     let artifactVerification = verifyRegularFileBinding(capturedArtifact.binding);
     if (artifactVerification.status !== 'match') {
-      throw regularFileCaptureError('The delivered artifact changed while visual-check was running', artifactVerification);
+      throw regularFileCaptureError(`The delivered artifact changed while ${command} was running`, artifactVerification);
     }
     verifyArtifact?.(artifactBytes);
     artifactVerification = verifyRegularFileBinding(capturedArtifact.binding);
     if (artifactVerification.status !== 'match') {
-      throw regularFileCaptureError('The delivered artifact changed while visual-check was running', artifactVerification);
+      throw regularFileCaptureError(`The delivered artifact changed while ${command} was running`, artifactVerification);
     }
 
-    receipt.containment.viewports = VISUAL_CHECK_VIEWPORTS.map(({ width, height }) => (
+    receipt.containment.viewports = inspectionViewports.map(({ width, height }) => (
       observations.get(screenshotKey(width, height, 'light'))
     ));
     receipt.readability.viewports = receipt.containment.viewports.map((entry) => ({ ...entry }));
@@ -2302,22 +2658,43 @@ export async function runVisualCheck({
       file: path.basename(entry.path),
     }));
     const allObservations = [...observations.values()];
+    receipt.themeStates.viewports = allObservations.map((entry) => ({
+      width: entry.width,
+      height: entry.height,
+      requestedTheme: entry.theme,
+      resolvedTheme: entry.resolvedTheme,
+      ok: entry.resolvedTheme === entry.theme,
+    }));
+    const themeStatePass = receipt.themeStates.viewports.every(entry => entry.ok);
     const containmentPass = allObservations.every((entry) => entry.ok);
     const readabilityPass = receipt.readability.viewports.every((entry) => entry.readabilityOk);
     const viewerChromePass = allObservations.every((entry) => entry.viewerChromeOk);
-    receipt.diagnostics = observationDiagnostics({
+    receipt.diagnostics = (explainer ? explainerObservationDiagnostics : observationDiagnostics)({
       artifact,
       allObservations,
-      readabilityObservations: receipt.readability.viewports,
+      readabilityObservations: receipt.readability.viewports, command,
     });
+    receipt.themeStates.status = themeStatePass ? 'pass' : 'fail';
     receipt.containment.status = containmentPass ? 'pass' : 'fail';
     receipt.readability.status = readabilityPass ? 'pass' : 'fail';
     receipt.viewerChrome.status = viewerChromePass ? 'pass' : 'fail';
-    receipt.captures.status = 'pass';
-    receipt.captures.contactSheet = path.basename(outputs.contactSheet);
-    receipt.status = containmentPass && readabilityPass && viewerChromePass ? 'pass' : 'fail';
-    receipt.ok = containmentPass && readabilityPass && viewerChromePass;
-    writeStagedEvidence(ownership, outputs.contactSheet, contactSheetHtml({
+    if (capture) {
+      receipt.captures.status = 'pass';
+      receipt.captures.contactSheet = path.basename(outputs.contactSheet);
+    }
+    if (explainer) {
+      receipt.containment.viewports = allObservations.map(entry => ({ ...entry }));
+      receipt.readability.viewports = allObservations.map(entry => ({ ...entry }));
+      receipt.viewerChrome.viewports = allObservations.map(entry => ({ ...entry }));
+      receipt.commonQa = { status: allObservations.every(e => e.consoleErrors.length === 0 && e.duplicateIds.length === 0 && e.keyboardIssues.length === 0 && e.keyboardTraversal?.ok) ? 'pass' : 'fail', observations: allObservations.map(e => ({width:e.width,theme:e.theme,ok:e.consoleErrors.length===0&&e.duplicateIds.length===0&&e.keyboardIssues.length===0&&e.keyboardTraversal?.ok===true})) };
+      receipt.interactions = { status: allObservations.every(e => e.interactionFailures.length === 0) ? 'pass' : 'fail', observations: allObservations.map(e => ({width:e.width,theme:e.theme,ok:e.interactionFailures.length===0,failures:e.interactionFailures})) };
+      receipt.references = { status: allObservations.every(e => e.references.length === 0) ? 'pass' : 'fail', observations: allObservations.map(e => ({width:e.width,theme:e.theme,ok:e.references.length===0,failures:e.references})) };
+      receipt.noJavaScript = { status: allObservations.every(e => e.noJavaScript.every(n => n.ok)) ? 'pass' : 'fail', observations: allObservations.map(e => ({width:e.width,theme:e.theme,ok:e.noJavaScript.every(n=>n.ok),states:e.noJavaScript})) };
+      receipt.print = { status: allObservations.every(e => e.print.ok) ? 'pass' : 'fail', observations: allObservations.map(e => ({width:e.width,...e.print})) };
+    }
+    receipt.ok = containmentPass && themeStatePass && readabilityPass && viewerChromePass && (!explainer || receipt.diagnostics.length === 0);
+    receipt.status = receipt.ok ? 'pass' : 'fail';
+    if (capture) writeStagedEvidence(ownership, outputs.contactSheet, contactSheetHtml({
       artifactPath: artifact,
       receipt,
       screenshots: receipt.captures.screenshots,
@@ -2336,40 +2713,67 @@ export async function runVisualCheck({
       receipt.status = 'fail';
       return { exitCode: EXIT.fail, receipt };
     }
+    publishedBrowserEvidenceReceipts.add(receipt);
     if (appendEvidenceCleanupWarning(receipt, publication)) {
       return { exitCode: EXIT.fail, receipt };
     }
     return { exitCode: receipt.ok ? EXIT.pass : EXIT.fail, receipt };
   } catch (error) {
+    const startupTimeout = error.code === 'ERR_CHROME_CDP_TIMEOUT'
+      && error.method === 'Target.getTargets';
     receipt.status = 'fail';
     receipt.ok = false;
     receipt.error = error.message;
     receipt.containment.status = 'fail';
     receipt.readability.status = 'fail';
     receipt.viewerChrome.status = 'fail';
-    receipt.captures.status = 'fail';
+    receipt.themeStates.status = 'fail';
+    receipt.captures.status = capture ? 'fail' : 'not-requested';
     receipt.captures.screenshots = [];
     receipt.captures.contactSheet = null;
     if (error.deliveryProvenance) receipt.provenance = error.deliveryProvenance.status;
     receipt.diagnostics = error.archifyDiagnostics || [failureDiagnostic({
-      code: 'viewer/visual-check-runtime',
-      message: 'visual-check could not complete its Chrome inspection.',
+      code: error.code === 'ARCHIFY_TEMP_CLEANUP' ? 'viewer/temp-cleanup-incomplete'
+        : startupTimeout ? 'viewer/chrome-startup-timeout' : `viewer/${command}-runtime`,
+      message: error.code === 'ARCHIFY_TEMP_CLEANUP'
+        ? 'Browser cleanup could not safely finish; inspect the reported retained path.'
+        : startupTimeout
+        ? 'Chrome did not finish its initial DevTools handshake within the startup window.'
+        : `${command} could not complete its Chrome inspection.`,
       subject: { artifact },
-      evidence: { reason: error.message },
-      supportedFixes: ['resolve the reported Chrome inspection error, then rerun visual-check'],
+      evidence: { reason: error.message, ...(error.directory ? { retainedDirectory: error.directory } : {}) },
+      supportedFixes: error.code === 'ARCHIFY_TEMP_CLEANUP'
+        ? ['resolve the reported process or filesystem failure; verify directory ownership before manual cleanup']
+        : startupTimeout
+        ? [
+          'do not edit or simplify the artifact because this is a browser-startup failure',
+          `retry ${command} once after host load subsides; if it repeats, stop and report the environment failure`,
+        ]
+        : [`resolve the reported Chrome inspection error, then rerun ${command}`],
     })];
     return {
       exitCode: EXIT.fail,
-      receipt: persistVisualCheckFailure(artifact, receipt, {
+      receipt: persistBrowserEvidenceFailure(artifact, receipt, {
         outDir,
         compareSidecarParents,
-        ownership,
+        ownership, command, capture, captureViewports,
       }),
     };
-  } finally {
-    if (browser?.close) await browser.close();
   }
   } finally {
     releaseRegularFileBinding(capturedArtifact.binding);
   }
+}
+
+export function persistVisualCheckFailure(artifactPath, failure, options = {}) {
+  return persistBrowserEvidenceFailure(artifactPath, failure, { ...options, command: 'visual-check', capture: true });
+}
+export function persistBrowserCheckFailure(artifactPath, failure, options = {}) {
+  return persistBrowserEvidenceFailure(artifactPath, failure, { ...options, command: 'browser-check', capture: false });
+}
+export function runVisualCheck(options = {}) {
+  return runBrowserEvidence({ ...options, command: 'visual-check', capture: true });
+}
+export function runBrowserCheck(options = {}) {
+  return runBrowserEvidence({ ...options, command: 'browser-check', capture: false });
 }

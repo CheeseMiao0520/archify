@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "Mixed interface inheritance and implementation"
+  },
+  "types": [
+    {
+      "id": "base",
+      "label": "Root",
+      "kind": "interface",
+      "row": 0,
+      "col": 1.5
+    },
+    {
+      "id": "left1",
+      "label": "LeftOne",
+      "kind": "interface",
+      "row": 1,
+      "col": 0
+    },
+    {
+      "id": "left2",
+      "label": "LeftTwo",
+      "kind": "interface",
+      "row": 1,
+      "col": 1
+    },
+    {
+      "id": "right1",
+      "label": "RightOne",
+      "kind": "class",
+      "row": 1,
+      "col": 2
+    },
+    {
+      "id": "right2",
+      "label": "RightTwo",
+      "kind": "class",
+      "row": 1,
+      "col": 3
+    }
+  ],
+  "relationships": [
+    {
+      "from": "left1",
+      "to": "base",
+      "kind": "inheritance"
+    },
+    {
+      "from": "left2",
+      "to": "base",
+      "kind": "inheritance"
+    },
+    {
+      "from": "right1",
+      "to": "base",
+      "kind": "realization"
+    },
+    {
+      "from": "right2",
+      "to": "base",
+      "kind": "realization"
+    }
+  ]
+}

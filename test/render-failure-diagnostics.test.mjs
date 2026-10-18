@@ -1,0 +1,419 @@
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
+
+const skillRoot = fileURLToPath(new URL('../archify/', import.meta.url));
+const cli = path.join(skillRoot, 'bin/archify.mjs');
+const diagnosticModule = new URL('../archify/renderers/shared/diagnostics.mjs', import.meta.url).href;
+const installBoundary = `import { installRendererDiagnosticBoundary } from ${JSON.stringify(diagnosticModule)}; installRendererDiagnosticBoundary();`;
+const examples = {
+  architecture: 'web-app.architecture.json',
+  workflow: 'agent-tool-call.workflow.json',
+  sequence: 'cache-miss-request.sequence.json',
+  dataflow: 'product-analytics.dataflow.json',
+  lifecycle: 'agent-run.lifecycle.json',
+};
+
+function workspace(t) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-render-diagnostics-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  return directory;
+}
+
+function run(args, cwd, json = false) {
+  return spawnSync(process.execPath, args, {
+    cwd,
+    encoding: 'utf8',
+    env: { ...process.env, ARCHIFY_DIAGNOSTIC_FORMAT: json ? 'json' : '' },
+  });
+}
+
+function assertHumanFailure(result, code) {
+  assert.equal(result.status, 1, result.stdout || result.stderr);
+  assert.equal(result.stdout, '');
+  assert.ok(result.stderr.includes(`[${code}]`), result.stderr);
+  assert.doesNotMatch(result.stderr, /\n\s+at\s|file:\/\/|Node\.js v/);
+}
+
+for (const [type, example] of Object.entries(examples)) {
+  test(`render ${type}: input read/parse and output failures name the failing operation`, t => {
+    const cwd = workspace(t);
+    const input = path.join(skillRoot, 'examples', example);
+    const output = path.join(cwd, 'diagram.html');
+    const missing = run([cli, 'render', type, path.join(cwd, 'missing.json'), output], cwd);
+    assertHumanFailure(missing, 'input/read');
+    assert.match(missing.stderr, /Fix: provide one readable JSON input file/);
+
+    const malformed = path.join(cwd, 'malformed.json');
+    fs.writeFileSync(malformed, '{"broken":');
+    assertHumanFailure(run([cli, 'render', type, malformed, output], cwd), 'input/json-parse');
+    assert.equal(fs.existsSync(output), false);
+
+    // Directory targets fail on both POSIX and Windows without relying on
+    // permission bits (which a privileged test process may bypass).
+    fs.mkdirSync(output);
+    assertHumanFailure(run([cli, 'render', type, input, output], cwd), 'output/target-not-regular-file');
+    const renderer = path.join(skillRoot, 'renderers', type, `render-${type}.mjs`);
+    const machine = run([renderer, input, output], cwd, true);
+    assert.equal(machine.status, 1);
+    assert.equal(machine.stdout, '');
+    const failure = JSON.parse(machine.stderr);
+    assert.equal(failure.diagnostics[0].code, 'output/target-not-regular-file');
+    assert.deepEqual(failure.diagnostics[0].subject, { output });
+    assert.equal(failure.diagnostics[0].evidence.relation.code, 'target-not-regular-file');
+    assert.equal(failure.diagnostics[0].evidence.relation.entryType, 'directory');
+    assert.ok(failure.diagnostics[0].supportedFixes.length);
+    assert.deepEqual(fs.readdirSync(output), []);
+
+    const blockedParent = path.join(cwd, 'parent');
+    fs.writeFileSync(blockedParent, 'preserved');
+    assertHumanFailure(
+      run([renderer, input, path.join(blockedParent, 'diagram.html')], cwd),
+      'output/path-resolution-indeterminate',
+    );
+    assert.equal(fs.readFileSync(blockedParent, 'utf8'), 'preserved');
+  });
+
+  test(`render ${type}: successful direct and public rendering retain the output contract`, t => {
+    const cwd = workspace(t);
+    const input = path.join(skillRoot, 'examples', example);
+    const output = path.join(cwd, 'diagram.html');
+    const publicResult = run([cli, 'render', type, input, output], cwd);
+    assert.equal(publicResult.status, 0, publicResult.stderr);
+    assert.equal(publicResult.stdout, `${output}\n`);
+    assert.equal(publicResult.stderr, '');
+    const bytes = fs.readFileSync(output);
+    const directResult = run([path.join(skillRoot, 'renderers', type, `render-${type}.mjs`), input, output], cwd);
+    assert.equal(directResult.status, 0, directResult.stderr);
+    assert.equal(directResult.stdout, `${output}\n`);
+    assert.equal(directResult.stderr, '');
+    assert.deepEqual(fs.readFileSync(output), bytes);
+  });
+}
+
+test('render layout rejection exposes the existing diagnostic and preserves an existing artifact', t => {
+  const cwd = workspace(t);
+  const input = path.join(cwd, 'layout.json');
+  const output = path.join(cwd, 'diagram.html');
+  fs.writeFileSync(input, JSON.stringify({
+    schema_version: 1,
+    diagram_type: 'architecture',
+    meta: {
+      title: 'Wide label',
+      output: 'wide-label.html',
+      quality_profile: 'standard',
+      viewBox: [975, 395],
+    },
+    components: [{ id: 'node', type: 'security', label: '字'.repeat(40), pos: [40, 40], size: [88, 71] }],
+  }));
+  fs.writeFileSync(output, 'trusted artifact');
+  const result = run([cli, 'render', 'architecture', input, output], cwd);
+  assertHumanFailure(result, 'architecture/component-label-overflow');
+  assert.match(result.stderr, /shorten the label or widen size/);
+  assert.equal(fs.readFileSync(output, 'utf8'), 'trusted artifact');
+  for (const command of ['validate', 'deliver']) {
+    const machine = run([cli, command, 'architecture', input, ...(command === 'deliver' ? [output] : []), '--json'], cwd);
+    assert.equal(machine.status, 1);
+    assert.equal(machine.stderr, '');
+    const failure = JSON.parse(machine.stdout);
+    assert.equal(failure.diagnostics[0].code, 'architecture/component-label-overflow');
+    assert.deepEqual(failure.diagnostics[0].subject, { diagramType: 'architecture', nodeId: 'node' });
+  }
+  assert.equal(fs.readFileSync(output, 'utf8'), 'trusted artifact');
+
+  // A locale warning must not replace the classified layout error or make
+  // the renderer's single JSON failure receipt unparsable.
+  const withWarning = JSON.parse(fs.readFileSync(input, 'utf8'));
+  withWarning.meta.locale = 'en-US';
+  fs.writeFileSync(input, JSON.stringify(withWarning));
+  for (const command of ['validate', 'deliver']) {
+    const machine = run([cli, command, 'architecture', input, ...(command === 'deliver' ? [output] : []), '--json'], cwd);
+    assert.equal(machine.status, 1);
+    assert.equal(machine.stderr, '');
+    const failure = JSON.parse(machine.stdout);
+    assert.equal(failure.ok, false);
+    const warning = failure.diagnostics.find(entry => entry.code === 'i18n/locale-fallback');
+    const layout = failure.diagnostics.find(entry => entry.code === 'architecture/component-label-overflow');
+    assert.equal(warning?.severity, 'warning');
+    assert.equal(layout?.severity, 'error');
+    assert.deepEqual(layout.subject, { diagramType: 'architecture', nodeId: 'node' });
+    assert.match(layout.message, /shorten the label or widen size/);
+    assert.ok(Array.isArray(layout.supportedFixes));
+    assert.equal(fs.readFileSync(output, 'utf8'), 'trusted artifact');
+  }
+  const direct = run([path.join(skillRoot, 'renderers/architecture/render-architecture.mjs'), input, output], cwd, true);
+  assert.equal(direct.status, 1);
+  assert.equal(direct.stdout, '');
+  const receipt = JSON.parse(direct.stderr);
+  assert.ok(receipt.diagnostics.some(entry => entry.code === 'i18n/locale-fallback'));
+  assert.ok(receipt.diagnostics.some(entry => entry.code === 'architecture/component-label-overflow'));
+  assert.equal(fs.readFileSync(output, 'utf8'), 'trusted artifact');
+});
+
+test('locale warnings cannot classify an unrelated native renderer error', t => {
+  const cwd = workspace(t);
+  const input = path.join(cwd, 'warning.json');
+  const output = path.join(cwd, 'diagram.html');
+  const document = JSON.parse(fs.readFileSync(path.join(skillRoot, 'examples/web-app.architecture.json'), 'utf8'));
+  document.meta.locale = 'en-US';
+  fs.writeFileSync(input, JSON.stringify(document));
+  const helper = new URL('../archify/renderers/shared/cli.mjs', import.meta.url).href;
+  const script = `import { loadDiagram } from ${JSON.stringify(helper)};
+    loadDiagram({ rendererDir: ${JSON.stringify(path.join(skillRoot, 'renderers/architecture'))}, diagramType: 'architecture', argv: ['node', 'renderer', ${JSON.stringify(input)}, ${JSON.stringify(output)}] });
+    throw new TypeError('unrelated implementation defect');`;
+  const human = run(['--input-type=module', '-e', script], cwd);
+  assert.equal(human.status, 1);
+  assert.match(human.stderr, /archify: meta\.locale "en-US"/);
+  assert.match(human.stderr, /TypeError: unrelated implementation defect/);
+  const machine = run(['--input-type=module', '-e', script], cwd, true);
+  assert.equal(machine.status, 1);
+  const receipt = JSON.parse(machine.stderr);
+  assert.deepEqual(receipt.diagnostics.map(entry => entry.code), ['internal/unclassified']);
+  assert.equal(fs.existsSync(output), false);
+});
+
+test('direct renderer warning modes preserve the successful artifact contract', t => {
+  const cwd = workspace(t);
+  const input = path.join(cwd, 'warning.json');
+  const output = path.join(cwd, 'diagram.html');
+  const document = JSON.parse(fs.readFileSync(path.join(skillRoot, 'examples/web-app.architecture.json'), 'utf8'));
+  document.meta.locale = 'en-US';
+  fs.writeFileSync(input, JSON.stringify(document));
+  const renderer = path.join(skillRoot, 'renderers/architecture/render-architecture.mjs');
+  const human = run([renderer, input, output], cwd);
+  assert.equal(human.status, 0, human.stderr);
+  assert.equal(human.stdout, `${output}\n`);
+  assert.equal(human.stderr.trim().split('\n').length, 1);
+  assert.match(human.stderr, /^archify: meta\.locale "en-US"/);
+  const artifact = fs.readFileSync(output);
+  const machine = run([renderer, input, output], cwd, true);
+  assert.equal(machine.status, 0, machine.stderr);
+  assert.equal(machine.stdout, `${output}\n`);
+  assert.equal(machine.stderr, '');
+  assert.deepEqual(fs.readFileSync(output), artifact);
+});
+
+test('public post-render checker failures retain the locale warning once', t => {
+  const cwd = workspace(t);
+  const input = path.join(cwd, 'warning.json');
+  const output = path.join(cwd, 'diagram.html');
+  const document = JSON.parse(fs.readFileSync(path.join(skillRoot, 'examples/web-app.architecture.json'), 'utf8'));
+  document.meta.locale = 'en-US';
+  fs.writeFileSync(input, JSON.stringify(document));
+  fs.writeFileSync(output, 'trusted artifact');
+  for (const command of ['validate', 'deliver']) {
+    const result = spawnSync(process.execPath, [cli, command, 'architecture', input, ...(command === 'deliver' ? [output] : []), '--json'], {
+      cwd,
+      encoding: 'utf8',
+      env: { ...process.env, ARCHIFY_CHECK_MAX_BUFFER: '1' },
+    });
+    assert.notEqual(result.status, 0);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.ok, false);
+    assert.equal(receipt.stage, 'check');
+    assert.ok(receipt.diagnostics.some(entry => entry.code === 'artifact/check-output-limit'));
+    assert.equal(result.stderr.trim().split('\n').length, 1);
+    assert.match(result.stderr, /^archify: meta\.locale "en-US"/);
+    assert.equal(fs.readFileSync(output, 'utf8'), 'trusted artifact');
+  }
+});
+
+test('unexpected renderer exceptions keep native debugging information and are not relabelled as input errors', t => {
+  const cwd = workspace(t);
+  const helper = new URL('../archify/renderers/shared/cli.mjs', import.meta.url).href;
+  const script = `${installBoundary} import ${JSON.stringify(helper)}; throw Object.assign(new SyntaxError('implementation defect'), { code: 'EACCES' });`;
+  const human = run(['--input-type=module', '-e', script], cwd);
+  assert.equal(human.status, 1);
+  assert.match(human.stderr, /SyntaxError: implementation defect/);
+  assert.match(human.stderr, /\n\s+at\s/);
+  const machine = run(['--input-type=module', '-e', script], cwd, true);
+  assert.equal(machine.status, 1);
+  assert.equal(JSON.parse(machine.stderr).diagnostics[0].code, 'internal/unclassified');
+});
+
+test('a recorded layout diagnostic cannot hide a later unclassified exception', t => {
+  const cwd = workspace(t);
+  const helper = new URL('../archify/renderers/shared/diagnostics.mjs', import.meta.url).href;
+  const setup = `import { installRendererDiagnosticBoundary, recordDiagnostic, throwDiagnosticError } from ${JSON.stringify(helper)};
+    installRendererDiagnosticBoundary();
+    recordDiagnostic({ code: 'layout/constraint', message: 'earlier layout problem' });`;
+  for (const failure of [
+    `throw new TypeError('later implementation defect');`,
+    `throwDiagnosticError('later implementation defect', []);`,
+  ]) {
+    const result = run(['--input-type=module', '-e', setup + failure], cwd, true);
+    assert.equal(result.status, 1);
+    const receipt = JSON.parse(result.stderr);
+    assert.deepEqual(receipt.diagnostics.map(d => d.code), ['internal/unclassified']);
+    assert.equal(receipt.diagnostics[0].message, 'later implementation defect');
+  }
+  const classified = run(['--input-type=module', '-e', setup + `throwDiagnosticError('layout rejected', [{ code: 'layout/constraint', message: 'final layout problem' }]);`], cwd, true);
+  assert.equal(classified.status, 1);
+  assert.deepEqual(JSON.parse(classified.stderr).diagnostics.map(d => d.message), ['earlier layout problem', 'final layout problem']);
+});
+
+test('isolated diagnostic work preserves typed lookup without polluting later failures', t => {
+  const script = `import assert from 'node:assert/strict';
+    import { recordDiagnostic, throwDiagnosticProblems, rendererFailure, withIsolatedDiagnosticRecording } from ${JSON.stringify(diagnosticModule)};
+    const local = { code: 'composition/proper-crossing', severity: 'error', message: 'same problem',
+      subject: { id: 'local' }, evidence: { point: [12, 34] }, supportedFixes: ['move local route'] };
+    const outer = { ...local, subject: { id: 'outer' }, evidence: { point: [56, 78] }, supportedFixes: ['move outer route'] };
+    function recover() {
+      try { throwDiagnosticProblems('rejected', [local.message]); }
+      catch (error) { return error; }
+    }
+    let captured;
+    const result = withIsolatedDiagnosticRecording(() => {
+      recordDiagnostic(local);
+      captured = recover();
+      return captured;
+    });
+    assert.equal(result, captured);
+    assert.deepEqual(result.archifyDiagnostics, [local]);
+    recordDiagnostic(outer);
+    const terminal = recover();
+    assert.deepEqual(terminal.archifyDiagnostics, [outer]);
+    // Exact local repeats must record after leaving the speculative scope.
+    recordDiagnostic(local);
+    assert.deepEqual(rendererFailure(terminal).diagnostics, [outer, local]);`;
+  const result = run(['--input-type=module', '-e', script], workspace(t), true);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('nested isolated diagnostics restore each caller and retain earlier plus terminal failures', t => {
+  const script = `import assert from 'node:assert/strict';
+    import { recordDiagnostic, throwDiagnosticError, throwDiagnosticProblems, rendererFailure, withIsolatedDiagnosticRecording } from ${JSON.stringify(diagnosticModule)};
+    const detail = id => ({ code: 'layout/constraint', severity: 'error', message: 'same problem',
+      subject: { id }, evidence: { node: id }, supportedFixes: ['move ' + id] });
+    const outer = detail('outer'), local = detail('local'), nested = detail('nested');
+    function recover(expected) {
+      try { throwDiagnosticProblems('rejected', [expected.message]); assert.fail('problem must throw'); }
+      catch (error) { assert.deepEqual(error.archifyDiagnostics, [expected]); }
+    }
+    recordDiagnostic(outer);
+    withIsolatedDiagnosticRecording(() => {
+      recordDiagnostic(local);
+      withIsolatedDiagnosticRecording(() => { recordDiagnostic(nested); recover(nested); });
+      recover(local);
+    });
+    recover(outer);
+    const terminal = { ...detail('terminal'), message: 'terminal problem' };
+    try { throwDiagnosticError('rejected', [terminal]); assert.fail('terminal must throw'); }
+    catch (error) { assert.deepEqual(rendererFailure(error).diagnostics, [outer, terminal]); }`;
+  const result = run(['--input-type=module', '-e', script], workspace(t), true);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('isolated diagnostic exceptions restore recording and preserve error identity', t => {
+  const script = `import assert from 'node:assert/strict';
+    import { recordDiagnostic, throwDiagnosticError, rendererFailure, withIsolatedDiagnosticRecording } from ${JSON.stringify(diagnosticModule)};
+    const detail = id => ({ code: 'layout/constraint', severity: 'error', message: id + ' problem',
+      subject: { id }, evidence: { node: id }, supportedFixes: ['move ' + id] });
+    const earlier = detail('earlier'), abandoned = detail('abandoned'), terminal = detail('terminal');
+    recordDiagnostic(earlier);
+    const untyped = new TypeError('implementation defect');
+    try {
+      withIsolatedDiagnosticRecording(() => { recordDiagnostic(abandoned); throw untyped; });
+      assert.fail('exception must escape');
+    } catch (error) {
+      assert.equal(error, untyped);
+      assert.equal(rendererFailure(error).diagnostics[0].code, 'internal/unclassified');
+    }
+    try { throwDiagnosticError('rejected', [terminal]); assert.fail('terminal must throw'); }
+    catch (error) { assert.deepEqual(rendererFailure(error).diagnostics, [earlier, terminal]); }
+    const typed = Object.assign(new Error('typed escape'), { archifyDiagnostics: [detail('escape')] });
+    try {
+      withIsolatedDiagnosticRecording(() => { recordDiagnostic(abandoned); throw typed; });
+      assert.fail('typed exception must escape');
+    } catch (error) {
+      assert.equal(error, typed);
+      // The caller publishes only the escaped error after recording is restored.
+      for (const diagnostic of error.archifyDiagnostics) recordDiagnostic(diagnostic);
+      assert.deepEqual(rendererFailure(error).diagnostics, [earlier, terminal, detail('escape')]);
+    }`;
+  const result = run(['--input-type=module', '-e', script], workspace(t), true);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('isolated diagnostic scopes compose with recording suppression in either order', t => {
+  for (const composition of ['scope inside suppression', 'suppression inside scope']) {
+    const script = `import assert from 'node:assert/strict';
+      import { recordDiagnostic, throwDiagnosticError, rendererFailure, withIsolatedDiagnosticRecording, withDiagnosticRecordingSuppressed } from ${JSON.stringify(diagnosticModule)};
+      const detail = id => ({ code: 'layout/constraint', severity: 'error', message: id + ' problem',
+        subject: { id }, evidence: {}, supportedFixes: [] });
+      const earlier = detail('earlier'), terminal = detail('terminal');
+      recordDiagnostic(earlier);
+      const localWork = () => {
+        recordDiagnostic(detail('local'));
+        withDiagnosticRecordingSuppressed(() => recordDiagnostic(detail('suppressed')));
+        recordDiagnostic(detail('later local'));
+      };
+      ${composition === 'scope inside suppression'
+        ? `withDiagnosticRecordingSuppressed(() => {
+            withIsolatedDiagnosticRecording(localWork);
+            recordDiagnostic(detail('still suppressed'));
+          });`
+        : 'withIsolatedDiagnosticRecording(localWork);'}
+      try { throwDiagnosticError('rejected', [terminal]); assert.fail('terminal must throw'); }
+      catch (error) { assert.deepEqual(rendererFailure(error).diagnostics, [earlier, terminal]); }`;
+    const result = run(['--input-type=module', '-e', script], workspace(t), true);
+    assert.equal(result.status, 0, `${composition}: ${result.stderr}`);
+  }
+});
+
+test('repeated problem messages keep their own subject and evidence', t => {
+  const cwd = workspace(t);
+  const message = 'Connection "ghost" references unknown target "ghost".';
+  const script = `${installBoundary} import { throwDiagnosticProblems } from ${JSON.stringify(diagnosticModule)};
+    throwDiagnosticProblems('architecture rejected', [${JSON.stringify(message)}, ${JSON.stringify(message)}], {
+      diagnostics: [
+        { code: 'architecture/unknown-endpoint', message: ${JSON.stringify(message)}, subject: { path: '/connections/0/to' }, evidence: { connection: 0 }, supportedFixes: ['set /connections/0/to to verified node id "a"'] },
+        { code: 'architecture/unknown-endpoint', message: ${JSON.stringify(message)}, subject: { path: '/connections/1/to' }, evidence: { connection: 1 }, supportedFixes: ['set /connections/1/to to verified node id "b"'] },
+      ],
+    });`;
+  const machine = run(['--input-type=module', '-e', script], cwd, true);
+  assert.equal(machine.status, 1, machine.stderr);
+  const failure = JSON.parse(machine.stderr);
+  assert.equal(failure.diagnostics.length, 2);
+  assert.deepEqual(failure.diagnostics.map((entry) => entry.subject.path), ['/connections/0/to', '/connections/1/to']);
+  assert.deepEqual(failure.diagnostics.map((entry) => entry.evidence.connection), [0, 1]);
+});
+
+test('invalid output arguments keep their implementation error instead of a filesystem repair', t => {
+  const cwd = workspace(t);
+  const helper = new URL('../archify/renderers/shared/cli.mjs', import.meta.url).href;
+  const templatePath = path.join(skillRoot, 'assets/template.html');
+  const script = `${installBoundary} import fs from 'node:fs'; import { writeDiagram } from ${JSON.stringify(helper)};
+    writeDiagram({ outPath: undefined, template: fs.readFileSync(${JSON.stringify(templatePath)}, 'utf8'), diagramType: 'architecture', meta: { title: 'Test' }, svg: '', cards: [] });`;
+  const human = run(['--input-type=module', '-e', script], cwd);
+  assert.equal(human.status, 1);
+  assert.match(human.stderr, /TypeError \[ERR_INVALID_ARG_TYPE\]/);
+  assert.match(human.stderr, /\n\s+at\s/);
+  assert.doesNotMatch(human.stderr, /output\/write|choose a writable/);
+  const machine = run(['--input-type=module', '-e', script], cwd, true);
+  assert.equal(machine.status, 1);
+  assert.equal(JSON.parse(machine.stderr).diagnostics[0].code, 'internal/unclassified');
+});
+
+test('renderer and standalone CLI format the same diagnostics consistently', () => {
+  // Evaluate only the pure formatter: importing the CLI would run its command
+  // dispatch, and sharing its renderer import would break incomplete-install doctor.
+  const formatters = [cli, path.join(skillRoot, 'renderers/shared/diagnostics.mjs')].map(file => {
+    const source = fs.readFileSync(file, 'utf8');
+    const start = source.indexOf('function formatDiagnostics(');
+    assert.notEqual(start, -1);
+    const end = source.indexOf('\n}', start) + 2;
+    return vm.runInNewContext(`(${source.slice(start, end)})`);
+  });
+  for (const diagnostics of [[], [
+    { code: 'layout/constraint', message: '标签过宽', supportedFixes: ['widen size', 'shorten label'] },
+    { code: 'internal/unclassified', message: 'No repair available' },
+  ]]) {
+    assert.equal(formatters[0]('Render failed', diagnostics), formatters[1]('Render failed', diagnostics));
+  }
+});

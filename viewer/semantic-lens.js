@@ -61,7 +61,7 @@
       function edgeShapes(edge) {
         if (!edge) return [];
         if (/^(path|line|polyline)$/i.test(edge.tagName || '')) return [edge];
-        return Array.prototype.slice.call(edge.querySelectorAll('path, line, polyline'));
+        return Array.prototype.slice.call(edge.querySelectorAll('path:not([data-ambient-flow-overlay]), line, polyline'));
       }
       function legendSourceBounds(entry) {
         var bounds = null;
@@ -183,7 +183,7 @@
         return selectedKinds.length > 0 || !panel.hidden || html.getAttribute('data-present') === 'true' ||
           svg.hasAttribute('data-focus-active') || svg.hasAttribute('data-intent-trace-active') ||
           svg.hasAttribute('data-route-picking') || svg.hasAttribute('data-route-active') ||
-          svg.hasAttribute('data-story-active') || svg.hasAttribute('data-relationship-preview-active');
+          svg.hasAttribute('data-relationship-preview-active');
       }
       function previewLegendKind(entry) {
         clearLegendPreview();
@@ -234,6 +234,8 @@
       }
       function flowGeometry(shape, direction, step) {
         var clone = shape.cloneNode(false);
+        if (shape.getAttribute('data-motion-path')) clone.setAttribute('d', shape.getAttribute('data-motion-path'));
+        clone.removeAttribute('data-motion-path');
         clone.removeAttribute('id');
         clone.removeAttribute('class');
         clone.removeAttribute('style');
@@ -455,9 +457,6 @@
         if (Archify.routeProbe && typeof Archify.routeProbe.clear === 'function') {
           Archify.routeProbe.clear({ updateUrl: false, restoreFocus: false });
         }
-        if (Archify.guidedViews && typeof Archify.guidedViews.showAll === 'function') {
-          Archify.guidedViews.showAll({ clearFocus: false, updateUrl: false });
-        }
         if (Archify.intentTrace && typeof Archify.intentTrace.clear === 'function') {
           Archify.intentTrace.clear({ announce: false });
         }
@@ -520,28 +519,16 @@
         if (options.closePanel === true) close({ restoreFocus: false });
         return false;
       }
-      function fallbackCopy(value) {
-        var field = document.createElement('textarea');
-        field.value = value;
-        field.setAttribute('readonly', '');
-        field.style.position = 'fixed';
-        field.style.opacity = '0';
-        document.body.appendChild(field);
-        field.select();
-        var copied = false;
-        try { copied = document.execCommand('copy'); } catch (_) {}
-        field.remove();
-        return copied;
-      }
       function copyLink() {
         if (!selectedKinds.length) return Promise.resolve(false);
-        var value = location.href.replace(/#.*$/, '') + '#lens=' + selectedKinds.map(encodeURIComponent).join('~');
-        var copy = navigator.clipboard && typeof navigator.clipboard.writeText === 'function'
-          ? navigator.clipboard.writeText(value).then(function () { return true; }).catch(function () { return fallbackCopy(value); })
-          : Promise.resolve(fallbackCopy(value));
-        return copy.then(function (copied) {
+        var value = readerLink('lens=' + selectedKinds.map(encodeURIComponent).join('~'));
+        return (value === null ? Promise.resolve(false) : copyReaderText(value)).then(function (copied) {
           copyBtn.textContent = viewerText(copied ? 'viewer.common.copied' : 'viewer.common.copyFailed');
-          window.setTimeout(function () { copyBtn.textContent = viewerText('viewer.common.copyLink'); }, 1600);
+          copyBtn.setAttribute('aria-label', viewerText(copied ? 'viewer.common.copied' : 'viewer.common.copyFailed'));
+          window.setTimeout(function () {
+            copyBtn.textContent = viewerText('viewer.common.copyLink');
+            copyBtn.setAttribute('aria-label', viewerText('viewer.lens.copy'));
+          }, 1600);
           return copied;
         });
       }
@@ -629,6 +616,7 @@
         select(button.getAttribute('data-kind'));
       });
       kindsRoot.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = Array.prototype.slice.call(kindsRoot.querySelectorAll('button:not(:disabled)'));
         var index = buttons.indexOf(document.activeElement);
         var next = null;

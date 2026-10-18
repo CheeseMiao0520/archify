@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Vertical label beside another flow",
+    "quality_profile": "showcase",
+    "output": "diagram.html"
+  },
+  "stages": [
+    {
+      "label": "Stage 1"
+    },
+    {
+      "label": "Stage 2"
+    },
+    {
+      "label": "Stage 3"
+    },
+    {
+      "label": "Stage 4"
+    },
+    {
+      "label": "Stage 5"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "content",
+      "type": "backend",
+      "label": "文案与标题",
+      "sublabel": "内存：narrations / title",
+      "stage": 1,
+      "row": 0
+    },
+    {
+      "id": "board",
+      "type": "backend",
+      "label": "构建分镜",
+      "sublabel": "内存：Storyboard / config",
+      "stage": 1,
+      "row": 1
+    },
+    {
+      "id": "visual",
+      "type": "backend",
+      "label": "视觉提示规划",
+      "sublabel": "内存：提示词或 None",
+      "stage": 1,
+      "row": 2
+    },
+    {
+      "id": "records",
+      "type": "database",
+      "label": "任务 JSON 文件",
+      "sublabel": "metadata / storyboard / 索引",
+      "stage": 1,
+      "row": 4
+    }
+  ],
+  "flows": [
+    {
+      "id": "f2",
+      "to": "board",
+      "label": "标题与旁白",
+      "from": "content"
+    },
+    {
+      "id": "f4",
+      "to": "visual",
+      "label": "旁白列表",
+      "from": "content"
+    }
+  ]
+}

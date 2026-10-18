@@ -1,0 +1,116 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Start and poll cancellation",
+    "quality_profile": "showcase",
+    "output": "minimal-fanin.html"
+  },
+  "lanes": [
+    {
+      "id": "coordinator",
+      "label": "Invocation coordinator"
+    },
+    {
+      "id": "provider",
+      "label": "Provider adapter execution"
+    },
+    {
+      "id": "exceptions",
+      "label": "Per-invocation completion paths",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "start",
+    "poll",
+    "decoded"
+  ],
+  "nodes": [
+    {
+      "id": "signal",
+      "lane": "coordinator",
+      "col": 4,
+      "type": "security",
+      "label": "Task stop signal",
+      "sublabel": "SIGINT or global review deadline",
+      "yOffset": 60
+    },
+    {
+      "id": "start",
+      "lane": "provider",
+      "col": 2,
+      "type": "backend",
+      "label": "Start adapter",
+      "sublabel": "TaskInput: scope, model, permissions",
+      "yOffset": -60
+    },
+    {
+      "id": "poll",
+      "lane": "provider",
+      "col": 2,
+      "type": "backend",
+      "label": "Poll + read raw log",
+      "sublabel": "Decode deltas; append + flush answer",
+      "yOffset": 60
+    },
+    {
+      "id": "stopped",
+      "lane": "exceptions",
+      "col": 4,
+      "type": "security",
+      "label": "Timeout / cancellation",
+      "sublabel": "Cancel running adapter; keep deltas",
+      "yOffset": 0
+    },
+    {
+      "id": "decoded",
+      "lane": "exceptions",
+      "col": 2,
+      "type": "backend",
+      "label": "Raw final answer",
+      "sublabel": "Success only if transport succeeds",
+      "yOffset": 0
+    }
+  ],
+  "edges": [
+    {
+      "id": "start-poll",
+      "from": "start",
+      "to": "poll",
+      "role": "main",
+      "variant": "emphasis"
+    },
+    {
+      "id": "poll-decoded",
+      "from": "poll",
+      "to": "decoded",
+      "role": "main",
+      "variant": "emphasis"
+    },
+    {
+      "id": "signal-stopped",
+      "from": "signal",
+      "to": "stopped",
+      "label": "running / starting",
+      "role": "error",
+      "variant": "security"
+    },
+    {
+      "id": "start-stopped",
+      "from": "start",
+      "to": "stopped",
+      "label": "start deadline",
+      "role": "error",
+      "variant": "security"
+    },
+    {
+      "id": "poll-stopped",
+      "from": "poll",
+      "to": "stopped",
+      "label": "stall / hard deadline",
+      "role": "error",
+      "variant": "security"
+    }
+  ]
+}

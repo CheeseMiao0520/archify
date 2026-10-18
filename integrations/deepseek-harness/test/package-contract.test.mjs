@@ -17,19 +17,36 @@ const DEPENDENCY_FIELDS = [
   'bundledDependencies',
   'bundleDependencies',
 ];
-const LIFECYCLE_SCRIPTS = ['prepare', 'install', 'postinstall', 'preinstall'];
+
 
 test('adapter source lives only under integrations/deepseek-harness with no root workspace', () => {
-  assert.equal(fs.existsSync(path.join(repoRoot, 'package.json')), false);
-  assert.equal(fs.existsSync(path.join(repoRoot, 'package-lock.json')), false);
+  const rootManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+  assert.equal(rootManifest.private, true, 'repository test tooling must not be publishable');
+  assert.equal(Object.hasOwn(rootManifest, 'workspaces'), false, 'adapter must not join a root workspace');
+  assert.equal(Object.hasOwn(rootManifest, 'dsh'), false, 'root tooling must not declare an adapter bundle');
+  for (const field of DEPENDENCY_FIELDS) {
+    for (const [name, specifier] of Object.entries(rootManifest[field] || {})) {
+      assert.doesNotMatch(`${name} ${specifier}`, /deepseek-harness|archify-dsh|@deepseek-ai\//,
+        'root tooling must not depend on the opt-in adapter or its host');
+    }
+  }
+  for (const script of Object.values(rootManifest.scripts || {})) {
+    assert.doesNotMatch(script, /deepseek-harness|archify-dsh|\bdsh\b/,
+      'root scripts must not couple ordinary tests to the opt-in adapter');
+  }
+  const rootLock = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package-lock.json'), 'utf8'));
+  for (const [location, entry] of Object.entries(rootLock.packages)) {
+    assert.doesNotMatch(location, /deepseek-harness|archify-dsh|@deepseek-ai\//);
+    assert.notEqual(entry.link, true, 'root lock must not link adapter workspaces');
+  }
   assert.equal(fs.existsSync(path.join(repoRoot, 'pnpm-workspace.yaml')), false);
   assert.equal(fs.existsSync(path.join(repoRoot, 'integrations/deepseek-harness/package.json')), true);
 });
 
-test('publishable manifest is @tt-a1i/archify-dsh@0.2.0 with a DSH bundle patch and no install surface', () => {
+test('publishable manifest is @tt-a1i/archify-dsh@1.0.0 with a DSH bundle patch and no install surface', () => {
   const pkg = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   assert.equal(pkg.name, '@tt-a1i/archify-dsh');
-  assert.equal(pkg.version, '0.2.0');
+  assert.equal(pkg.version, '1.0.0');
   assert.equal(pkg.license, 'MIT');
   assert.equal(pkg.type, 'module');
   assert.equal(pkg.main, './lib/index.js');
@@ -43,9 +60,7 @@ test('publishable manifest is @tt-a1i/archify-dsh@0.2.0 with a DSH bundle patch 
   for (const field of DEPENDENCY_FIELDS) {
     assert.equal(Object.prototype.hasOwnProperty.call(pkg, field), false, field);
   }
-  for (const script of LIFECYCLE_SCRIPTS) {
-    assert.equal(pkg.scripts?.[script], undefined, script);
-  }
+  assert.equal(Object.keys(pkg.scripts || {}).length, 0, 'adapter manifest must not declare npm scripts');
   assert.match(pkg.exports?.['./package.json'] || '', /package\.json/);
 });
 
@@ -55,7 +70,7 @@ test('bundle patch inserts one uniquely named filesystem Skill provider resolved
   assert.match(patch, /id:\s*archify-skill-filesystem/);
   assert.match(patch, /name:\s*'@deepseek-ai\/dsh-skill-filesystem'/);
   assert.match(patch, /providerName:\s*archify-plugin/);
-  assert.match(patch, /includeDefaultRoots:\s*false/);
+  assert.match(patch, /includeDefaultRoots:\s*true/);
   assert.match(patch, /bundledSkillDir:\s*!!js/);
   assert.doesNotMatch(patch, /customSkillDirs/);
   assert.match(
@@ -82,6 +97,30 @@ test('distribution acceptance reserves stdout for its machine-readable JSON rece
   assert.match(source, /stdio:\s*\['ignore',\s*2,\s*2\]/);
   assert.doesNotMatch(source, /stdio:\s*['"]inherit['"]/);
   assert.equal([...source.matchAll(/process\.stdout\.write/g)].length, 2);
+});
+
+test('pack and acceptance enforce the pinned-runtime contract before executing it', () => {
+  const releaseSource = fs.readFileSync(
+    path.join(integrationRoot, 'scripts', 'release-source.mjs'),
+    'utf8',
+  );
+  assert.match(releaseSource, /dshVersion must be an exact SemVer version/);
+  assert.match(releaseSource, /manifest\.scripts/);
+  const packSource = fs.readFileSync(
+    path.join(integrationRoot, 'scripts', 'pack.mjs'),
+    'utf8',
+  );
+  assert.match(packSource, /--ignore-scripts/);
+  const acceptance = fs.readFileSync(
+    path.join(integrationRoot, 'scripts', 'distribution-acceptance.mjs'),
+    'utf8',
+  );
+  assert.match(acceptance, /dshManifest\.name !== DSH_PACKAGE_NAME/);
+  assert.match(acceptance, /dshManifest\.version !== release\.dshVersion/);
+  const identityCheck = acceptance.indexOf('dshManifest.name !== DSH_PACKAGE_NAME');
+  const entryExec = acceptance.indexOf('[dshBin, ...args]');
+  assert.ok(identityCheck !== -1 && entryExec !== -1 && identityCheck < entryExec,
+    'installed identity must be verified before the DSH entry runs');
 });
 
 test('distribution receipt separates canonical ZIP bytes from cross-platform content checks', () => {

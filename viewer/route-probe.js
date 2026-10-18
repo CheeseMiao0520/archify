@@ -104,7 +104,7 @@
       }
       function edgeShapes(edge) {
         if (/^(path|line|polyline)$/i.test(edge.tagName)) return [edge];
-        return Array.prototype.slice.call(edge.querySelectorAll('path, line, polyline'));
+        return Array.prototype.slice.call(edge.querySelectorAll('path:not([data-ambient-flow-overlay]), line, polyline'));
       }
       function removeOverlay() {
         Array.prototype.forEach.call(svg.querySelectorAll('[data-route-probe-overlay]'), function (overlay) {
@@ -334,6 +334,8 @@
       }
       function traceGeometry(shape, step) {
         var clone = shape.cloneNode(false);
+        if (shape.getAttribute('data-motion-path')) clone.setAttribute('d', shape.getAttribute('data-motion-path'));
+        clone.removeAttribute('data-motion-path');
         clone.removeAttribute('id');
         clone.removeAttribute('class');
         clone.removeAttribute('style');
@@ -434,6 +436,8 @@
       }
       function journeyGeometry(shape) {
         var clone = shape.cloneNode(false);
+        if (shape.getAttribute('data-motion-path')) clone.setAttribute('d', shape.getAttribute('data-motion-path'));
+        clone.removeAttribute('data-motion-path');
         clone.removeAttribute('id');
         clone.removeAttribute('class');
         clone.removeAttribute('style');
@@ -794,9 +798,6 @@
         if (Array.isArray(focused)) focused = null;
         clear({ updateUrl: false, preserveView: true, restoreFocus: false });
         if (Archify.intentTrace && typeof Archify.intentTrace.clear === 'function') Archify.intentTrace.clear({ announce: false });
-        if (Archify.guidedViews && typeof Archify.guidedViews.showAll === 'function') {
-          Archify.guidedViews.showAll({ clearFocus: false, updateUrl: false });
-        }
         if (Archify.focus && typeof Archify.focus.clear === 'function') {
           Archify.focus.clear({ updateUrl: false, preserveView: true });
         }
@@ -884,26 +885,10 @@
         if (!context || !Archify.finder) return false;
         return Archify.finder.open({ context: context });
       }
-      function fallbackCopy(value) {
-        var field = document.createElement('textarea');
-        field.value = value;
-        field.setAttribute('readonly', '');
-        field.style.position = 'fixed';
-        field.style.opacity = '0';
-        document.body.appendChild(field);
-        field.select();
-        var copied = false;
-        try { copied = document.execCommand('copy'); } catch (_) {}
-        field.remove();
-        return copied;
-      }
       function copyLink() {
         if (mode !== 'result') return Promise.resolve(false);
-        var value = location.href.replace(/#.*$/, '') + '#route=' + encodeURIComponent(startId) + '~' + encodeURIComponent(endId);
-        var copy = navigator.clipboard && typeof navigator.clipboard.writeText === 'function'
-          ? navigator.clipboard.writeText(value).then(function () { return true; }).catch(function () { return fallbackCopy(value); })
-          : Promise.resolve(fallbackCopy(value));
-        return copy.then(function (copied) {
+        var value = readerLink('route=' + encodeURIComponent(startId) + '~' + encodeURIComponent(endId));
+        return (value === null ? Promise.resolve(false) : copyReaderText(value)).then(function (copied) {
           copyBtn.textContent = viewerText(copied ? 'viewer.common.copied' : 'viewer.common.copyFailed');
           copyBtn.setAttribute('aria-label', viewerText(copied ? 'viewer.route.copy.success' : 'viewer.route.copy.failed'));
           window.setTimeout(function () {
@@ -977,6 +962,7 @@
         if (journeyPlaying && event.target.closest('[data-route-journey-index]')) pauseJourney({ preserveElapsed: true });
       });
       path.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var button = event.target.closest('[data-route-journey-index]');
         if (!button) return;
         var index = Number(button.getAttribute('data-route-journey-index'));
