@@ -170,11 +170,30 @@ function client(token) {
     note.style.top = (bounds.bottom + 8) + 'px';
     note.style.left = Math.max(8, Math.min(bounds.right - note.offsetWidth, window.innerWidth - note.offsetWidth - 8)) + 'px';
   };
-  window.addEventListener('resize', positionNote);
-  window.addEventListener('scroll', positionNote, true);
-  var toolbarObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(positionNote) : null;
+  // The Viewer can move the toolbar after a resize (its layout settles over a few
+  // frames, and a move without a size change fires no ResizeObserver). While the
+  // note is shown, follow the button for a short while after any trigger and stop
+  // once its position has been stable for 30 frames.
+  var followFrame = 0, lastRight = null, lastBottom = null, stableFrames = 0;
+  var follow = function () {
+    followFrame = 0;
+    if (note.style.display === 'none' || !button.isConnected) return;
+    var bounds = button.getBoundingClientRect();
+    if (bounds.right !== lastRight || bounds.bottom !== lastBottom) { lastRight = bounds.right; lastBottom = bounds.bottom; stableFrames = 0; positionNote(); }
+    else stableFrames += 1;
+    if (stableFrames < 30) followFrame = requestAnimationFrame(follow);
+  };
+  var reposition = function () {
+    positionNote();
+    stableFrames = 0;
+    if (!followFrame && typeof requestAnimationFrame === 'function') followFrame = requestAnimationFrame(follow);
+  };
+  window.addEventListener('resize', reposition);
+  window.addEventListener('scroll', reposition, true);
+  toolbar.addEventListener('transitionend', reposition);
+  var toolbarObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(reposition) : null;
   if (toolbarObserver) toolbarObserver.observe(toolbar);
-  var say = function (text) { note.textContent = text; note.style.display = text ? 'block' : 'none'; positionNote(); };
+  var say = function (text) { note.textContent = text; note.style.display = text ? 'block' : 'none'; reposition(); };
   button.addEventListener('click', async function () {
     button.disabled = true; button.textContent = 'Analyzing…'; say('Reading the repository — imports, modules, rules. This runs once.');
     try {
@@ -193,8 +212,10 @@ function client(token) {
       for (var i = 0; i < ids.length; i++) if (!parsed.getElementById(ids[i])) throw new Error('analysis result is incomplete');
       // Hand over to the layer: it adds its own toggle to the toolbar, so this button retires.
       button.remove(); say('');
-      window.removeEventListener('resize', positionNote);
-      window.removeEventListener('scroll', positionNote, true);
+      window.removeEventListener('resize', reposition);
+      window.removeEventListener('scroll', reposition, true);
+      toolbar.removeEventListener('transitionend', reposition);
+      if (followFrame) cancelAnimationFrame(followFrame);
       if (toolbarObserver) toolbarObserver.disconnect();
       for (var j = 0; j < ids.length; j++) {
         var original = parsed.getElementById(ids[j]), element = document.createElement(original.tagName);
