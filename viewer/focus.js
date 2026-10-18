@@ -1499,6 +1499,7 @@
         syncRelationshipPreview();
       });
       relationshipList.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
         var buttons = Array.prototype.slice.call(relationshipList.querySelectorAll('[data-relationship-target]'));
         if (!buttons.length) return;

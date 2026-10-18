@@ -144,6 +144,9 @@ test('Semantic Lens preserves selection, legend preview and panel contracts', {
   await t.test('trusted buttons, selection transitions, return values and three cleanup operations stay distinct', async () => {
     await load(); await click('#btn-semantic-lens');
     await run(`lensWait(()=>document.activeElement.matches('#semantic-lens-kinds button'))`);
+    const initialKind = await run('document.activeElement.dataset.kind');
+    assert.equal(typeof initialKind, 'string');
+    assert.deepEqual(await run(`(()=>{const before=document.activeElement.dataset.kind,event=new KeyboardEvent('keydown',{key:'End',bubbles:true,cancelable:true,shiftKey:true});document.activeElement.dispatchEvent(event);return {prevented:event.defaultPrevented,focus:document.activeElement.dataset.kind,before};})()`),{prevented:false,focus:initialKind,before:initialKind});
     await click('#semantic-lens-kinds [data-kind="backend"]');
     let s = await snapshot('one-kind'); assert.deepEqual(s.active, ['backend']); assert.equal(s.open, true);
     assert.deepEqual(s.selected, ['api', 'worker']); assert.ok(s.peers.length > 0); assert.ok(s.edges.length > 0);

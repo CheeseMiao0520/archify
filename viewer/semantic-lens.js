@@ -616,6 +616,7 @@
         select(button.getAttribute('data-kind'));
       });
       kindsRoot.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = Array.prototype.slice.call(kindsRoot.querySelectorAll('button:not(:disabled)'));
         var index = buttons.indexOf(document.activeElement);
         var next = null;

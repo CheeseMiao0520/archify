@@ -1545,6 +1545,7 @@
         clearChapterPreviewIntent('focus', chapterButtons.indexOf(button));
       });
       chapterList.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var button = event.target.closest('[data-guided-view-id]');
         var index = chapterButtons.indexOf(button);
         if (index < 0) return;

@@ -56,7 +56,7 @@ export function publishSeo(root, target) {
     const file = path.join(root, entry.artifact);
     const original = stripPublishedArtifactMetadata(fs.readFileSync(file, 'utf8'));
     assert.match(original, /<\/head>/i, `Artifact missing head: ${entry.id}`);
-    fs.writeFileSync(file, original.replace(/<\/head>/i, `${artifactMetadata(entry, presentation)}</head>`));
+    fs.writeFileSync(file, original.replace(/<\/head>/i, () => `${artifactMetadata(entry, presentation)}</head>`));
   }
   const urls = [
     ...sitePages.flatMap(page => ['en', 'zh'].map(lang => canonicalUrl(page, lang))),

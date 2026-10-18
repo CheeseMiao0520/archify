@@ -170,11 +170,13 @@ test('Finder preserves search, keyboard, contextual Route selection and cleanup'
   await t.test('trusted keyboard navigation, selection and Escape preserve focus boundaries', async () => {
     await load();
     await key('/', 'Slash', 191); await opened();
+    assert.deepEqual(await run(`(()=>{const input=document.getElementById('node-finder-input'),event=new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true,shiftKey:true});input.dispatchEvent(event);return {prevented:event.defaultPrevented,focus:document.activeElement.id};})()`),{prevented:false,focus:'node-finder-input'});
     await key('ArrowDown', 'ArrowDown', 40);
     const first = await snapshot('keyboard-first'); assert.equal(first.activeNode, first.results[0].id);
     await key('ArrowUp', 'ArrowUp', 38);
     assert.equal((await snapshot('keyboard-wrap')).activeNode, first.results.at(-1).id);
     await key('Home', 'Home', 36); assert.equal((await snapshot('keyboard-home')).activeNode, first.results[0].id);
+    assert.deepEqual(await run(`(()=>{const before=document.activeElement.getAttribute('data-node-id'),event=new KeyboardEvent('keydown',{key:'End',bubbles:true,cancelable:true,altKey:true});document.activeElement.dispatchEvent(event);return {prevented:event.defaultPrevented,focus:document.activeElement.getAttribute('data-node-id'),before};})()`),{prevented:false,focus:first.results[0].id,before:first.results[0].id});
     await key('End', 'End', 35); assert.equal((await snapshot('keyboard-end')).activeNode, first.results.at(-1).id);
     await key('Escape', 'Escape', 27);
     assert.equal((await snapshot('keyboard-escape')).activeId, 'btn-node-finder');
