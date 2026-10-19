@@ -11,6 +11,9 @@ P99 飙升、平均值不动，意思是最慢的 1%–2% 请求从 80 ms 恶化
 
 ## 为什么平均值没动？ {#why-mean-flat}
 
+@metric id=mean-metric label="平均延迟" before=80 value=87.8 unit=ms note="被 98.5% 的正常请求稀释，几乎看不出异常"
+@metric id=p99-metric label="P99 尾部延迟" before=80 value=600 limit=200 unit=ms note="第 990/1000 个请求直接落在慢样本里"
+
 ```mermaid title="接口延迟前后对比"
 xychart-beta
   x-axis ["平均值", "P50", "P99"]

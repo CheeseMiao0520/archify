@@ -215,15 +215,15 @@ A chart states where its numbers come from the same way text does: measured, fro
 | --- | --- | --- |
 | `@answer` | `scope="..."` | none |
 | `@meta` | `locale` (`en`, `zh-CN`, `zh-TW`, `es`, `ko`, `ar`), `quality_profile`, `style` (`clean`, `editorial`, `product`, `swiss`; readers can switch), `repo_url`, `repo_revision` | none |
-| `@source <id>` | `title`, `url`, or `path` with `lines=start:end` | none |
+| `@source <id>` | `title`, `url`, or `path` with `lines=start:end` and optional `focus=start:end` | none |
 | `@steps` | `id` | `id | title | detail? | diagram-id? | node? | from~to? | edge-ids?` (node and route are exclusive) |
 | `@callout` | `id`, `level=note|warning|open-question`, `title` | one cell per row; rows join into paragraphs |
 | `@facts` | `id` | `label | value` |
-| `@metric` | `id`, `label`, `value`, `limit`, `unit`, `note`, `typical=true` | none; `value` or `limit` required |
+| `@metric` | `id`, `label`, `value`, `before`, `limit`, `unit`, `note`, `typical=true` | none; `value` or `limit` required |
 | `@comparison` | `id`, `columns="A,B"`, `label` | `criterion | cell per option` |
 | `@prose` | `id`, `text` | one cell per row |
 | `@list` | `id`, `ordered=true` | one cell per row |
-| `@code` | `id`, `source=<source-id>`, `language` | none |
+| `@code` | `id`, `source=<source-id>`, `language`, `focus=start:end` | none |
 | `@diff` | `id`, `caption` | a following ```` ```diff ```` fence |
 | `@image` | `id`, `path`, `alt`, `caption` | none |
 | `@chart` | `type` (`bar`, `line`, `pie`), `data` (`.csv` or `.json`), `x`, `y`, `unit`, `title`, `id` | none |

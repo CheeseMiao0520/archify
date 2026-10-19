@@ -362,6 +362,9 @@
         "value": {
           "type": "number"
         },
+        "before": {
+          "type": "number"
+        },
         "limit": {
           "type": "number",
           "exclusiveMinimum": 0
@@ -560,6 +563,22 @@
         },
         "language": {
           "$ref": "#/$defs/short"
+        },
+        "focus": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "integer",
+              "minimum": 1
+            }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
         }
       }
     },
@@ -844,6 +863,22 @@
           "$ref": "#/$defs/short"
         },
         "lines": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "integer",
+              "minimum": 1
+            }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "focus": {
           "type": "array",
           "prefixItems": [
             {

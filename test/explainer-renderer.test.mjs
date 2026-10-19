@@ -138,16 +138,32 @@ test('renderer: multiple native diagrams retain independent preview IDs and orig
 
 test('renderer: over-limit metrics disclose the excess and limit-only metrics imply no measurement',()=>{
   const input = fixture();
-  input.panels[0].blocks = [{id:'overflow',type:'metric',label:'Requests',value:12,limit:10,unit:'requests',typical:true},{id:'capacity-only',type:'metric',label:'Capacity',limit:10,unit:'requests'}];
+  input.panels[0].blocks = [{id:'overflow',type:'metric',label:'Requests',value:12,before:4,limit:10,unit:'requests',typical:true},{id:'capacity-only',type:'metric',label:'Capacity',limit:10,unit:'requests'}];
   const tree = parse(renderExplainer(input));
   const overflow = find(tree,'overflow');
   assert.equal(attr(all(overflow,node=>attr(node,'data-metric-status'))[0],'data-metric-status'),'over-limit');
   assert.match(text(overflow),/12requests/);
+  assert.match(text(overflow),/4 requests → 12 requests/);
+  assert.match(text(overflow),/×3/);
   assert.match(text(overflow),/Over limit by 2 requests/);
   assert.match(text(overflow),/Typical value/);
   assert.equal(all(find(tree,'capacity-only'),node=>node.tagName === 'meter').length,0);
   assert.match(text(find(tree,'capacity-only')),/Limit 10requests/);
   assert.equal(text(all(find(tree,'capacity-only'),node=>attr(node,'class') === 'metric-value')[0]),'Limit 10requests');
+});
+
+test('renderer: code blocks mark focused lines while preserving pure code textContent',()=>{
+  const input = fixture();
+  input.panels[0].blocks = [{id:'code',type:'code',source:'code-source',language:'js',focus:[2,2]}];
+  const prepared = resources();
+  prepared.preparedSources.sources['code-source'] = {...prepared.preparedSources.sources['code-source'],lines:[1,3],text:'const a = 1;\nconst value = "<actual>";\nexport default value;'};
+  const tree = parse(renderExplainer(input,prepared));
+  const codeBlock = find(tree,'code');
+  assert.equal(text(all(codeBlock,node=>node.tagName === 'code')[0]),'const a = 1;\nconst value = "<actual>";\nexport default value;');
+  const focused = all(codeBlock,node=>attr(node,'class')?.split(' ').includes('line-focus'));
+  assert.equal(focused.length,1);
+  assert.equal(attr(focused[0],'data-line'),'2');
+  assert.equal(text(focused[0]),'const value = "<actual>";');
 });
 
 test('renderer: only Chinese pages get Chinese controls; other languages fall back to English',()=>{

@@ -9,11 +9,11 @@
 
 @answer scope="Archify @ 82c47ca · bin/finalize.mjs + archify.mjs · explainer 默认无 browser-check 门"
 @meta locale=zh-CN repo_url=https://github.com/tt-a1i/archify repo_revision=82c47ca31d83749020ff30d6b1172248e71d255d
-@source finalize-mjs title="runFinalize 编排器" path=archify/bin/finalize.mjs lines=722:1050
-@source commit title="commitDeliveryPair：备份、提交、回滚" path=archify/bin/archify.mjs lines=3236:3624
-@source deliver title="commandDeliver 交付主流程" path=archify/bin/archify.mjs lines=4400:5301
-@source check-cmd title="check 与 provenance 检查" path=archify/bin/archify.mjs lines=5418:5659
-@source recover title="recover-output.mjs 恢复入口" path=archify/bin/recover-output.mjs lines=1:41
+@source finalize-mjs title="runFinalize 编排器" path=archify/bin/finalize.mjs lines=722:1050 focus=722:730
+@source commit title="commitDeliveryPair：备份、提交、回滚" path=archify/bin/archify.mjs lines=3236:3624 focus=3236:3245
+@source deliver title="commandDeliver 交付主流程" path=archify/bin/archify.mjs lines=4400:5301 focus=4400:4409
+@source check-cmd title="check 与 provenance 检查" path=archify/bin/archify.mjs lines=5418:5659 focus=5418:5426
+@source recover title="recover-output.mjs 恢复入口" path=archify/bin/recover-output.mjs lines=1:41 focus=1:12
 
 ## finalize 把一次交付拆成哪几道门？ {#gates}
 
@@ -23,11 +23,11 @@ explainer 候选先经 `prepareExplainerInput` 编译成冻结 bundle，每道�
 | lane orch | 编排 bin/finalize.mjs |
 | lane del | 交付 deliver 子命令 |
 | lane ver | 验证子命令 |
-| cli | commandFinalize 解析参数 | backend | orch |
-| snap | 快照候选·开收据 | backend | orch |
-| del | 锁+journal+暂存渲染 | backend | del |
-| commit | commitDeliveryPair | backend | del |
-| chk | check 严格复查 | backend | ver |
+| cli | commandFinalize 解析参数 | backend | orch | source:finalize-mjs |
+| snap | 快照候选·开收据 | backend | orch | source:finalize-mjs |
+| del | 锁+journal+暂存渲染 | backend | del | source:deliver |
+| commit | commitDeliveryPair | backend | del | source:commit |
+| chk | check 严格复查 | backend | ver | source:check-cmd |
 | brw | browser-check Chrome | backend | ver |
 | rec | .finalize.json 收据 | database | orch |
 | cli > snap | |

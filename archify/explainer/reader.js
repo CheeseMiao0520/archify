@@ -22,7 +22,7 @@
     // A diagram needs enough width for its smallest label to reach the reading floor.
     const readableWidth = svg => {
       const viewWidth = svg.viewBox.baseVal?.width || svg.getBoundingClientRect().width;
-      const smallest = Math.min(...all('text',svg).filter(text=>text.textContent.trim() && !text.closest('[data-legend]')).map(text=>(parseFloat(text.getAttribute('font-size')) || parseFloat(getComputedStyle(text).fontSize)) / secondary(text)));
+      const smallest = Math.min(...all('text',svg).filter(text=>text.textContent.trim() && !text.closest('[data-legend]')).map(text=>(parseFloat(getComputedStyle(text).fontSize) || parseFloat(text.getAttribute('font-size'))) / secondary(text)));
       return Number.isFinite(smallest) && smallest > 0 ? viewWidth * floor / smallest : 0;
     };
     // Beside its steps, the diagram column is exactly that wide; without room for both, it wraps above them.
@@ -84,8 +84,13 @@
         const bottom = Math.max(...heights) - gap;
         if (bottom <= 0) return;
         template.forEach((span,c)=>{
-          waste += px(span) * (heights[c] ? bottom - (heights[c] - gap) : bottom * 1.6);
-          if (last[c]) last[c].height = cursor + bottom - last[c].top;
+          const slack = heights[c] ? bottom - (heights[c] - gap) : bottom;
+          waste += px(span) * (heights[c] ? slack : bottom * 1.6);
+          if (last[c]) {
+            const ratio = slack / Math.max(1,last[c].height);
+            if (ratio > .35) waste += px(span) * (slack - last[c].height * .35) * .85;
+            last[c].height = cursor + bottom - last[c].top;
+          }
         });
         cursor += bottom + gap;
         open();
@@ -260,9 +265,8 @@
   async function pageImage(format = 'png') {
     const shell = document.querySelector('.shell'), width = document.documentElement.clientWidth, height = Math.ceil(shell.getBoundingClientRect().height + 48);
     const clone = root.cloneNode(true);
-    clone.querySelectorAll('script,dialog,#toast,.skip-link,.tools,.ask-button,.ask-floating,.walk-bar,.walk-start,.interactive,.diagram-fit-status').forEach(element=>element.remove());
-    clone.querySelectorAll('.reader-highlight').forEach(element=>element.classList.remove('reader-highlight'));
-    clone.querySelectorAll('.focusing').forEach(element=>element.classList.remove('focusing'));
+    clone.querySelectorAll('script,dialog,#toast,.skip-link,.tools,.ask-button,.ask-floating,.walk-bar,.walk-start,.interactive,.diagram-fit-status,.node-source-badge').forEach(element=>element.remove());
+    clone.querySelectorAll('.reader-highlight,.focusing,.step-locked,.walk-current,.panel-linked-hover,.panel-pulse').forEach(element=>element.classList.remove('reader-highlight','focusing','step-locked','walk-current','panel-linked-hover','panel-pulse'));
     // Inside a foreignObject the page's <html> is not :root, so theme and style rules would drop out;
     // the root's own attribute selects the same element with the same specificity.
     const sheet = clone.querySelector('head>style'); if (sheet) sheet.textContent = sheet.textContent.replace(/:root\b/g,'[data-archify-artifact]');
@@ -396,14 +400,104 @@
     let edges = []; try { edges = JSON.parse(link.dataset.diagramEdges || '[]'); } catch {}
     return {preview:previewOf(link.dataset.diagramLink),nodes:hash.startsWith('focus=') ? [decodeURIComponent(hash.slice(6))] : hash.startsWith('route=') ? hash.slice(6).split('~').map(decodeURIComponent) : [],edges};
   };
+  let lockedStep = null;
+  function restoreLockedStep() {
+    if (!lockedStep) { all('.diagram-preview').forEach(preview=>spotlight(preview)); return; }
+    const link = lockedStep.querySelector('[data-diagram-link]');
+    if (!link) return;
+    const {preview,nodes,edges} = targetOf(link);
+    spotlight(preview,nodes,edges);
+  }
+  function clearLockedStep() {
+    if (!lockedStep) return;
+    lockedStep.classList.remove('step-locked','walk-current');
+    lockedStep = null;
+    all('.diagram-preview').forEach(preview=>spotlight(preview));
+  }
   all('[data-diagram-link]').forEach(link=>{
     link.addEventListener('click',event=>{ event.preventDefault(); openViewer(link.dataset.diagramLink,link.dataset.diagramHash || '',link); });
-    // A walk-through owns the highlight while it runs.
-    const highlight = active => { if (walking) return; const {preview,nodes,edges} = targetOf(link); spotlight(preview,active ? nodes : [],active ? edges : []); };
+    // A walk-through owns the highlight while it runs; otherwise a locked step stays lit on mouseleave.
+    const highlight = active => {
+      if (walking) return;
+      if (!active && lockedStep) { restoreLockedStep(); return; }
+      const {preview,nodes,edges} = targetOf(link);
+      spotlight(preview,active ? nodes : [],active ? edges : []);
+    };
     // A step lights its part of the diagram from anywhere in it, its description included.
     const hover = link.closest('.steps>li') || link;
     hover.addEventListener('mouseenter',()=>highlight(true)); hover.addEventListener('mouseleave',()=>highlight(false)); link.addEventListener('focus',()=>highlight(true)); link.addEventListener('blur',()=>highlight(false));
+    const stepRow = link.closest('.steps>li');
+    if (stepRow) {
+      stepRow.addEventListener('click',event=>{
+        if (event.target.closest('a,button') || walking) return;
+        if (lockedStep === stepRow) { clearLockedStep(); return; }
+        if (lockedStep) lockedStep.classList.remove('step-locked','walk-current');
+        lockedStep = stepRow;
+        stepRow.classList.add('step-locked','walk-current');
+        restoreLockedStep();
+      });
+    }
   });
+  document.addEventListener('keydown',event=>{ if (event.key === 'Escape' && lockedStep && !walking && !viewerDialog.open) clearLockedStep(); });
+  // Connect conclusion reasons in #answer to the question panels that substantiate them.
+  function setupReasonLinks() {
+    const reasons = all('#answer .reasons>li');
+    const panels = all('.board>.panel:not(#answer)');
+    if (!reasons.length || !panels.length) return;
+    let pulseTimer;
+    const pulsePanel = panel => {
+      all('.panel-pulse').forEach(el=>el.classList.remove('panel-pulse'));
+      panel.classList.add('panel-pulse');
+      clearTimeout(pulseTimer);
+      pulseTimer = setTimeout(()=>panel.classList.remove('panel-pulse'),1500);
+    };
+    reasons.forEach((li,index)=>{
+      let targetPanel = null;
+      // 1. Explicit in-page block/panel link inside the reason
+      for (const a of all('a[href^="#"]:not([href^="#source-"])',li)) {
+        const found = byId(decodeURIComponent(a.getAttribute('href').slice(1)))?.closest('.panel:not(#answer)');
+        if (found) { targetPanel = found; break; }
+      }
+      // 2. Shared source citation between the reason and a question panel
+      if (!targetPanel) {
+        const cites = all('.cite a[href^="#source-"]',li).map(a=>a.getAttribute('href'));
+        if (cites.length) {
+          let bestScore = 0;
+          for (const panel of panels) {
+            const score = cites.filter(href=>panel.querySelector(`a[href="${CSS.escape(href)}"]`)).length;
+            if (score > bestScore) { bestScore = score; targetPanel = panel; }
+          }
+        }
+      }
+      // 3. Positional 1-to-1 correspondence when reason count matches panel count, or index fallback
+      if (!targetPanel && index < panels.length) targetPanel = panels[index];
+      if (!targetPanel) return;
+      const num = targetPanel.querySelector('.panel-id')?.textContent.trim() || String(panels.indexOf(targetPanel) + 1);
+      const title = targetPanel.dataset.title || targetPanel.querySelector('h2')?.textContent.trim() || '';
+      li.dataset.targetPanel = targetPanel.id;
+      const jump = document.createElement('a');
+      jump.className = 'reason-panel-link interactive';
+      jump.href = `#${targetPanel.id}`;
+      jump.title = `${say('Jump to Panel ','跳至面板 ')}${num}${title ? ` · ${title}` : ''}`;
+      jump.textContent = `§${num}`;
+      li.append(' ',jump);
+      const setHover = on => targetPanel.classList.toggle('panel-linked-hover',on);
+      li.addEventListener('mouseenter',()=>setHover(true));
+      li.addEventListener('mouseleave',()=>setHover(false));
+      jump.addEventListener('focus',()=>setHover(true));
+      jump.addEventListener('blur',()=>setHover(false));
+      jump.addEventListener('click',event=>{
+        event.preventDefault();
+        targetPanel.scrollIntoView({behavior:'smooth',block:'nearest'});
+        pulsePanel(targetPanel);
+      });
+      li.addEventListener('click',event=>{
+        if (event.target.closest('a,button')) return;
+        targetPanel.scrollIntoView({behavior:'smooth',block:'nearest'});
+        pulsePanel(targetPanel);
+      });
+    });
+  }
   // A name in the text that is also a node label is linked to that node, once per panel, both ways:
   // hovering the word lights the node, hovering the node lights the word.
   function linkTerms() {
@@ -450,6 +544,7 @@
     const stop = () => { walking?.end(); };
     if (walking?.control === control) { stop(); return; }
     stop();
+    clearLockedStep();
     let index = 0;
     const bar = document.createElement('div'); bar.className = 'walk-bar';
     bar.innerHTML = `<button type="button" data-walk="prev">← ${words.prev}</button><span class="walk-count"></span><button type="button" data-walk="next">${words.next} →</button><span class="walk-text" aria-live="polite"></span><button type="button" data-walk="end">${words.end}</button>`;
@@ -614,7 +709,10 @@
       const kind = source.path ? 'code' : source.url ? 'web' : 'note';
       const lines = source.path && typeof source.text === 'string' ? source.text.split('\n') : [];
       const first = source.lines?.[0] || 1;
-      const excerpt = lines.length ? `<pre><code>${lines.slice(0,14).map((line,index)=>`<span class="line"><i>${first + index}</i>${escapeText(line) || ' '}</span>`).join('')}${lines.length > 14 ? `<span class="line more"><i></i>…</span>` : ''}</code></pre>` : '';
+      const focus = source.focus;
+      const startOffset = Array.isArray(focus) && lines.length > 14 ? Math.max(0,Math.min(lines.length - 14,focus[0] - first - 4)) : 0;
+      const visible = lines.slice(startOffset,startOffset + 14);
+      const excerpt = visible.length ? `<pre><code>${startOffset > 0 ? `<span class="line more"><i></i>…</span>` : ''}${visible.map((line,index)=>{ const num = first + startOffset + index; const isFocus = Array.isArray(focus) && num >= focus[0] && num <= focus[1]; return `<span class="line${isFocus ? ' line-focus' : ''}"><i>${num}</i>${escapeText(line) || ' '}</span>`; }).join('')}${startOffset + 14 < lines.length ? `<span class="line more"><i></i>…</span>` : ''}</code></pre>` : '';
       const note = !source.path && (source.text || source.method) ? `<p class="source-note">${escapeText(source.text || '')}${source.method ? `<span>${escapeText(source.method)}</span>` : ''}</p>` : '';
       const number = /^\d+$/.test(link.textContent.trim()) ? link.textContent.trim() : '';
       card.innerHTML = `<header><span class="source-icon" data-kind="${kind}" aria-hidden="true">${sourceIcons[kind]}</span><span class="source-head"><b>${escapeText(source.title || source.path || id)}</b>${where ? `<span class="source-where">${escapeText(where)}</span>` : ''}</span>${number ? `<span class="source-number">${number}</span>` : ''}</header>${excerpt}${note}${source.revision || source.url ? `<footer>${source.revision ? `<span class="source-pin">${say('Pinned at','固定在')} <code>${escapeText(String(source.revision).slice(0,7))}</code></span>` : '<span></span>'}${source.url ? `<a href="${escapeText(source.url)}" target="_blank" rel="noopener noreferrer">${say('Open source','打开原文')} ↗</a>` : ''}</footer>` : ''}`;
@@ -635,6 +733,18 @@
       all('[data-node-id]',preview).forEach(node=>{
         const id = map[node.dataset.nodeId]; if (!id) return;
         node.classList.add('has-source');
+        const rect = node.querySelector('rect:not(.c-mask)');
+        if (rect && !node.querySelector('.node-source-badge')) {
+          const x = parseFloat(rect.getAttribute('x')) || 0, y = parseFloat(rect.getAttribute('y')) || 0, w = parseFloat(rect.getAttribute('width')) || 0;
+          if (w > 0) {
+            const badge = document.createElementNS('http://www.w3.org/2000/svg','g');
+            badge.setAttribute('class','node-source-badge');
+            badge.setAttribute('aria-hidden','true');
+            const bx = Math.round(x + w - 11), by = Math.round(y + 11);
+            badge.innerHTML = `<circle cx="${bx}" cy="${by}" r="7"/><path d="M${bx - 2} ${by - 2}L${bx - 4} ${by}l2 2M${bx + 2} ${by - 2}l2 2-2 2"/>`;
+            node.append(badge);
+          }
+        }
         node.addEventListener('mouseenter',()=>show(node,id)); node.addEventListener('mouseleave',hide);
       });
     });
@@ -655,6 +765,7 @@
   applyTheme();
   cropDiagramPreviews();
   linkTerms();
+  setupReasonLinks();
   setupWalks();
   setupAsk();
   setupSourceCards();

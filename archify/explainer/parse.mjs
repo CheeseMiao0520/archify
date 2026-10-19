@@ -173,8 +173,8 @@ export function parseExplainer(sourceText, { inputPath, output } = {}) {
         }
       }
       const allowed = {
-        source:['title','url','path','lines','revision'],meta:['locale','quality_profile','style','repo_url','repo_revision','repo_provider','repo_link_mode'],answer:['scope'],
-        prose:['id','text'],list:['id','ordered'],callout:['id','level','title','text'],facts:['id'],metric:['id','label','value','limit','unit','note','typical'],steps:['id'],diagram:['id','source','spec','title','changes'],code:['id','source','language'],diff:['id','caption'],image:['id','path','alt','caption'],comparison:['id','columns','label'],chart:['id','title','type','data','x','y','unit']
+        source:['title','url','path','lines','focus','revision'],meta:['locale','quality_profile','style','repo_url','repo_revision','repo_provider','repo_link_mode'],answer:['scope'],
+        prose:['id','text'],list:['id','ordered'],callout:['id','level','title','text'],facts:['id'],metric:['id','label','value','before','limit','unit','note','typical'],steps:['id'],diagram:['id','source','spec','title','changes'],code:['id','source','language','focus'],diff:['id','caption'],image:['id','path','alt','caption'],comparison:['id','columns','label'],chart:['id','title','type','data','x','y','unit']
       }[type];
       if (!allowed) { fail(at+1,'directive',`Unsupported component @${type}.`,'@facts\n| key | value |'); return; }
       for (const key of Object.keys(a)) if (!allowed.includes(key)) fail(at+1,type,`Unsupported argument ${key}.`,`@${type} ${allowed.map(key=>`${key}=...`).join(' ')}`);
@@ -184,6 +184,7 @@ export function parseExplainer(sourceText, { inputPath, output } = {}) {
         if (positional.length!==1) fail(at+1,type,'Source declarations require an ID.','@source docs title="Documentation" url=https://example.com/docs');
         const source={id:positional[0],...select(a,['title','url','path','revision'])};
         if (a.lines!==undefined) { const range=a.lines.match(/^(\d+):(\d+)$/u); if (!range) fail(at+1,type,'Repository lines require start:end.','lines=10:20'); source.lines=range?[Number(range[1]),Number(range[2])]:[]; }
+        if (a.focus!==undefined) { const range=a.focus.match(/^([1-9]\d*)(?::([1-9]\d*))?$/u); if (!range) fail(at+1,type,'Focus lines require a positive line or start:end range.','focus=12:16'); source.focus=range?[Number(range[1]),Number(range[2]??range[1])]:[]; }
         if(rows.length) fail(at+1,type,'Source declarations do not accept rows.','@source demo title="Timing model"');
         const pointer=`/sources/${document.sources.length}`;document.sources.push(source);map(pointer,source,descriptor(at,cursor));return;
       }
@@ -195,7 +196,7 @@ export function parseExplainer(sourceText, { inputPath, output } = {}) {
         case 'list': rowWidth(rows,1,1,type);block.items=rows.map(r=>r.cells[0]);if(a.ordered!==undefined)block.ordered=boolean(a.ordered,at,type);break;
         case 'callout': rowWidth(rows,1,1,type);Object.assign(block,{level:a.level||'note',...select(a,['title']),text:a.text??rows.map(r=>r.cells[0]).join('\n')});break;
         case 'facts':rowWidth(rows,2,2,type);block.entries=rows.map(r=>({key:r.cells[0],value:r.cells[1]}));break;
-        case 'metric':Object.assign(block,select(a,['label','unit','note']));for(const key of ['value','limit'])if(a[key]!==undefined)block[key]=number(a[key],at,type);if(a.typical!==undefined)block.typical=boolean(a.typical,at,type);break;
+        case 'metric':Object.assign(block,select(a,['label','unit','note']));for(const key of ['value','before','limit'])if(a[key]!==undefined)block[key]=number(a[key],at,type);if(a.typical!==undefined)block.typical=boolean(a.typical,at,type);break;
         case 'steps':rowWidth(rows,2,7,type);block.items=rows.map(r=>{let [id,text,detail,diagram,node,route,edges]=r.cells;if(node?.includes('~')&&!route){route=node;node='';}const target=diagram?{diagram,...(node?{node}:{}),...(route?{route:route.split('~')}:{}),...(edges?{edges:csv(edges)}:{})}:undefined;if(!diagram&&(node||route||edges))fail(r.line+1,type,'A step node, route or edge reference needs its diagram ID.','| step | Read cache | | cache-flow | redis | | |');return{id,text,...(detail?{detail}:{}),...(target?{target}:{})};});break;
         case 'diagram': {
           if(positional.length!==1)fail(at+1,type,'A diagram requires exactly one native type.','@diagram sequence source=cache.sequence.json');
@@ -208,7 +209,7 @@ export function parseExplainer(sourceText, { inputPath, output } = {}) {
           if(rows.length&&a.spec===undefined&&a.source===undefined)try{block.spec=compileExplainerDiagram(block.diagramType,rows.map(r=>({cells:r.cells,line:r.line+1})),{id:a.id||stable('diagram',`${panel?.id}\0${JSON.stringify(rows.map(r=>r.cells))}`),title:a.title||panel?.title||document.meta.title,line:at+1,quality:document.meta.quality_profile});}catch(error){const found=error.archifyDiagnostics||error.diagnostics;if(found?.length)diagnostics.push(...found);else fail(at+1,type,'The diagram shorthand could not compile.','@diagram sequence source=cache.sequence.json');}
           if(a.changes!==undefined)block.changes=csv(a.changes).map(value=>{const [target,change]=value.split(':');return{target,change};});break;
         }
-        case 'code':Object.assign(block,select(a,['source','language']));break;
+        case 'code':Object.assign(block,select(a,['source','language']));if(a.focus!==undefined){const range=a.focus.match(/^([1-9]\d*)(?::([1-9]\d*))?$/u);if(!range)fail(at+1,type,'Focus lines require a positive line or start:end range.','focus=12:16');block.focus=range?[Number(range[1]),Number(range[2]??range[1])]:[];}break;
         case 'diff':block.text=literal??rows.map(r=>r.cells.join(' | ')).join('\n');Object.assign(block,select(a,['caption']));break;
         case 'image':Object.assign(block,select(a,['path','alt','caption']));break;
         case 'chart':{if(!a.data||!a.x||!a.y)fail(at+1,type,'A data chart names its file, label column and value columns.','@chart type=bar data=latency.csv x=day y=p50,p99');if(a.type!==undefined&&!['bar','line','pie'].includes(a.type))fail(at+1,type,'A data chart is a bar, line or pie chart.','@chart type=line data=latency.csv x=day y=p99');Object.assign(block,select(a,['title']),{data:{path:a.data,kind:a.type||'bar',x:a.x,y:csv(a.y),...(a.unit?{unit:a.unit}:{})}});break;}

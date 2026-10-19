@@ -195,13 +195,17 @@ export async function resolveExplainerSources(document, { repoRoot, baseDir, sou
       if (entry.lines && (!Array.isArray(entry.lines) || entry.lines.length !== 2 || !entry.lines.every(Number.isSafeInteger)
           || entry.lines[0] < 1 || entry.lines[1] < entry.lines[0])) fail(context, `${pointer}/lines`, 'source', 'source-lines',
         'Repository line ranges must be ordered and positive.', 'Use lines: [start, end].', '[1, 3]');
+      if (entry.focus && (!Array.isArray(entry.focus) || entry.focus.length !== 2 || !entry.focus.every(Number.isSafeInteger)
+          || entry.focus[0] < 1 || entry.focus[1] < entry.focus[0]
+          || (entry.lines && (entry.focus[0] < entry.lines[0] || entry.focus[1] > entry.lines[1])))) fail(context, `${pointer}/focus`, 'source', 'source-focus',
+        'Focus lines must be ordered and stay within the declared source line range.', 'Use focus: [start, end].', '[2, 3]');
     }
     if (entry.url) {
       let url; try { url = new URL(entry.url); } catch {}
       if (!url || !['https:', 'http:'].includes(url.protocol) || url.username || url.password || /[\u0000-\u0020\u007f]/.test(entry.url)) fail(context, `${pointer}/url`, 'source', 'source-url',
         'Source links require credential-free HTTP(S) URLs.', 'Use https://example.com/article.');
     }
-    sources[entry.id] = Object.freeze({id:entry.id,title:entry.title,...(entry.url?{url:entry.url}:{}),...(entry.path?{path:entry.path}:{}),...(entry.lines?{lines:[...entry.lines]}:{}),...(entry.revision?{revision:entry.revision}:{})});
+    sources[entry.id] = Object.freeze({id:entry.id,title:entry.title,...(entry.url?{url:entry.url}:{}),...(entry.path?{path:entry.path}:{}),...(entry.lines?{lines:[...entry.lines]}:{}),...(entry.focus?{focus:Object.freeze([...entry.focus])}:{}),...(entry.revision?{revision:entry.revision}:{})});
     if (codeIds.has(entry.id)) {
       if (!entry.path || !entry.lines) fail(context,pointer,'code','code-source','Code requires a Git file and line range.','Add path and lines to the source.');
       repositorySources.push({entry,index});
@@ -244,6 +248,7 @@ export async function resolveExplainerSources(document, { repoRoot, baseDir, sou
       const reference = verified.nodes[entry.id][0];
       const result = { id: entry.id, ...(entry.title === undefined ? {} : { title: entry.title }),
         revision: repository.revision, path: reference.path, lines: Object.freeze([...entry.lines]),
+        ...(entry.focus ? { focus: Object.freeze([...entry.focus]) } : {}),
         ...(reference.href ? { url: reference.href } : {}) };
       if (codeIds.has(entry.id)) {
         const bytes = gitBytes(context, repoRoot, ['show', `${repository.revision}:${entry.path}`], `/sources/${index}`);
@@ -276,7 +281,7 @@ export async function resolveExplainerSources(document, { repoRoot, baseDir, sou
         if (text.includes('\0') || containsExplainerSecret(text, entry.path)) continue;
         const frozen = digest(bytes);
         sources[entry.id] = Object.freeze({ id: entry.id, ...(entry.title === undefined ? {} : { title: entry.title }), revision: verified.repository.revision, path: reference.path,
-          lines: Object.freeze([...entry.lines]), ...(reference.href ? { url: reference.href } : {}), text: text.split(/\r\n|\n|\r/).slice(entry.lines[0] - 1, entry.lines[1]).join('\n'), sha256: frozen.sha256, bytes: frozen.bytes });
+          lines: Object.freeze([...entry.lines]), ...(entry.focus ? { focus: Object.freeze([...entry.focus]) } : {}), ...(reference.href ? { url: reference.href } : {}), text: text.split(/\r\n|\n|\r/).slice(entry.lines[0] - 1, entry.lines[1]).join('\n'), sha256: frozen.sha256, bytes: frozen.bytes });
         dependencies.push(Object.freeze({ kind: 'repository', id: entry.id, path: entry.path, revision: verified.repository.revision, ...frozen }));
         repository ||= Object.freeze({ ...verified.repository });
       } catch {}

@@ -62,6 +62,11 @@ test('steps never silently discard a simultaneous node and route selection',()=>
 test('source links resolve forward IDs and code requires a repository location',()=>{
  const d=base();blocks(d)[0].text='Read [facts](source:evidence) and [](source:evidence).';assert.equal(validateExplainer(d).ok,true);
  blocks(d)[0].text='[](source:missing)';check(d,'unresolved-reference');blocks(d)[0].text='Plain.';blocks(d).push({id:'code',type:'code',source:'evidence'});check(d,'code-source-kind');
+ const withFocus=base();withFocus.sources=[{id:'repo',title:'Repo',path:'src/index.js',lines:[10,20],focus:[12,15]}];
+ blocks(withFocus).push({id:'code',type:'code',source:'repo',focus:[14,18]});
+ assert.equal(validateExplainer(withFocus).ok,true);
+ withFocus.sources[0].focus=[8,12];check(withFocus,'source-focus');
+ withFocus.sources[0].focus=[12,15];blocks(withFocus)[1].focus=[18,25];check(withFocus,'code-focus');
 });
 test('answer accepts at most four reasons and qualifier checks exclude scope and sources',()=>{
  const d=base();d.answer.reasons=['Lower latency','Local transactions'];d.answer.scope='示例，未实测，仅供参考 [5 ms](typical:illustrative, not measured)';d.sources[0].title='illustrative, not measured';

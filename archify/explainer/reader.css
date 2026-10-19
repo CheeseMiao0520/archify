@@ -73,28 +73,38 @@ h1{font:700 26px/1.35 var(--sans);color:var(--ink);letter-spacing:-.015em;max-wi
 .board.measured>.board-spacer{display:none}
 .span1{grid-column:span 1}.span2{grid-column:span 2}.span3{grid-column:span 3}.span4{grid-column:span 4}.span5{grid-column:span 5}.span6{grid-column:span 6}.span7{grid-column:span 7}.span8{grid-column:span 8}.span9{grid-column:span 9}.span10{grid-column:span 10}.span11{grid-column:span 11}.span12{grid-column:span 12}
 .board-spacer{min-width:0}
-.panel{min-width:0;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--rule);border-radius:12px;box-shadow:var(--shadow);overflow:clip;overflow-clip-margin:4px}
+.panel{min-width:0;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--rule);border-radius:12px;box-shadow:var(--shadow);overflow:clip;overflow-clip-margin:4px;transition:border-color .2s,box-shadow .2s}
+.panel.panel-linked-hover,.panel.panel-pulse{border-color:color-mix(in srgb,var(--accent) 65%,var(--rule));box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 20%,transparent),var(--shadow)}
 .panel-head{display:flex;gap:10px;align-items:center;padding:13px 20px;border-bottom:1px solid var(--rule)}
 .panel-id{flex-shrink:0;min-width:22px;height:22px;padding:0 6px;border-radius:6px;display:grid;place-items:center;background:var(--badge);color:var(--badge-ink);font:600 12px/1 var(--sans);font-variant-numeric:tabular-nums;text-decoration:none}
 .panel-id:hover{text-decoration:none;background:var(--accent);color:#fff}
 .panel-head h2{font:600 15.5px/1.45 var(--sans);color:var(--ink);flex:1;min-width:0;overflow-wrap:anywhere}
 .panel-body{padding:16px 20px 20px;flex:1}
+.panel-body:not(.guided):not(:has(>.block-metric+.block-metric)){display:flex;flex-direction:column}
+.panel-body:not(.guided):not(:has(>.block-metric+.block-metric))>.block:has(+.block-callout:last-child){margin-bottom:16px}
+.panel-body:not(.guided):not(:has(>.block-metric+.block-metric))>.block+.block-callout:last-child{margin-top:auto}
 .block{position:relative;min-width:0;overflow-wrap:anywhere}
 .block+.block{margin-top:16px}
 .block>p+p{margin-top:8px}
 
 /* Conclusion: the same card, read first. One quiet tinted box carries the verdict. */
+.answer-panel{border-color:color-mix(in srgb,var(--accent) 26%,var(--rule));background:linear-gradient(180deg,color-mix(in srgb,var(--accent-soft) 38%,var(--panel)) 0%,var(--panel) 84px);box-shadow:0 1px 2px rgb(16 24 40/.05),0 6px 20px color-mix(in srgb,var(--accent) 6%,transparent)}
 .answer-id{background:var(--accent);color:#fff}
 :root[data-theme=dark] .answer-id{color:#0c0d10}
 @media(prefers-color-scheme:dark){:root:not([data-theme]) .answer-id{color:#0c0d10}}
 .verdict{padding:12px 16px;border-radius:8px;background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent);font:600 17px/1.65 var(--sans);color:var(--ink);letter-spacing:-.005em;text-wrap:pretty}
 .verdict strong{font-weight:700;color:var(--accent-ink)}
 .reasons{list-style:none;padding:0;margin:14px 0 0;counter-reset:reason}
-.reasons li{counter-increment:reason;position:relative;padding:5px 0 5px 26px;font-size:14px;line-height:1.7;color:var(--secondary)}
-.reasons li::before{content:counter(reason);position:absolute;left:2px;top:9px;width:17px;height:17px;border-radius:50%;display:grid;place-items:center;font:600 10.5px/1 var(--sans);color:var(--muted);background:var(--sunk);box-shadow:inset 0 0 0 1px var(--rule-strong)}
+.reasons li{counter-increment:reason;position:relative;padding:5px 6px 5px 26px;font-size:14px;line-height:1.7;color:var(--secondary);border-radius:6px;transition:background .15s}
+.reasons li::before{content:counter(reason);position:absolute;left:2px;top:9px;width:17px;height:17px;border-radius:50%;display:grid;place-items:center;font:600 10.5px/1 var(--sans);color:var(--muted);background:var(--sunk);box-shadow:inset 0 0 0 1px var(--rule-strong);transition:background .15s,color .15s,box-shadow .15s}
+.reasons li[data-target-panel]{cursor:pointer}
+.reasons li[data-target-panel]:hover{background:color-mix(in srgb,var(--accent-soft) 50%,transparent)}
+.reasons li[data-target-panel]:hover::before{background:var(--accent);color:#fff;box-shadow:none}
+.reason-panel-link{display:inline-flex;align-items:center;margin-left:5px;padding:0 6px;border-radius:999px;background:var(--sunk);border:1px solid var(--rule-strong);color:var(--muted);font:600 10.5px/1.55 var(--sans);text-decoration:none;vertical-align:baseline;transition:background .15s,color .15s,border-color .15s}
+.reasons li:hover .reason-panel-link,.reason-panel-link:hover,.reason-panel-link:focus-visible{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 45%,var(--rule));color:var(--accent-ink);text-decoration:none}
 /* A full-width conclusion sets the verdict beside its reasons instead of in one long line. */
 .answer-panel{container-type:inline-size}
-@container (min-width:900px){.answer-panel .panel-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:start}.answer-panel .reasons{margin-top:-5px}}
+@container (min-width:900px){.answer-panel .panel-body{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:start}.answer-panel .reasons{margin-top:-5px}}
 .answer-scope{padding:10px 20px 12px;border-top:1px solid var(--rule);display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;line-height:1.6;color:var(--muted)}
 .scope-label{flex-shrink:0;font-size:12px;font-weight:500;color:var(--muted);margin-right:2px}
 .scope-chip{display:inline-flex;align-items:center;padding:0 8px;border-radius:999px;background:var(--sunk);border:1px solid var(--rule);color:var(--secondary);font-size:12px;line-height:1.7}
@@ -134,17 +144,17 @@ tbody tr:nth-child(even)>:first-child{border-radius:6px 0 0 6px}
 tbody tr:nth-child(even)>:last-child{border-radius:0 6px 6px 0}
 th[scope=row]{width:24%;min-width:96px;font-weight:500;color:var(--ink);font-size:13.5px}
 td{min-width:112px;color:var(--secondary)}
-.assessment{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;line-height:1.45;font-weight:600}
+.assessment{display:inline-flex;align-items:center;gap:5px;padding:2px 9px 2px 4px;border-radius:999px;font-size:12.5px;line-height:1.4;font-weight:600;border:1px solid transparent}
 .assessment b{color:inherit;font-weight:600}
 .assessment::before{flex-shrink:0;width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font:700 10px/1 var(--sans);color:#fff}
-.assessment.good{color:var(--good)}.assessment.good::before{content:"✓";background:var(--good)}
-.assessment.caution{color:var(--caution)}.assessment.caution::before{content:"!";background:var(--caution)}
-.assessment.bad{color:var(--bad)}.assessment.bad::before{content:"✕";background:var(--bad)}
+.assessment.good{color:var(--good);background:var(--good-soft);border-color:color-mix(in srgb,var(--good) 24%,transparent)}.assessment.good::before{content:"✓";background:var(--good)}
+.assessment.caution{color:var(--caution);background:var(--caution-soft);border-color:color-mix(in srgb,var(--caution) 24%,transparent)}.assessment.caution::before{content:"!";background:var(--caution)}
+.assessment.bad{color:var(--bad);background:var(--bad-soft);border-color:color-mix(in srgb,var(--bad) 24%,transparent)}.assessment.bad::before{content:"✕";background:var(--bad)}
 :root[data-theme=dark] .assessment::before{color:#0c0d10}
 @media(prefers-color-scheme:dark){:root:not([data-theme]) .assessment::before{color:#0c0d10}}
 .assessment-meter{display:none}
 .cell-text{display:block;color:var(--secondary);line-height:1.6}
-.assessment+.cell-text{color:var(--muted);font-size:12.5px;margin-top:2px}
+.assessment+.cell-text{color:var(--muted);font-size:12.5px;margin-top:4px}
 
 /* Facts and metrics */
 .facts>div{display:grid;grid-template-columns:minmax(80px,1fr) minmax(0,2fr);gap:16px;padding:8px 0;border-bottom:1px solid var(--rule)}
@@ -152,9 +162,15 @@ td{min-width:112px;color:var(--secondary)}
 .facts>div:last-child{border-bottom:0;padding-bottom:0}
 .facts dt{color:var(--muted);font-size:13px}
 .facts dd{font-size:14px;color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
+.panel-body:has(>.block-metric+.block-metric){display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;align-content:start}
+.panel-body:has(>.block-metric+.block-metric)>.block:not(.block-metric){grid-column:1/-1}
+.panel-body:has(>.block-metric+.block-metric)>.block+.block{margin-top:0}
+.panel-body:has(>.block-metric+.block-metric)>.block-metric{padding:12px 14px;border-radius:10px;background:var(--sunk);border:1px solid var(--rule)}
 .metric-label{font-size:12.5px;color:var(--muted)}
 .metric-value{font:700 32px/1.25 var(--sans);color:var(--ink);margin:4px 0;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .metric-value span,.metric-value small{font:500 14px var(--sans);margin-left:5px;color:var(--muted);letter-spacing:0}
+.metric-delta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:2px 0 6px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.delta-badge{display:inline-flex;align-items:center;padding:0 6px;border-radius:999px;font-size:11px;font-weight:600;background:var(--accent-soft);color:var(--accent-ink);border:1px solid color-mix(in srgb,var(--accent) 25%,transparent)}
 meter{width:100%;height:8px;accent-color:var(--accent)}
 .metric-over-limit .metric-value,.metric-overflow{color:var(--bad)}
 .metric-overflow{font-size:12px;font-weight:600;margin-top:6px}
@@ -190,6 +206,8 @@ meter{width:100%;height:8px;accent-color:var(--accent)}
 .diagram-link>span{color:var(--faint);font-weight:400;transition:color .15s}
 .diagram-link:hover{color:var(--accent);text-decoration:none}
 .diagram-link:hover>span{color:var(--accent)}
+.steps li:has(.diagram-link){cursor:pointer;border-radius:8px;transition:background .15s,box-shadow .15s}
+.steps li.step-locked{background:color-mix(in srgb,var(--accent-soft) 55%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 30%,transparent);padding-right:8px}
 .steps li:has(.diagram-link):hover::before,.steps li:has(.diagram-link:focus-visible)::before{background:var(--accent);color:#fff;border-color:var(--accent)}
 .steps li:hover .diagram-link,.steps li:hover .diagram-link>span{color:var(--accent)}
 .steps li:has(.diagram-link):hover p{color:var(--secondary)}
@@ -207,14 +225,20 @@ meter{width:100%;height:8px;accent-color:var(--accent)}
 /* Phase labels then sit just above the nodes instead of above the hidden lane header. */
 .single-lane .phase-rule,.single-lane .phase-chip,.single-lane .phase-chip+text{transform:translateY(30px)}
 .diagram-preview text{font-family:var(--sans)!important}
+.diagram-preview text[font-size="8"],.diagram-preview text[font-size="9"],.diagram-preview text[font-size="10"],.diagram-preview [data-edge-id] text{font-size:12.5px!important}
 .board .diagram-preview.diagram-preview[class]{--bg:transparent;--lane-fill:color-mix(in srgb,var(--sunk) 55%,transparent);--lane-stroke:var(--control-border,var(--rule-strong));--grid:transparent;--canvas-dot:transparent;--mask:var(--surface);--panel:var(--surface);--text:var(--ink);--text-muted:var(--muted);--text-dim:var(--muted);--text-faint:var(--faint);--arrow:var(--faint);--arrow-emphasis:var(--accent);--frontend-fill:var(--surface);--frontend-stroke:var(--rule-strong);--backend-fill:var(--accent-soft);--backend-stroke:color-mix(in srgb,var(--accent) 50%,var(--rule));--database-fill:var(--sunk);--database-stroke:var(--rule-strong);--cloud-fill:var(--surface);--cloud-stroke:var(--rule-strong);--external-fill:var(--surface);--external-stroke:var(--rule-strong);--messagebus-fill:var(--surface);--messagebus-stroke:var(--rule-strong);--security-fill:var(--surface);--security-stroke:var(--rule-strong)}
 .diagram-preview .semantic-sigil{color:var(--muted);stroke:var(--muted)}
 .diagram-preview text.t-edge-default{fill:var(--accent-ink)}
 .diagram-preview [data-node-id],.diagram-preview [data-edge-id]{transition:opacity .18s}
 .diagram-preview.focusing [data-node-id]:not(.reader-highlight),.diagram-preview.focusing [data-edge-id]:not(.reader-highlight){opacity:.22}
 .diagram-preview [data-node-id].reader-highlight rect:not(.c-mask){stroke:var(--accent);stroke-width:2}
-.diagram-preview [data-edge-id].reader-highlight path{stroke:var(--accent)}
-.diagram-preview [data-edge-id].reader-highlight text{fill:var(--accent)}
+@keyframes explainer-edge-flow{to{stroke-dashoffset:-18}}
+.diagram-preview [data-edge-id].reader-highlight path{stroke:var(--accent);stroke-width:2.2;stroke-dasharray:6 3;animation:explainer-edge-flow .75s linear infinite}
+.diagram-preview [data-edge-id].reader-highlight text{fill:var(--accent);font-weight:600}
+.diagram-preview .node-source-badge circle{fill:var(--accent-soft);stroke:color-mix(in srgb,var(--accent) 55%,var(--rule));stroke-width:1.2;transition:fill .15s,stroke .15s}
+.diagram-preview .node-source-badge path{fill:none;stroke:var(--accent-ink);stroke-width:1.25;stroke-linecap:round;stroke-linejoin:round;transition:stroke .15s}
+.diagram-preview .has-source:hover .node-source-badge circle{fill:var(--accent);stroke:var(--accent)}
+.diagram-preview .has-source:hover .node-source-badge path{stroke:#fff}
 /* Steps beside the diagram they walk through, text on the left. The reader sets the diagram column
    to the width its text needs; with less than 320px left for the steps, the diagram wraps above
    them. The diagram stays in view while long steps scroll. */
@@ -253,6 +277,15 @@ meter{width:100%;height:8px;accent-color:var(--accent)}
 .snippet pre{margin:0;border:0;border-radius:0;background:none;padding:12px 14px;font-size:12.5px;line-height:1.7;color:var(--ink)}
 pre{max-width:100%;overflow:auto;font-size:12px;line-height:1.7;background:var(--code);border:1px solid var(--rule);border-radius:8px;padding:12px 14px;margin:8px 0 0}
 pre code{background:none;border:0;padding:0;white-space:pre;font-size:inherit}
+.code-meta{display:flex;align-items:center;gap:6px;min-width:0}
+.code pre{padding:8px 0}
+.code pre code{display:block;white-space:normal}
+.code-line{display:block;padding:0 14px 0 0;white-space:pre;min-height:1.65em}
+.code-line::before{content:attr(data-line);display:inline-block;width:3.2em;padding-right:12px;text-align:right;color:var(--faint);user-select:none;font-variant-numeric:tabular-nums}
+.code[data-has-focus] .code-line:not(.line-focus),.source-card pre:has(.line-focus) .line:not(.line-focus){opacity:.58;transition:opacity .15s}
+.code[data-has-focus] pre:hover .code-line,.source-card pre:hover .line{opacity:1}
+.code-line.line-focus,.source-card .line.line-focus{background:color-mix(in srgb,var(--accent) 12%,var(--code));box-shadow:inset 3px 0 0 var(--accent);color:var(--ink)}
+.code-line.line-focus::before,.source-card .line.line-focus i{color:var(--accent-ink);font-weight:600}
 .diff-scroll{overflow:auto;max-width:100%;margin-top:8px;background:var(--code);border:1px solid var(--rule);border-radius:8px}
 .diff-code{width:100%;border-collapse:collapse;font:12px/1.7 var(--mono)}
 .diff-code th{font:10px/1.6 var(--sans);color:var(--muted);text-align:left;background:var(--sunk)}
@@ -437,7 +470,7 @@ dialog::backdrop{background:rgb(10 10 12/.55);backdrop-filter:blur(2px)}
 [data-style=swiss] .callout{border-radius:0;box-shadow:inset 4px 0 0 var(--accent)}
 [data-style=swiss] .steps li::before{border-radius:0;border-color:var(--ink)}
 /* Swiss controls keep the square corners of its numbers, chips and rules. */
-[data-style=swiss] :is(.tool-button,.theme-controls,.theme-controls button,.menu-options,.menu-options button,.walk-bar,.walk-bar button,.walk-start,.ask-button,.ask-chips button,.ask-dialog,.ask-dialog footer button,.ask-dialog textarea,.ask-dialog blockquote,.source-card,.source-icon,.source-note,.colophon-mark,.viewer-dialog,.snippet,.checklist input){border-radius:2px}
+[data-style=swiss] :is(.tool-button,.theme-controls,.theme-controls button,.menu-options,.menu-options button,.walk-bar,.walk-bar button,.walk-start,.ask-button,.ask-chips button,.ask-dialog,.ask-dialog footer button,.ask-dialog textarea,.ask-dialog blockquote,.source-card,.source-icon,.source-note,.colophon-mark,.viewer-dialog,.snippet,.checklist input,.assessment,.delta-badge,.reason-panel-link){border-radius:2px}
 /* Its neutral nodes take a grey outline; the full-strength rule colour is for page rules only. */
 :root[data-style=swiss] .board .diagram-preview.diagram-preview[class]{--frontend-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--database-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--cloud-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--external-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--messagebus-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--security-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper))}
 /* Style overrides that must beat the clean dark rules, and chart series that stay apart in warm palettes. */
@@ -466,7 +499,7 @@ dialog::backdrop{background:rgb(10 10 12/.55);backdrop-filter:blur(2px)}
 .board .diagram-preview.diagram-preview[class]{--mask:#fff;--panel:#fff}
 .diagram-preview>svg{min-width:0!important;width:100%}
 .table-scroll,pre,.diff-scroll{overflow:visible}
-pre code,.diff-code code{white-space:pre-wrap;overflow-wrap:anywhere}
+pre code,.diff-code code,.code-line{white-space:pre-wrap;overflow-wrap:anywhere}
 .typical{border:0;padding:0;font-size:11px}
 a{color:inherit}
 }
