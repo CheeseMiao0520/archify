@@ -286,6 +286,18 @@ test('task: a warning-level complexity task is done only below the info threshol
   assert.match(task.acceptance[0], /complexity < 15 and nesting < 5/, 'the info level, not the warning level 18');
 });
 
+test('task: with a warning threshold below the info threshold, completion uses the lower value', (t) => {
+  const { dir } = fixtureRun(t);
+  const config = { ...loadConfig(path.join(HERE, 'fixtures', 'py-tasks', 'analysis.config.json')) };
+  config.rules = { complexity: { function: { info: { complexity: 30, nesting: 9 }, warning: { complexity: 12, nesting: 9 } } } };
+  const { facts } = extractFacts(dir, { language: 'py', config });
+  const findings = evaluateGraph(buildGraph(facts, config), config, facts);
+  const d = byCode(findings, 'complexity/function');
+  assert.equal(d.severity, 'warning');
+  const task = buildTask({ findings, facts, ids: [d.id] });
+  assert.match(task.acceptance[0], /complexity < 12 and nesting < 9/, 'reaching complexity 12 still reports a warning, so 30 is not the bar');
+});
+
 test('evidence: Python latin-1 aliases decode as ISO-8859-1, not windows-1252', () => {
   for (const label of ['latin-1', 'latin_1', 'iso-8859-1', 'l1', 'latin1', 'latin-1-unix']) {
     const bytes = Buffer.concat([Buffer.from(`# -*- coding: ${label} -*-\nx = "`), Buffer.from([0x80, 0x9f, 0xe9]), Buffer.from('"\n')]);
