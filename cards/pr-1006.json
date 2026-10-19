@@ -1,0 +1,10 @@
+{
+  "templateVersion": 1,
+  "repository": "tt-a1i/archify",
+  "number": 1006,
+  "author": "tt-a1i",
+  "title": "release: enable v3.2.0 update notice and fix demo card clipping",
+  "mergedAt": "2026-10-19T00:52:06Z",
+  "mergeCommit": "654da74e084e5a1faf708779c23d6172766be9c1",
+  "url": "https://github.com/tt-a1i/archify/pull/1006"
+}
