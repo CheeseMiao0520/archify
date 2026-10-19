@@ -99,6 +99,11 @@
       }
     },
     "calls": { "type": "array", "description": "Reserved for M2 (Call Graph).", "items": { "type": "object" } },
+    "packageMarkers": {
+      "type": "array",
+      "description": "Package marker files (package.json, pyproject.toml, __init__.py) under the analyzed root, relative POSIX paths. Module grouping uses them as package boundaries; adapters do not parse them.",
+      "items": { "type": "string", "minLength": 1 }
+    },
     "parse_errors": {
       "type": "array",
       "description": "Files the adapter could not parse; they keep their file record but contribute no imports.",

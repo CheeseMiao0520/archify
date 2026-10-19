@@ -77,6 +77,24 @@ API 优先读取 Redis，缓存未命中时查询 PostgreSQL 并回填缓存。
 
 [按 Agent 选择安装方式](https://archify.si/zh/start?agent=cursor&type=architecture) · [安装细节与更新检查](#快速开始)
 
+## 问一个问题，得到一页讲清楚的答案
+
+不是每个答案都是一张图。让 agent 用一页来回答，Archify 会生成一份 **explainer**：先给结论，再按问题分成几个面板，用表格、步骤、图表、代码和经过校验的图把理由讲清楚。
+
+[![一页式解答：结论在前，步骤和它讲解的流程图左右并排](docs/assets/explainer-p99-zh.png)](https://archify.si/cases/explainer/p99-tail-latency.html)
+
+- **结论先行。** 先写答案和理由，每个面板只回答一个问题。
+- **图和文字一起讲。** 步骤放在它讲解的图旁边，读到哪一步，图上就亮起哪一部分；点任意节点进入完整的交互图。
+- **能核对。** 结论标注编号来源；仓库代码固定到具体提交，悬停即可看到原文。
+- **好分享。** 一个 HTML 文件，四种样式，浅色深色都有；可导出 PNG、WebP、JPG 长图或打印成 PDF。对任何面板都能追问，生成的追问让 agent 只改这一块。
+
+```text
+用 Archify 一页回答：接口 P99 从 80 ms 涨到 600 ms，平均值几乎没变，
+可能是什么原因，应该怎么排查？
+```
+
+在线示例：[P99 延迟排查](https://archify.si/cases/explainer/p99-tail-latency.html) · [读 Archify 仓库：finalize 怎么保住旧产物](https://archify.si/cases/explainer/finalize-delivery.html) · [第一次租房要确认什么](https://archify.si/cases/explainer/first-rental.html) · [第一次打开 HTTPS 网站（英文）](https://archify.si/cases/explainer/tls-first-visit.html)
+
 <a id="sponsors"></a>
 
 ## ❤️ 赞助伙伴

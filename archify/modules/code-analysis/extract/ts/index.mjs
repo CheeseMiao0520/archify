@@ -3,7 +3,7 @@
 // exported symbols and calls stay empty until M2.
 import path from 'node:path';
 import ts from 'typescript';
-import { classifyRole, lineCount, listFiles, snapshotTree, toPosix } from '../shared/files.mjs';
+import { classifyRole, lineCount, listFiles, snapshotTree, toPosix, packageMarkersIn } from '../shared/files.mjs';
 import { matcher } from '../shared/glob.mjs';
 import { snapshotHost } from './snapshot-host.mjs';
 import { describeRepository } from '../shared/git.mjs';
@@ -92,11 +92,14 @@ export function extract(root, config) {
   imports.sort((a, b) => compareText(a.from, b.from) || a.line - b.line || compareText(a.specifier, b.specifier));
 
   inputs.assertUnchanged();
+  // Markers come from the frozen inventory, like every other resolution input.
+  const packageMarkers = packageMarkersIn(snapshot.names, config);
   const repo = describeRepository(absRoot);
   return {
     schema_version: 1,
     repository: { ...repo, language: 'ts', adapter: `typescript@${ts.version}` },
     files: fileRecords,
+    packageMarkers,
     imports,
     symbols: [],
     functions: functions.sort((a, b) => compareText(a.file, b.file) || a.line - b.line || compareText(a.qualname, b.qualname)),

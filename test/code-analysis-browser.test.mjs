@@ -16,7 +16,8 @@ test('Code Analysis refuses changed IR and preserves captured source in the curr
   const root = path.join(scratch, 'repo');
   fs.mkdirSync(root);
   fs.writeFileSync(path.join(root, 'a.mjs'), "import './b.mjs';\n\n");
-  fs.writeFileSync(path.join(root, 'b.mjs'), "import './a.mjs';\n");
+  // Source text that opens an HTML script-data escape must not break the embedded analysis JSON.
+  fs.writeFileSync(path.join(root, 'b.mjs'), "import './a.mjs';\nexport const markup = '<!--<script>';\n");
   const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' });
   git('init', '-q'); git('config', 'user.name', 'Test'); git('config', 'user.email', 'test@example.invalid');
   git('add', '.'); git('commit', '-qm', 'Browser fixture');
@@ -125,6 +126,7 @@ test('Code Analysis refuses changed IR and preserves captured source in the curr
   assert.match(await run("document.querySelector('#bauify-code .diff-added').textContent"), /Saved but not committed/);
   assert.match(await run("document.querySelector('#bauify-code .diff-legend').textContent"), /Captured changes vs base commit/);
   assert.equal(await run("getComputedStyle(document.querySelector('#bauify-code .diff-added')).borderLeftWidth"), '3px');
+  assert.match(await run("JSON.parse(document.getElementById('bauify-analysis').textContent).snippets['b.mjs'].lines.join('\\n')"), /<!--<script>/);
   if (process.env.ARCHIFY_ANALYSIS_SCREENSHOT) {
     const shot = await send('Page.captureScreenshot', { format: 'png' });
     fs.writeFileSync(process.env.ARCHIFY_ANALYSIS_SCREENSHOT, Buffer.from(shot.data, 'base64'));
@@ -136,6 +138,15 @@ test('Code Analysis refuses changed IR and preserves captured source in the curr
   assert.equal(await run("document.getElementById('bauify-overview').hidden"), false);
   assert.equal(await run("document.getElementById('bauify-panel').hidden"), true);
   assert.equal(await run("document.getElementById('bauify-code').hidden"), true);
+  const key = init => run(`document.dispatchEvent(new KeyboardEvent('keydown', ${JSON.stringify({ bubbles: true, ...init })}))`);
+  await key({ key: 'c', ctrlKey: true });
+  await key({ key: 'c', metaKey: true });
+  assert.equal(await run("document.documentElement.getAttribute('data-bauify')"), 'on', 'copy shortcuts do not toggle the layer');
+  assert.equal(await run("document.getElementById('bauify-overview').hidden"), false);
+  await key({ key: 'c' });
+  assert.equal(await run("document.documentElement.getAttribute('data-bauify')"), 'off');
+  await key({ key: 'C' });
+  assert.equal(await run("document.documentElement.getAttribute('data-bauify')"), 'on');
   await run("document.getElementById('btn-bauify').click()");
   assert.equal(await run("document.documentElement.getAttribute('data-bauify')"), 'off');
   assert.equal(await run("document.getElementById('bauify-overview').hidden"), true);

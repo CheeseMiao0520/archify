@@ -6,7 +6,28 @@ All notable changes are documented here. Format loosely follows [Keep a Changelo
 
 > Development identity: `v3.1.1-dev.1`. Not a stable release.
 
+### Added
+
+- **One-page answers (explainer) (#993).** Ask your agent to answer as a page and Archify builds a conclusion-first explainer from a Markdown draft. Each panel answers one question, using prose, tables, steps, checklists, charts, code and validated native diagrams.
+  - **Authoring and delivery:** `finalize explainer` validates, delivers atomically and checks the page. Charts come from a Mermaid fence or a CSV/JSON file next to the draft. Repository excerpts are read from the pinned commit. `patch explainer` replaces one panel by ID.
+  - **Reading:**
+    - Steps sit beside the diagram they walk through, and you can step through them.
+    - Text and diagram nodes highlight each other.
+    - Clicking a node opens the full Viewer focused on it.
+    - Citations and source-linked nodes open source cards.
+    - Each panel or selected passage produces a follow-up question that targets that panel.
+  - **Sharing:** the page ships in four styles (clean, editorial, product, Swiss) with light and dark themes, and exports a PNG, WebP or JPG long image or prints to PDF.
+  - **Examples:** four live pages in `docs/cases/explainer/`.
+  - **Credit:** the one-page document direction of #942 by @goatliamia shaped this work.
+  - **Acknowledgment:** thanks to @QingYunA for the early one-page diagram-and-explanation proposal and demo prototype.
+
 ### Fixed
+
+- **Explainer pages no longer carry local paths.** The draft embedded in a page names its source and data files relative to the page, so a shared page does not reveal the author's directories. `patch explainer` resolves them against the page again.
+
+- **Explainer long images keep the page's style and theme.** A PNG, WebP or JPG export of a dark page, or of the editorial, product or Swiss style, came out in the light clean style, because the page is drawn inside an SVG where its `<html>` is not `:root`. The export now selects the page root by its own attribute.
+
+- **Blank chart data is an error, not zero.** An empty CSV cell, a JSON `null` or a missing field in a charted column no longer becomes a zero bar. Finalize names the column and row instead.
 
 - **Workflow migration semantic contracts (#497).** Layout planning no longer checks full-topology requirements against a temporary graph with routed edges removed. Migrated documents retain their authored contracts and must pass complete validation before publication.
 

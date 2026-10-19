@@ -66,7 +66,9 @@ export async function ensureDependencies(root = moduleRoot) {
     const lock = fs.existsSync(path.join(root, 'package-lock.json'));
     console.error(`Code Analysis: installing ${missing.join(' and ')} into ${path.relative(process.cwd(), root) || '.'} (first run only)…`);
     try {
-      await execute(npm, [lock ? 'ci' : 'install', '--no-audit', '--no-fund', '--prefix', root], { shell: process.platform === 'win32', maxBuffer: 16 * 1024 * 1024 });
+      // Pass the directory as cwd: on Windows npm.cmd needs a shell, and the
+      // shell would split an unquoted --prefix path that contains spaces.
+      await execute(npm, [lock ? 'ci' : 'install', '--no-audit', '--no-fund'], { cwd: root, shell: process.platform === 'win32', maxBuffer: 16 * 1024 * 1024 });
     } catch (error) {
       throw new Error(`Code Analysis needs ${missing.join(' and ')} and could not install them automatically (${error.message.split('\n')[0]}). Run \`npm ci\` in ${root} once, then retry.`);
     }

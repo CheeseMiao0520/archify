@@ -8,7 +8,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { ARCHIFY_AVAILABLE, ARCHIFY_PACKAGE, BAUIFY_ROOT } from './helpers.mjs';
-import { buildOverlay } from '../overlay/inject.mjs';
+import { buildOverlay, scriptSafeJson } from '../overlay/inject.mjs';
 import { analyzeRepository } from '../lib/analysis.mjs';
 import { DiagnosticError } from '../extract/shared/diagnostics.mjs';
 
@@ -157,4 +157,11 @@ test('analysis: the delivered page is read, never rewritten; the analysis page a
   assert.ok(html.includes('id="bauify-analysis"'));
   const clash = path.join(out, 'repo.analysis.html'); fs.copyFileSync(delivered, clash);
   assert.throws(() => analyzeRepository({ root: fixture, ir: irPath, html: clash, out, language: 'py' }), (e) => e instanceof DiagnosticError && e.diagnostics[0].code === 'cli/out-invalid');
+});
+
+test('overlay: embedded JSON stays inside its script element whatever the source text holds', () => {
+  const hostile = { lines: ['const t = "<!--<script>";', '</script><script>alert(1)</script>', 'x\u2028y'] };
+  const json = scriptSafeJson(hostile);
+  assert.ok(!json.includes('<'), 'no raw < reaches the HTML tokenizer');
+  assert.deepEqual(JSON.parse(json), hostile);
 });
