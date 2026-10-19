@@ -41,7 +41,10 @@ export function run({ graph, config, facts }) {
   const skip = new Set(facts.files.filter((f) => excluded.has(f.role)).map((f) => f.path));
   const reaches = (fn, level) => fn.complexity >= limits[level].complexity || fn.nesting >= limits[level].nesting;
   return facts.functions
-    .filter((fn) => !skip.has(fn.file) && reaches(fn, 'info'))
+    // Keep a function that reaches either level: a config may set a warning
+    // threshold below its info threshold, and such a function must still be
+    // reported (at the warning level) rather than dropped by the info filter.
+    .filter((fn) => !skip.has(fn.file) && (reaches(fn, 'info') || reaches(fn, 'warning')))
     .sort((a, b) => b.complexity - a.complexity || b.nesting - a.nesting || compareText(a.file, b.file) || a.line - b.line)
     .map((fn) => {
       const level = reaches(fn, 'warning') ? 'warning' : 'info';
@@ -56,7 +59,7 @@ export function run({ graph, config, facts }) {
         subject: { file: fn.file, function: fn.qualname, line: fn.line, endLine: fn.endLine },
         evidence: {
           threshold: limits[level],
-          // Both levels: the finding goes away only below the info level, whatever level it was reported at.
+          // Both levels: the finding goes away only below both levels, whatever level it was reported at.
           thresholds: limits,
           complexity: fn.complexity,
           nesting: fn.nesting,

@@ -9,7 +9,7 @@ import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { buildTask, buildTaskPayloads, renderTaskMarkdown, withExcerpt, splitLines, EXCERPT } from '../lib/task.mjs';
-import { verifyTask, readInside } from '../lib/evidence.mjs';
+import { verifyTask, readInside, decodeSource } from '../lib/evidence.mjs';
 import { DiagnosticError } from '../extract/shared/diagnostics.mjs';
 import { schemaErrors } from '../extract/shared/schema.mjs';
 import { analyzeFixture, copySource, generateTaskFixtures } from './task-fixtures.mjs';
@@ -284,4 +284,14 @@ test('task: a warning-level complexity task is done only below the info threshol
   assert.equal(d.severity, 'warning');
   const task = buildTask({ findings, facts, ids: [d.id] });
   assert.match(task.acceptance[0], /complexity < 15 and nesting < 5/, 'the info level, not the warning level 18');
+});
+
+test('evidence: Python latin-1 aliases decode as ISO-8859-1, not windows-1252', () => {
+  for (const label of ['latin-1', 'latin_1', 'iso-8859-1', 'l1', 'latin1', 'latin-1-unix']) {
+    const bytes = Buffer.concat([Buffer.from(`# -*- coding: ${label} -*-\nx = "`), Buffer.from([0x80, 0x9f, 0xe9]), Buffer.from('"\n')]);
+    const text = decodeSource(bytes, 'mod.py');
+    assert.deepEqual([...text.split('\n')[1]].slice(5, 8).map((c) => c.charCodeAt(0)), [0x80, 0x9f, 0xe9], label);
+  }
+  const cp1252 = decodeSource(Buffer.concat([Buffer.from('# coding: cp1252\nx = "'), Buffer.from([0x80]), Buffer.from('"\n')]), 'mod.py');
+  assert.equal(cp1252.split('\n')[1], 'x = "\u20ac"', 'cp1252 keeps its euro sign');
 });

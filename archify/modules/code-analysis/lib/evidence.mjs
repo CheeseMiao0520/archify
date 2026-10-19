@@ -50,7 +50,26 @@ export function readInside(root, rel) {
 // coding declaration in their first two lines (tokenize.detect_encoding);
 // everything else is read as UTF-8. An encoding Node cannot decode falls back
 // to UTF-8, which at worst reports the evidence as changed, never as valid.
-const PYTHON_CODECS = { latin_1: 'latin1', 'latin-1': 'latin1', iso_8859_1: 'iso-8859-1', l1: 'latin1', cp1252: 'windows-1252', 'windows-1252': 'windows-1252', utf_8: 'utf-8', utf8: 'utf-8', 'utf-8': 'utf-8', 'utf-8-sig': 'utf-8' };
+const PYTHON_CODECS = { utf_8: 'utf-8', utf8: 'utf-8', 'utf-8': 'utf-8', 'utf-8-sig': 'utf-8' };
+// cp1252 is decoded from a fixed table: TextDecoder('windows-1252') differs
+// between Node builds (some return the raw byte for 0x80-0x9f). Bytes Python's
+// cp1252 leaves undefined become U+FFFD.
+const CP1252_HIGH = [0x20ac, 0xfffd, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6, 0x2030, 0x0160, 0x2039, 0x0152, 0xfffd, 0x017d, 0xfffd, 0xfffd, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014, 0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0xfffd, 0x017e, 0x0178];
+const CP1252_ALIASES = new Set(['cp1252', 'windows_1252', '1252']);
+function decodeCp1252(buffer) {
+  let out = '';
+  for (const byte of buffer) out += String.fromCharCode(byte >= 0x80 && byte < 0xa0 ? CP1252_HIGH[byte - 0x80] : byte);
+  return out;
+}
+// Python's latin_1 codec and its aliases are true ISO-8859-1 (byte n is code
+// point n). WHATWG TextDecoder maps every latin-1 label to windows-1252, which
+// differs for 0x80-0x9f, so these decode byte for byte instead.
+const LATIN1_ALIASES = new Set(['latin_1', 'latin1', 'latin', 'l1', 'iso_8859_1', 'iso8859_1', '8859', 'cp819', 'iso_latin_1', 'iso_ir_100', 'csisolatin1']);
+function isLatin1(declared) {
+  const name = declared.replace(/[-\s.]/g, '_');
+  // tokenize.get_normal_name also maps prefixed forms such as latin-1-unix.
+  return LATIN1_ALIASES.has(name) || /^(latin_1|iso_8859_1|iso_latin_1)_/.test(name);
+}
 
 export function decodeSource(buffer, rel) {
   if (!/\.pyi?$/i.test(rel) || (buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf)) return buffer.toString('utf8');
@@ -62,6 +81,8 @@ export function decodeSource(buffer, rel) {
     if (!/^[ \t\f]*(#.*)?$/.test(line)) break; // only a blank or comment first line lets the second declare it
   }
   if (!declared) return buffer.toString('utf8');
+  if (isLatin1(declared)) return buffer.toString('latin1');
+  if (CP1252_ALIASES.has(declared.replace(/[-\s.]/g, '_'))) return decodeCp1252(buffer);
   const label = PYTHON_CODECS[declared] || PYTHON_CODECS[declared.replace(/-/g, '_')] || declared.replace(/_/g, '-');
   try { return new TextDecoder(label).decode(buffer); } catch { return buffer.toString('utf8'); }
 }

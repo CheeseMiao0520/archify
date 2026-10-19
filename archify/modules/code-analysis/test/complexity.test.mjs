@@ -112,6 +112,13 @@ test('complexity: thresholds come from the config, level by level', () => {
   assert.deepEqual(d.evidence.threshold, { complexity: 15, nesting: 5 }, 'unconfigured values keep their defaults');
 });
 
+test('complexity: a warning threshold set below the info threshold still reports the function', () => {
+  const config = { rules: { complexity: { function: { info: { complexity: 30, nesting: 9 }, warning: { complexity: 20, nesting: 9 } } } } };
+  const found = evaluate(graph, config, factsOf([fn('a.py', 'mid', 22, 1), fn('a.py', 'low', 10, 1)])).diagnostics.filter((d) => d.code === 'complexity/function');
+  assert.deepEqual(found.map((d) => [d.subject.function, d.severity]), [['mid', 'warning']], 'reaching only the warning level is reported, not dropped');
+  assert.match(found[0].message, /cyclomatic complexity 22/);
+});
+
 test('complexity: not run, and not listed as checked, when functions were not measured', () => {
   const facts = factsOf([fn('a.ts', 'x', 50, 9)]);
   delete facts.functions;

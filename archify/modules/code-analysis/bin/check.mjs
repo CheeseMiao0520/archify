@@ -16,7 +16,8 @@ export const USAGE = `Usage:
 Analyzes <repo-root> without a diagram and exits 1 when an open finding reaches
 --fail-on (default: warning). Findings accepted in --baseline do not fail the run
 unless their evidence changed since they were accepted. --new-only fails only on
-findings that are new since --compare (or since the previous run in --out).
+findings that are new since --compare (or since the previous run in --out);
+without a previous run to compare with, every open finding counts as new.
 --update-baseline writes every current finding to --baseline (keeping existing
 reasons; new entries get --reason) and exits 0.
 Exit codes: 0 passed, 1 gate failed, 2 analysis or usage error.
@@ -87,7 +88,9 @@ export async function runCheck(argv) {
   const newOnly = Boolean(options['--new-only']);
   const failing = failOn === 'never' ? [] : findings.diagnostics.filter((d) => SEVERITY[d.severity] <= SEVERITY[failOn]
     && isOpen(review, d.id)
-    && (!newOnly || review.findings[d.id]?.since === 'new'));
+    // Without a comparison nothing can be shown to be old, so every open
+    // finding counts as new: a missing artifact must not pass the gate.
+    && (!newOnly || !review.comparison || review.findings[d.id]?.since === 'new'));
   const status = failing.length ? 'failed' : 'ok';
   return {
     exitCode: failing.length ? 1 : 0,
@@ -95,7 +98,7 @@ export async function runCheck(argv) {
       command: 'check', root, out,
       language: facts.repository.language, files: facts.files.length, rules: findings.rules,
       verdict: overview.verdict, counts: overview.counts,
-      gate: { failOn, newOnly, ...(newOnly && !review.comparison ? { note: 'no previous run to compare with: no finding counts as new' } : {}), failing: failing.map((d) => ({ id: d.id, code: d.code, severity: d.severity, where: where(d), message: d.message })) },
+      gate: { failOn, newOnly, ...(newOnly && !review.comparison ? { note: 'no previous run to compare with: every open finding counts as new' } : {}), failing: failing.map((d) => ({ id: d.id, code: d.code, severity: d.severity, where: where(d), message: d.message })) },
       review: reviewSummary(review),
       comparisonReasons: review.comparison ? review.comparison.reasons : [],
       staleBaseline: review.baseline ? review.baseline.stale : [],

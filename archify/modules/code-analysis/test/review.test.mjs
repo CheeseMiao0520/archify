@@ -131,6 +131,18 @@ test('check: exit codes follow the gate, the baseline and the comparison', () =>
   }
 });
 
+test('check: --new-only without a previous run treats every open finding as new', () => {
+  const dir = pyTree();
+  try {
+    const cold = check(['.', '--language', 'py', '--new-only', '--json'], dir);
+    assert.equal(cold.code, 1, 'a missing comparison artifact must not pass the gate');
+    assert.equal(cold.json.gate.failing[0].code, 'coupling/import-cycle');
+    assert.match(cold.json.gate.note, /every open finding counts as new/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('check: usage and analysis errors exit 2 with a diagnostic, never a stack', () => {
   const dir = pyTree();
   try {

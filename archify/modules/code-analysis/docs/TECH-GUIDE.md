@@ -356,7 +356,7 @@ A request with `X-Analysis-Refresh: 1` discards the cached result (unless a run 
 
 `review.json` holds both. The overlay copies each finding's status onto the top-level findings list. The overview keeps accepted findings in its lists and counts them as `counts.accepted`, but excludes them from the severity counts, the verdict, and the priorities. Component indicators and diagram rings are computed from open findings only. An unreadable previous `findings.json` means no comparison, not a failure; an invalid baseline stops the run with `baseline/invalid`.
 
-`bin/check.mjs` runs the same review without a diagram. The gate counts open findings at or above `--fail-on`; `accepted-changed` counts as open. With `--new-only`, only findings new since the comparison count. Exit codes are 0 (passed), 1 (gate failed), and 2 (diagnostic). `--update-baseline` writes `baselineFrom(findings)`: existing reasons are kept, new findings get `--reason`, and gone entries are dropped.
+`bin/check.mjs` runs the same review without a diagram. The gate counts open findings at or above `--fail-on`; `accepted-changed` counts as open. With `--new-only`, only findings new since the comparison count; with no comparison available, every open finding counts as new. Exit codes are 0 (passed), 1 (gate failed), and 2 (diagnostic). `--update-baseline` writes `baselineFrom(findings)`: existing reasons are kept, new findings get `--reason`, and gone entries are dropped.
 
 ### Handing over to the layer
 
