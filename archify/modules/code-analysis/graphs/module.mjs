@@ -4,15 +4,17 @@
 // Files whose role is listed in `modules.excludeRoles` (default test, generated)
 // are dropped from the graph but counted, so the omission stays visible.
 import { matcher } from '../extract/shared/glob.mjs';
+import { PACKAGE_MARKERS } from '../extract/shared/files.mjs';
 import { createHash } from 'node:crypto';
 
-const PACKAGE_MARKERS = ['package.json', 'pyproject.toml', '__init__.py'];
 
 export function buildModuleGraph(facts, config = {}) {
   const options = { depth: 2, excludeRoles: ['test', 'generated'], groups: {}, packageBoundaries: true, ...(config.modules || {}) };
   const excluded = new Set(options.excludeRoles);
   const groupMatchers = Object.entries(options.groups).map(([id, globs]) => [id, matcher(Array.isArray(globs) ? globs : [globs])]);
-  const packageDirs = options.packageBoundaries ? collectPackageDirs(facts.files) : [];
+  // Adapters list only parsed sources in `files`; marker files such as
+  // package.json and pyproject.toml arrive separately in `packageMarkers`.
+  const packageDirs = options.packageBoundaries ? collectPackageDirs([...facts.files.map((f) => f.path), ...(facts.packageMarkers || [])]) : [];
 
   const fileModule = new Map();
   const modules = new Map();
@@ -84,11 +86,11 @@ export function buildModuleGraph(facts, config = {}) {
   };
 }
 
-function collectPackageDirs(files) {
+function collectPackageDirs(paths) {
   const dirs = new Set();
-  for (const f of files) {
-    const base = f.path.slice(f.path.lastIndexOf('/') + 1);
-    if (PACKAGE_MARKERS.includes(base)) dirs.add(f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/')) : '');
+  for (const p of paths) {
+    const base = p.slice(p.lastIndexOf('/') + 1);
+    if (PACKAGE_MARKERS.includes(base)) dirs.add(p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
   }
   // Deeper package dirs first so the most specific boundary wins.
   return [...dirs].sort((a, b) => b.split('/').length - a.split('/').length || compareText(a, b));

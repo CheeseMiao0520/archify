@@ -171,3 +171,103 @@ test('source snapshots reject a file swapped between path validation and descrip
   try { assert.throws(() => snapshotFiles(root, config), error => error.diagnostics?.[0].code === 'extract/source-changed'); }
   finally { fs.openSync = original; }
 });
+
+test('package.json and pyproject.toml set module boundaries even though adapters only list sources', async t => {
+  const { extract: extractTs } = await import('../extract/ts/index.mjs');
+  const { buildModuleGraph } = await import('../graphs/module.mjs');
+  const ts = fixture(t, {
+    'packages/app/package.json': '{"name":"app"}',
+    'packages/app/src/core/a.mjs': "import '../util/b.mjs';\n",
+    'packages/app/src/util/b.mjs': 'export const b = 1;\n',
+    'packages/lib/package.json': '{"name":"lib"}',
+    'packages/lib/src/c.mjs': 'export const c = 1;\n',
+    'dist/package.json': '{"name":"built"}',
+  });
+  const tsFacts = extractTs(ts, config);
+  assert.deepEqual(tsFacts.packageMarkers, ['packages/app/package.json', 'packages/lib/package.json']);
+  const tsGraph = buildModuleGraph(tsFacts, { modules: { depth: 3 } });
+  assert.deepEqual(tsGraph.modules.map(m => m.label).sort(), ['packages/app', 'packages/lib']);
+
+  const py = fixture(t, {
+    'svc/pyproject.toml': '[project]\nname = "svc"\n',
+    'svc/handlers/http.py': 'from svc.core import run\n',
+    'svc/core/run.py': 'def run(): pass\n',
+  });
+  const pyFacts = extract(py, config);
+  assert.deepEqual(pyFacts.packageMarkers, ['svc/pyproject.toml']);
+  assert.deepEqual(buildModuleGraph(pyFacts, { modules: { depth: 3 } }).modules.map(m => m.label), ['svc']);
+  assert.deepEqual(buildModuleGraph({ ...pyFacts, packageMarkers: undefined }, { modules: { depth: 3 } }).modules.map(m => m.label).sort(), ['svc/core', 'svc/handlers']);
+});
+
+test('an install lock left by an exited process is reclaimed; a live owner is waited for', async t => {
+  const root = fixture(t);
+  const lock = path.join(fs.realpathSync(root), '.code-analysis-install.lock');
+  const child = spawn(process.execPath, ['-e', '0']);
+  await new Promise(resolve => child.on('exit', resolve));
+  fs.mkdirSync(lock);
+  fs.writeFileSync(path.join(lock, 'owner.json'), JSON.stringify({ pid: child.pid, host: `${process.platform}:${os.hostname()}` }));
+  assert.equal(await withInstallLock(root, () => 'ran', 2000), 'ran');
+  assert.equal(fs.existsSync(lock), false);
+
+  fs.mkdirSync(lock);
+  fs.writeFileSync(path.join(lock, 'owner.json'), JSON.stringify({ pid: process.pid, host: `${process.platform}:${os.hostname()}` }));
+  await assert.rejects(withInstallLock(root, () => 'stolen', 300), /Timed out waiting/);
+  assert.equal(fs.existsSync(lock), true, 'a live owner keeps its lock');
+  fs.rmSync(lock, { recursive: true });
+});
+
+test('processes that find the same stale lock reclaim it once and never run the operation together', async t => {
+  const root = fixture(t);
+  const lock = path.join(fs.realpathSync(root), '.code-analysis-install.lock');
+  const dead = spawn(process.execPath, ['-e', '0']);
+  await new Promise(resolve => dead.on('exit', resolve));
+  fs.mkdirSync(lock);
+  fs.writeFileSync(path.join(lock, 'owner.json'), JSON.stringify({ pid: dead.pid, host: `${process.platform}:${os.hostname()}` }));
+  const module = new URL('../lib/install-lock.mjs', import.meta.url).href;
+  const script = `import fs from 'node:fs'; import { setTimeout } from 'node:timers/promises'; import { withInstallLock } from ${JSON.stringify(module)};
+    const root = process.argv[1]; await withInstallLock(root, async () => {
+      if (fs.existsSync(root + '/inside')) fs.appendFileSync(root + '/overlap', 'x');
+      fs.writeFileSync(root + '/inside', ''); fs.appendFileSync(root + '/runs', 'run\\n');
+      await setTimeout(80); fs.rmSync(root + '/inside');
+    }, 10000);`;
+  const run = () => new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ['--input-type=module', '-e', script, root]);
+    let error = ''; child.stderr.on('data', data => { error += data; });
+    child.on('error', reject); child.on('exit', code => code === 0 ? resolve() : reject(new Error(error)));
+  });
+  await Promise.all(Array.from({ length: 6 }, run));
+  assert.equal(fs.readFileSync(path.join(root, 'runs'), 'utf8'), 'run\n'.repeat(6));
+  assert.equal(fs.existsSync(path.join(root, 'overlap')), false, 'no two holders ran at once');
+  assert.equal(fs.existsSync(lock), false);
+  assert.equal(fs.existsSync(`${lock}.reclaim`), false);
+});
+
+test('package markers come from the source snapshot, not from a later walk of the tree', t => {
+  const root = fixture(t, { 'svc/pyproject.toml': '[project]\n', 'svc/a/x.py': 'import os\n', 'build/pyproject.toml': '', 'other/sub/notes.txt': '' });
+  assert.deepEqual(extract(root, config).packageMarkers, ['svc/pyproject.toml'], 'excluded build/ stays out');
+  // A marker created after the sources were captured belongs to a later tree
+  // state; it must not change the grouping of the captured bytes.
+  const original = fs.readFileSync;
+  let created = false;
+  fs.readFileSync = function (file, ...args) {
+    const out = original.call(this, file, ...args);
+    if (!created && typeof file === 'number') { created = true; fs.writeFileSync(path.join(root, 'other/sub/pyproject.toml'), ''); }
+    return out;
+  };
+  try { assert.deepEqual(extract(root, config).packageMarkers, ['svc/pyproject.toml']); }
+  finally { fs.readFileSync = original; }
+});
+
+test('TypeScript package markers come from the frozen inventory', async t => {
+  const { extract: extractTs } = await import('../extract/ts/index.mjs');
+  const ts = (await import('typescript')).default;
+  const root = fixture(t, { 'app/package.json': '{}', 'app/src/a.mjs': 'export {};\n', 'other/sub/notes.txt': '' });
+  const descriptor = Object.getOwnPropertyDescriptor(ts.sys, 'useCaseSensitiveFileNames');
+  let ran = false;
+  Object.defineProperty(ts.sys, 'useCaseSensitiveFileNames', { configurable: true, get() {
+    if (!ran) { ran = true; fs.writeFileSync(path.join(root, 'other/sub/package.json'), '{}'); }
+    return descriptor.value;
+  } });
+  try { assert.deepEqual(extractTs(root, config).packageMarkers, ['app/package.json']); assert.ok(ran); }
+  finally { Object.defineProperty(ts.sys, 'useCaseSensitiveFileNames', descriptor); }
+});

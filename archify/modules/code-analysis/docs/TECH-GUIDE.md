@@ -202,7 +202,7 @@ Every file is tagged `source` / `test` / `generated`. The rules are globs, with 
 
 ### From a file graph to a module graph
 
-Edges in raw-facts go from file to file. `graphs/module.mjs` maps every file to a module (by configured groups, package boundary, or directory depth; root-level files become modules of their own) and **merges** file edges into module edges: several file edges between the same pair of modules become one, `weight` is the count, `kinds` counts static versus dynamic, and `evidence` keeps up to five file:line entries.
+Edges in raw-facts go from file to file. `graphs/module.mjs` maps every file to a module (by configured groups, package boundary, or directory depth; root-level files become modules of their own). Package boundaries come from marker files — `package.json`, `pyproject.toml`, `__init__.py` — which the extractors record in `packageMarkers` because they are not parsed sources and so never appear in `files`. The graph then **merges** file edges into module edges: several file edges between the same pair of modules become one, `weight` is the count, `kinds` counts static versus dynamic, and `evidence` keeps up to five file:line entries.
 
 Deduplicating with a `Map` is the idiomatic JS pattern:
 
@@ -287,7 +287,7 @@ For each component the indicators are computed on the Node side from the finding
 
 ### Diagrams and source excerpts
 
-The second panel's diagrams are plain SVG strings built in the page: the cycle ring places the files of the shortest cycle on an ellipse and draws clipped arrows between them (dashed when the closing import is lazy); the hub star puts dependents on the left and dependencies on the right; instability is two bars and a marker on a 0–1 scale. `collectSnippets` reads every file a finding cites from the analyzed tree and embeds its full text, so the third panel can show the cited line inside the whole file.
+The second panel's diagrams are plain SVG strings built in the page: the cycle ring places the files of the shortest cycle on an ellipse and draws clipped arrows between them (dashed when the closing import is lazy); the hub star puts dependents on the left and dependencies on the right; instability is two bars and a marker on a 0–1 scale. `collectSnippets` embeds the full text of every file a finding cites, taken from the extraction snapshot (`facts.files[].sourceText`) rather than re-read from the working tree, so the third panel shows the cited line inside exactly the bytes that were analyzed.
 
 ### Where it bites
 

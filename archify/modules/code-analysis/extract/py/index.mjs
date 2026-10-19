@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fail } from '../shared/diagnostics.mjs';
-import { classifyRole, listFiles, snapshotFiles } from '../shared/files.mjs';
+import { classifyRole, listFiles, snapshotSources } from '../shared/files.mjs';
 import { describeRepository } from '../shared/git.mjs';
 
 export const id = 'py';
@@ -49,7 +49,7 @@ export function runPython(request, candidates = CANDIDATES, spawn = spawnSync) {
 
 export function extract(root, config) {
   const absRoot = path.resolve(root);
-  const snapshot = snapshotFiles(absRoot, config, f => PY_EXT.test(f));
+  const { contents: snapshot, packageMarkers } = snapshotSources(absRoot, config, f => PY_EXT.test(f));
   const files = [...snapshot.keys()];
   const fileSet = new Set(files);
   const { command, output } = runPython({ files, sources: Object.fromEntries([...snapshot].map(([rel, bytes]) => [rel, bytes.toString('base64')])) });
@@ -93,6 +93,7 @@ export function extract(root, config) {
     schema_version: 1,
     repository: { ...repo, language: 'py', adapter: `python@${output.python}` },
     files: fileRecords,
+    packageMarkers,
     imports,
     symbols: symbols.sort((a, b) => compareText(a.file, b.file) || a.line - b.line || compareText(a.name, b.name)),
     calls: [],

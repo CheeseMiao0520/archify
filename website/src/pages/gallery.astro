@@ -59,6 +59,38 @@ const { lang = 'en' } = Astro.props;
           {cards.map((entry, index) => <GalleryCard entry={entry} index={index} />)}
         </div>
         <div class="empty-state" id="empty-state" data-en="No proof cards match this filter." data-zh="当前筛选条件下没有成品。">No proof cards match this filter.</div>
+        <div class="life-section" id="pages">
+          <div class="section-intro">
+            <h2 data-en="One-page answers. Same proof." data-zh="一页式解答，同样经过校验。">One-page answers. Same proof.</h2>
+            <p data-en="Each page passed finalize: its diagrams are validated native artifacts, its repository excerpts are read from a pinned commit, and the Markdown draft sits beside it. Each is shown in a different style; every page offers all four." data-zh="每一页都通过了 finalize：里面的图是经过校验的原生成品，仓库代码从固定的提交读取，Markdown 草稿就放在旁边。四页各用一种样式展示，每页都能切换全部四种。">Each page passed finalize: its diagrams are validated native artifacts, its repository excerpts are read from a pinned commit, and the Markdown draft sits beside it. Each is shown in a different style; every page offers all four.</p>
+          </div>
+          <div class="life-grid">
+            <article class="life-card">
+              <a class="life-plate page-plate" href="cases/explainer/p99-tail-latency.html" target="_blank" rel="noopener" aria-labelledby="page-q-p99"><img src="assets/explainer/p99-tail-latency.webp" alt="" loading="lazy" decoding="async" width="640" height="882"></a>
+              <div class="life-meta"><span class="life-lang">中文</span><span class="life-kind" data-en="Clean · light" data-zh="简洁 · 浅色">Clean · light</span></div>
+              <h3 class="life-q" id="page-q-p99" data-en="Why did P99 jump while the mean stayed flat?" data-zh="P99 暴涨、平均值不动，是什么原因？">Why did P99 jump while the mean stayed flat?</h3>
+              <div class="life-links"><a class="card-link primary" href="cases/explainer/p99-tail-latency.html" target="_blank" rel="noopener" data-en="Open page" data-zh="打开页面">Open page</a><a class="card-link" href="cases/explainer/p99-tail-latency.archify.md" target="_blank" rel="noopener" data-en="Draft" data-zh="草稿">Draft</a></div>
+            </article>
+            <article class="life-card">
+              <a class="life-plate page-plate" href="cases/explainer/tls-first-visit.html" target="_blank" rel="noopener" aria-labelledby="page-q-tls"><img src="assets/explainer/tls-first-visit.webp" alt="" loading="lazy" decoding="async" width="640" height="1124"></a>
+              <div class="life-meta"><span class="life-lang">EN</span><span class="life-kind" data-en="Editorial · dark" data-zh="杂志 · 深色">Editorial · dark</span></div>
+              <h3 class="life-q" id="page-q-tls" data-en="What crosses the wire before the first request?" data-zh="第一次打开 HTTPS 网站，发出请求前发生了什么？">What crosses the wire before the first request?</h3>
+              <div class="life-links"><a class="card-link primary" href="cases/explainer/tls-first-visit.html" target="_blank" rel="noopener" data-en="Open page" data-zh="打开页面">Open page</a><a class="card-link" href="cases/explainer/tls-first-visit.archify.md" target="_blank" rel="noopener" data-en="Draft" data-zh="草稿">Draft</a></div>
+            </article>
+            <article class="life-card">
+              <a class="life-plate page-plate" href="cases/explainer/finalize-delivery.html" target="_blank" rel="noopener" aria-labelledby="page-q-repo"><img src="assets/explainer/finalize-delivery.webp" alt="" loading="lazy" decoding="async" width="640" height="1152"></a>
+              <div class="life-meta"><span class="life-lang">中文</span><span class="life-kind" data-en="Product · light" data-zh="产品 · 浅色">Product · light</span></div>
+              <h3 class="life-q" id="page-q-repo" data-en="How does finalize keep the last good file? Read from the repo." data-zh="读仓库：finalize 失败时怎么保住旧产物？">How does finalize keep the last good file? Read from the repo.</h3>
+              <div class="life-links"><a class="card-link primary" href="cases/explainer/finalize-delivery.html" target="_blank" rel="noopener" data-en="Open page" data-zh="打开页面">Open page</a><a class="card-link" href="cases/explainer/finalize-delivery.archify.md" target="_blank" rel="noopener" data-en="Draft" data-zh="草稿">Draft</a></div>
+            </article>
+            <article class="life-card">
+              <a class="life-plate page-plate" href="cases/explainer/first-rental.html" target="_blank" rel="noopener" aria-labelledby="page-q-rent"><img src="assets/explainer/first-rental.webp" alt="" loading="lazy" decoding="async" width="640" height="912"></a>
+              <div class="life-meta"><span class="life-lang">中文</span><span class="life-kind" data-en="Swiss · light" data-zh="网格 · 浅色">Swiss · light</span></div>
+              <h3 class="life-q" id="page-q-rent" data-en="What should I confirm before signing a lease?" data-zh="第一次租房，签合同前要确认什么？">What should I confirm before signing a lease?</h3>
+              <div class="life-links"><a class="card-link primary" href="cases/explainer/first-rental.html" target="_blank" rel="noopener" data-en="Open page" data-zh="打开页面">Open page</a><a class="card-link" href="cases/explainer/first-rental.archify.md" target="_blank" rel="noopener" data-en="Draft" data-zh="草稿">Draft</a></div>
+            </article>
+          </div>
+        </div>
         <div class="life-section">
           <div class="section-intro">
             <h2 data-en="Beyond code. Same proof." data-zh="不只是代码，同样经过校验。">Beyond code. Same proof.</h2>

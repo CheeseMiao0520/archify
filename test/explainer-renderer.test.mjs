@@ -200,3 +200,32 @@ test('literal snippets render as copyable code and table corners keep their head
   assert.match(text(all(block,node=>attr(node,'class')==='snippet-label')[0]),/Run tests/);
   assert.equal(text(all(find(tree,'comparison'),node=>node.nodeName==='th')[0]),'Criterion');
 });
+
+test('renderer: shared pages omit disposable native checker filenames but retain evidence',()=>{
+  const prepared=resources();
+  const check={ok:true,file:'/private/build-user/scratch/diagram.html',artifact:{sha256:diagram.sha256},composition:{profile:'standard'}};
+  prepared.preparedDiagrams.diagrams['native-diagram']={...diagram,checks:{check}};
+  const tree=parse(renderExplainer(fixture(),{...prepared,sourcePath:'/published/draft.json',pageDirectory:'/published'}));
+  const frozen=payload(tree,'archify-explainer-prepared'),manifest=JSON.parse(text(find(tree,'explainer-manifest')));
+  for(const saved of [frozen.preparedDiagrams.diagrams['native-diagram'].checks.check,manifest.children['native-diagram'].checks.check]){
+    assert.equal('file' in saved,false);assert.equal(saved.ok,true);assert.deepEqual(saved.artifact,check.artifact);assert.deepEqual(saved.composition,check.composition);
+  }
+  assert.equal(prepared.preparedDiagrams.diagrams['native-diagram'].checks.check.file,check.file);
+});
+
+
+test('renderer: manifest warnings use the same portable locations as the prepared bundle',()=>{
+  const diagnostics=[{code:'writing/test',severity:'warning',subject:{input:'/author/draft.md',output:'/published/page.html'}}];
+  const tree=parse(renderExplainer(fixture(),{...resources(),diagnostics,sourcePath:'/author/draft.md',pageDirectory:'/published'}));
+  const frozen=payload(tree,'archify-explainer-prepared'),manifest=JSON.parse(text(find(tree,'explainer-manifest')));
+  assert.deepEqual(manifest.diagnostics,frozen.diagnostics);assert.equal(manifest.diagnostics[0].subject.input.replaceAll('\\','/'),'../author/draft.md');
+});
+
+test('renderer: Windows cross-volume source locations are omitted instead of exposed',()=>{
+  const diagnostics=[{code:'writing/test',severity:'warning',subject:{input:'D:\\author\\draft.md'}}];
+  const document=fixture(),sourceText=JSON.stringify(document),prepared=resources();
+  const preparedBundle={...prepared,document,sourceText,diagnostics,sourcePath:'D:\\author\\draft.md',baseDir:'D:\\author',dependencies:[{kind:'image',id:'image',path:'D:\\author\\example.png'}]};
+  const tree=parse(renderExplainer(document,{...prepared,sourceText,preparedBundle,diagnostics,pageDirectory:'C:\\published'}));
+  const frozen=payload(tree,'archify-explainer-prepared'),manifest=JSON.parse(text(find(tree,'explainer-manifest')));
+  assert.equal(frozen.sourcePath,null);assert.equal(frozen.baseDir,null);assert.equal(frozen.dependencies[0].path,null);assert.equal(manifest.diagnostics[0].subject.input,null);
+});
