@@ -426,6 +426,11 @@ test('README preserves the visual proof set and key content', () => {
     'archify-sequence.png',
     'archify-dataflow.png',
     'archify-lifecycle.png',
+    'archify-erd.png',
+    'archify-class.png',
+    'archify-tree.png',
+    'archify-timeline.png',
+    'archify-waterfall.png',
   ];
 
   for (const { file: filename, noRepository } of readmeLanguages) {

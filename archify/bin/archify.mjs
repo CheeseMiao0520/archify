@@ -2202,7 +2202,7 @@ const COMMAND_USAGE = {
   deliver: '<type> <input.json> [output.html] [--json] [--open] [--quality standard|showcase] [--repo-root path]',
   patch: 'explainer <artifact.html> <panel-id> <replacement-file> <output.html> [--json] [--quality standard|showcase] [--repo-root path]',
   finalize: '<type> <input.json> <output.html> [--json] [--browser-check] [--receipt path] [--out-dir <dir>] [--quality standard|showcase] [--repo-root path] [--candidate-sha256 hex]',
-  preview: '<type> <input.json> [output.html] [--no-open] [--quality standard|showcase] [--repo-root path]',
+  preview: '<diagram-type (excludes explainer)> <input.json> [output.html] [--no-open] [--quality standard|showcase] [--repo-root path]',
   validate: '<type> <input.json> [--json] [--layout-json] [--quality standard|showcase] [--repo-root path]',
   migrate: 'workflow <old.json> <new.json> --to-schema 2 [--output portable.html] [--json] [--repo-root path]',
   inspect: '<type> <input.json>',
@@ -5366,6 +5366,7 @@ async function commandPreview(args) {
   const positional = repoArgs.rest.filter((arg) => !knownOptions.has(arg));
   const [type, input, output] = positional;
   if (!type || !input || positional.length > 3) fail(usage());
+  if (type === 'explainer') fail('Live preview supports the ten diagram types only. For explainer, run finalize explainer <draft.md> <output.html>, then open the HTML in your browser.');
   rendererPath(type);
 
   try {

@@ -33,7 +33,7 @@
   <a href="https://skills.sh/tt-a1i/archify/archify"><img src="https://img.shields.io/badge/installs-130K%2B-0EA5E9?style=flat-square" alt="130K+ installs on skills.sh" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square" alt="MIT License" /></a>
   <a href="#インストール方法"><img src="https://img.shields.io/badge/works_with-Claude_Code_%7C_Codex_%7C_Cursor_%7C_OpenCode-7C3AED?style=flat-square" alt="Works with Claude Code, Codex, Cursor, and OpenCode" /></a>
-  <a href="CHANGELOG.md#unreleased"><img src="https://img.shields.io/badge/version-3.1.1--dev.1-0891b2?style=flat-square" alt="Development version 3.1.1-dev.1" /></a>
+  <a href="CHANGELOG.md#320--2026-10-18"><img src="https://img.shields.io/badge/version-3.2.0-0891b2?style=flat-square" alt="Stable version 3.2.0" /></a>
 </p>
 
 <p align="center">
@@ -189,7 +189,7 @@ Export メニューから PNG をクリップボードにコピーしたり、�
 
 ## クイックスタート
 
-**現在の開発版:** `v3.1.1-dev.1`。[変更履歴](CHANGELOG.md#unreleased)を参照してください。
+**現在の安定版:** `v3.2.0`。[変更履歴](CHANGELOG.md#320--2026-10-18)を参照してください。
 
 ### 1. インストール
 
