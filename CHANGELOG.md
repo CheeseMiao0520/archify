@@ -4,7 +4,14 @@ All notable changes are documented here. Format loosely follows [Keep a Changelo
 
 ## [Unreleased]
 
-> Development identity: `v3.1.1-dev.1`. Not a stable release.
+> Development identity: `v3.2.1-dev.1`. Not a stable release.
+
+### Fixed
+
+- Viewer toolbar arrow-key and Home/End navigation includes visible Style and Export triggers (#899).
+- Finder and Semantic Lens preserve input-method composition before handling navigation shortcuts (#928).
+
+## [3.2.0] — 2026-10-18
 
 ### Added
 
@@ -31,10 +38,16 @@ All notable changes are documented here. Format loosely follows [Keep a Changelo
 
 - **Workflow migration semantic contracts (#497).** Layout planning no longer checks full-topology requirements against a temporary graph with routed edges removed. Migrated documents retain their authored contracts and must pass complete validation before publication.
 
-- **Timeline 时区刻度（#926）。** 刻度按显示时区在各真实时刻的 UTC 偏移对齐，修复跨夏令时后日刻度漂移到 01:00／23:00、半小时跳变后小时刻度漂移的问题。回拨的重复时刻保持独立，跳过的小时或日期不生成虚构刻度；事件时间、标签精度、时间轴比例与断轴规则保持不变。
+- **Timeline time-zone ticks (#926).** Ticks align with the display time zone’s UTC offset at each actual instant, fixing daily ticks drifting to 01:00/23:00 across daylight-saving transitions and hourly ticks drifting after half-hour offset changes. Repeated times during clock rollbacks remain distinct, and skipped hours or dates do not produce fictitious ticks. Event times, label precision, timeline scaling, and axis-break rules remain unchanged.
 
 ### Changed
-- **发布后的开发基线。** 在已发布的 3.1.0 代码和验证产物基础上开启 3.1.1-dev.1 开发周期，同步开发身份与可重现的示例、比较图和网站产物。稳定更新清单继续指向已发布的 3.1.0；本次不创建发布或更改已发布版本。
+- **Reader controls and node index.** Compact bottom index rows keep descriptions below titles; menu and roving keyboard navigation respect modifier keys.
+- **Update notices.** Available updates include a release summary and an offer to help update. Network failures remain non-blocking.
+- **Website and portability.** The bilingual homepage and gallery introduce one-page answers while retaining guides and source-backed cases. Browser discovery, Windows command paths, source-directory whitespace and temporary-worktree cleanup receive focused fixes.
+
+### Release follow-up
+- The stable update manifest remains on v3.1.0 until the v3.2.0 GitHub Release is published and its ZIP digest is verified.
+- The separately versioned DSH plugin is not republished with this release; maintainers must select a pinned source and complete its host/package acceptance in a separate follow-up.
 
 ## [3.1.0] — 2026-10-14
 
@@ -52,17 +65,17 @@ All notable changes are documented here. Format loosely follows [Keep a Changelo
 - The independently published DSH plugin remains pinned to Archify 3.0.1. Synchronization requires a separate plugin release and host acceptance; the 3.1.0 Skill release does not update it.
 
 ### Added
-- **Traditional Chinese (Taiwan) Viewer catalog.** `meta.locale: "zh-TW"` now selects a bundled catalog covering all 487 Viewer keys with Taiwan terminology (for example 循序圖, 資料流, 匯出, 檢視), instead of falling back to English. Enrollment is data only: `locales/zh-TW.json` plus one manifest entry. `zh-Hant` and `zh-HK` remain distinct, unbundled tags.
+- **Traditional Chinese (Taiwan) Viewer catalog.** `meta.locale: "zh-TW"` now selects a bundled catalog covering all 487 Viewer keys with Taiwan terminology for concepts such as sequence diagrams, data flow, export, and view, instead of falling back to English. Enrollment is data only: `locales/zh-TW.json` plus one manifest entry. `zh-Hant` and `zh-HK` remain distinct, unbundled tags.
 - **GitLab source links.** Repository evidence on gitlab.com, or on a self-managed host declared with `provider: "gitlab"`, now generates revision-pinned web links (`/-/blob/<revision>/<path>#L<a>-<b>`, `/-/tree/<revision>`) instead of requiring `link_mode: "local-only"`. Nested groups are accepted, SSH and HTTPS origins on the same host match, paths compare case-insensitively, and cited Markdown line ranges open the plain view. Verification is unchanged and `local-only` remains available.
 
 ### Fixed
 
-- **ER 图主干桥接隔离（#896）。** 自动总线不再跨越、接触或覆盖无关关系及其他已生成的桥接；检查包含双方实际描边宽度（含显式 `width`），存在冲突时保留分离的主干段，避免校验通过的图看起来多出关系。实体位置、显式途经点、关系基数及正常共享主干保持不变。
+- **ER diagram trunk bridge isolation (#896).** Automatic buses no longer cross, touch, or cover unrelated relationships or other generated bridges. Checks account for the actual stroke widths on both sides, including explicit `width` values. When a conflict exists, trunk segments remain separate so a validated diagram does not appear to contain extra relationships. Entity positions, explicit waypoints, relationship cardinalities, and normal shared trunks remain unchanged.
 
-- **WebM 录制失败清理 (#622)。** 画布、捕获流、编码器启动、逐帧绘制或停止失败时，录制 Promise 现在会拒绝并释放已创建的流、临时 URL、动画帧和定时器；晚到的编码事件不能再将失败录制报告为成功。正常编码与最佳努力的最终片段 flush 行为保持不变。
+- **WebM recording failure cleanup (#622).** If canvas setup, capture-stream creation, encoder startup, frame drawing, or stopping fails, the recording Promise now rejects and releases any streams, temporary URLs, animation frames, and timers already created. Late encoder events can no longer report a failed recording as successful. Normal encoding and best-effort flushing of the final chunk remain unchanged.
 
-- **类图混合关系的主干冲突（#791）。** 自动继承／实现主干会检查组外路线的端口、走廊和交叉；冲突组回退到独立路由，避免依赖箭头被继承三角覆盖或实线覆盖实现虚线。无冲突主干、显式几何及关系语义保持不变；空 `via: []` 与省略路径点统一处理，避免合法输入在回退后产生非法斜线。
-- **SVG 路径检查（#641）。** 统一解析关系线和结构边界的 `M/L/H/V/Q/Z` 路径，正确保留子路径与闭合语义；截断参数、非法数值和不支持的命令现在有限失败并给出定位诊断，避免检查挂起、漏检或虚构跨子路径线段。非共线 `Q` 前后的直线保留真实连续性，避免虚假交叉、标签遮挡和漏检；曲线采样点不会增加微线段预算。普通有效产物的 9 项检查保持不变。
+- **Class diagram trunk conflicts between mixed relationships (#791).** Automatic inheritance/implementation trunks now check ports, corridors, and crossings of routes outside their group. Conflicting groups fall back to independent routing, preventing inheritance triangles from covering dependency arrows or solid lines from covering dashed implementation lines. Conflict-free trunks, explicit geometry, and relationship semantics remain unchanged. Empty `via: []` arrays are handled like omitted waypoints, preventing valid inputs from producing invalid diagonal lines after fallback.
+- **SVG path checks (#641).** Relationship lines and structural boundaries use a common parser for `M/L/H/V/Q/Z` paths that preserves subpath and closure semantics. Incomplete parameters, invalid numbers, and unsupported commands now fail within bounded work and produce diagnostics identifying the location, preventing checks from hanging, missing defects, or inventing segments between subpaths. Straight segments before and after non-collinear `Q` curves retain their actual continuity, avoiding false crossings, false label-occlusion reports, and missed defects. Curve sample points do not increase the micro-segment budget. The 9 checks for ordinary valid artifacts remain unchanged.
 - **Inactive brand icon declarations.** Capture ignores icon markup in comments, raw text (including `noscript` for `text/html`), quoted attributes and templates, so inactive page edits cannot replace the selected image or break its pinned digest. Complete link attributes keep quoted delimiters and distinguish `href` from `data-href`; XHTML `noscript` discovery and links after empty elements are preserved. Old pins to inactive markup may require inspecting and explicitly recapturing the intended icon; digest checking remains enforced.
 - **Brand ICO data bounds (#585).** Capture and pinned re-fetches reject empty, directory-overlapping or out-of-bounds image ranges in ICO directory entries, while preserving valid PNG/DIB payloads and normal icon fallback.
 
@@ -92,7 +105,7 @@ All notable changes are documented here. Format loosely follows [Keep a Changelo
 - **Lifecycle schema v2.** New lifecycle diagrams render one row per lane on a shared `col` 0–4 grid, so a state placed under the state it leaves gets a straight transition. The renderer sizes the canvas, widens column gaps for same-row labels, opens row gaps for the tracks their routes need, and routes automatic transitions with a dedicated orthogonal grid router (parallel reciprocal pairs, crossing-minimized tracks, corridor and outer-loop detours). Row titles move to a vertical left gutter, the implied phase rail is replaced by authored transitions, and state text is one step larger. Schema v1 files keep their exact state geometry.
 - **Lifecycle marks and legend.** Start states get a UML initial marker and states without outgoing transitions a double border, both explained in the legend; decision no longer shares failure's red, and success is green. The lifecycle type sigil moves to the top-left like every other mode.
 - **Whole diagram on the first screen.** With notes below the diagram, the adaptive reader now fits the complete diagram and its controls into the viewport down to the renderer's readable text floor, instead of holding primary labels at 12px and scrolling tall diagrams off a laptop screen; zoom restores detail.
-- **Sequence legend matches the drawing.** The legend sits 12px below all timeline content and may wrap into that room (an auto-sized canvas grows for it; a too-short authored showcase canvas fails with the exact height), lifelines stop above the legend instead of running through it, message labels take their line's legend color (gray lines keep readable muted text), and the legend names the emphasis variant "main request" / "主路径请求" and the default variant "message" / "普通消息".
+- **Sequence legend matches the drawing.** The legend sits 12px below all timeline content and may wrap into that room (an auto-sized canvas grows for it; a too-short authored showcase canvas fails with the exact height), lifelines stop above the legend instead of running through it, message labels take their line's legend color (gray lines keep readable muted text), and the legend names the emphasis variant "main request" and the default variant "message", with corresponding Simplified Chinese labels.
 - **Readable source badges.** The Viewer's source badge is larger, fully opaque, sized to its text, and placed left of the brand mark; lifecycle, workflow, and data-flow label layout now reserve its width, so it no longer covers sigils or labels.
 - Showcase sequence message names use larger primary type and matching label plates; real browser readability checks now include message labels.
 - **Clearer Architecture layouts.** Authoring defaults now classify each relationship (main path, branch or store, return, second entrance, fan-out) before placement, with a measured side length for fan-out ports. A passing `finalize` receipt with crossings adds node-move `hints`, backed by new `routeReview` evidence (`sharedNode` on crossings, `crowdedSides` when a side faces more neighbours than it has ports); the Skill allows one bounded, position-only repair for crossings. Automatic routing steps fan-out siblings into free parallel channels and reaches a blocked row of neighbours through one vertical side instead of wrapping around it.
@@ -122,10 +135,10 @@ All notable changes are documented here. Format loosely follows [Keep a Changelo
 ### Fixed
 - **Architecture Delta baseline arrowheads (#433).** Removed and rerouted baseline relationships retain their marker definitions in the composed Delta SVG, preserving their authored direction alongside current relationships.
 - **Compare rollback recovery (#438).** If restoring a previous output fails, compare preserves its recovery directory and reports backup-to-target paths instead of deleting the remaining backups during cleanup.
-- **固定提交的来源校验 (#420)。** 校验忽略本地 Git replacement refs，始终读取指定提交的原始对象，避免替换后的文件或行范围造成误接受或误拒绝；保留原有来源链接、诊断与用户 Git 配置。
-- **导出的独立 SVG 声明 UTF-8 编码。** 架构图「下载 SVG」和架构对比（compare）导出的 SVG 文档现在以 `<?xml version="1.0" encoding="UTF-8"?>` 声明开头；缺少声明时，部分消费方不按 XML 规范默认 UTF-8 而猜测编码，导致中文等非 ASCII 文本乱码。
+- **Pinned-commit source verification (#420).** Verification ignores local Git replacement refs and always reads the specified commit’s original objects, preventing replaced files or line ranges from causing false acceptance or rejection. Existing source links, diagnostics, and the user’s Git configuration are preserved.
+- **Exported standalone SVGs declare UTF-8 encoding.** SVG documents exported through Architecture’s "Download SVG" action or architecture comparison (compare) now begin with `<?xml version="1.0" encoding="UTF-8"?>`. Without this declaration, some consumers guess the encoding instead of defaulting to UTF-8 as required by XML, garbling Chinese and other non-ASCII text.
 - **Architecture Delta provenance visibility.** Repository revision, provider, link-mode, and location-representation changes now produce a separate redacted provenance receipt and visible Delta notice instead of an empty authored-change claim. Provenance-only comparisons keep graph counts at zero, leave Review disabled, avoid false SVG change states, and carry the same truthful distinction into Share Cards.
-- **Compare 输入快照一致性 (#400)。** 原始输入校验使用首次读取的字节快照，使其与回执哈希和差异计算保持一致；读取后原文件发生变化不会影响本次比较，非法原始字段仍会被拒绝。
+- **Compare input snapshot consistency (#400).** Raw-input validation uses the byte snapshot from the first read, keeping it consistent with receipt hashes and difference calculations. Changes to the original file after that read do not affect the current comparison, and invalid raw fields are still rejected.
 - **DSH plugin refresh.** Adapter 0.2.0 pins the current Archify development snapshot, includes the newer runtime and CLI fixes, and targets DSH 0.1.2-rc.1. Release metadata replaces the frozen 0.1.0 packaging source; the tarball uses the canonical clean-Skill stager and documents independent plugin upgrades.
 - **Machine-readable CLI argument failures (#330).** `validate --json` and `deliver --json` now keep invalid or missing option values, unknown options and diagram types, unsupported option combinations, and usage errors inside one versioned failure receipt on stdout. These failures use the `arguments` stage, stable diagnostic codes, and exit status 2, while human-mode stderr behavior remains unchanged.
 - **Complete artifact-check receipts (#311).** The checker now lets stdout drain before exiting, so large JSON receipts remain complete through pipes. Validation, delivery, and architecture comparison retain their original success/failure status without truncated-JSON errors.

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="generator" content="archify 3.1.1-dev.1">
+  <meta name="generator" content="archify 3.2.1-dev.1">
   <meta name="archify-reader-contract" content="declared-wide-v1">
   <title>Sample Web App Diagram</title>
   <script>
@@ -5788,6 +5788,34 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       });
     }
 
+    (function () {
+      function attachToolbarNavigation(toolbar, selector) {
+        if (!toolbar) return;
+        toolbar.addEventListener('keydown', function (event) {
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+          if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+          var controls = Array.from(toolbar.querySelectorAll(selector)).filter(function (control) {
+            return !control.disabled && !control.hidden && control.getClientRects().length;
+          });
+          var current = controls.indexOf(event.target.closest('button'));
+          if (current < 0) return;
+          var next = event.key === 'Home' ? 0
+            : event.key === 'End' ? controls.length - 1
+              : (current + (event.key === 'ArrowRight' ? 1 : -1) + controls.length) % controls.length;
+          if (next === current) return;
+          event.preventDefault();
+          controls[next].focus();
+        });
+      }
+
+      attachToolbarNavigation(
+        document.querySelector('.toolbar'),
+        ':scope > .toolbar-group > button, :scope > .toolbar-group > .preset-wrap > #btn-preset, :scope > .export-wrap > #btn-export'
+      );
+      attachToolbarNavigation(document.querySelector('.diagram-nav'), ':scope > button');
+      attachToolbarNavigation(document.querySelector('.rail-controls'), ':scope > button');
+    })();
+
     /* ============================================================
        Visual style try-on — one topology, four bundled presets.
        The reader's choice is intentionally session-only: it updates the
@@ -9363,6 +9391,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           inspectRelationship(target.getAttribute('data-relationship-key'));
         });
         relationshipHitOverlay.addEventListener('keydown', function (event) {
+          if (event.isComposing || event.keyCode === 229) return;
           var target = event.target.closest('[data-relationship-hit-key]');
           if (!target) return;
           if (event.key === 'Escape' && pinnedRelationshipKey) {
@@ -10789,6 +10818,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         chooseRail(RAIL_PLACEMENT_KEY, toBottom ? 'bottom' : 'right');
       });
       document.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === 'Escape' && html.getAttribute('data-reader-rail') === 'overlay') collapseRail();
       });
       document.addEventListener('pointerdown', function (event) {
@@ -12379,6 +12409,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (node) focusNode(node.getAttribute('data-radar-node-id'));
       });
       surface.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === 'Escape') {
           event.preventDefault();
           event.stopPropagation();
@@ -12407,6 +12438,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         sync();
       });
       document.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (!panelDrag || event.key !== 'Escape') return;
         finishPanelDrag({
           pointerId: panelDrag.pointerId,
@@ -12444,6 +12476,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         count: function () { return nodes.length; }
       };
     })();
+
 
     /* ============================================================
        Presentation Stage — a shareable, viewport-filling live view.
@@ -12738,6 +12771,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       closeBtn.addEventListener('click', function () { close(); });
       input.addEventListener('input', function () { render(input.value); });
       input.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         if (event.key === 'ArrowDown' && buttons.length) {
@@ -12749,6 +12783,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       results.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         var index = buttons.indexOf(document.activeElement);
@@ -12764,6 +12799,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       panel.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key !== 'Escape') return;
         event.preventDefault();
         event.stopPropagation();
@@ -14577,6 +14613,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (next !== null) { event.preventDefault(); buttons[next].focus(); }
       });
       panel.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key !== 'Escape') return;
         event.preventDefault();
         event.stopPropagation();
@@ -14738,6 +14775,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         execute(button.getAttribute('data-guide-action'));
       });
       panel.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === 'Escape' || event.key === '?') {
           event.preventDefault();
           event.stopPropagation();

@@ -4939,7 +4939,7 @@ html[data-theme="dark"] body{background:#071019!important;background-image:none!
 &lt;head&gt;
   &lt;meta charset=&quot;UTF-8&quot;&gt;
   &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;&gt;
-  &lt;meta name=&quot;generator&quot; content=&quot;archify 3.1.1-dev.1&quot;&gt;
+  &lt;meta name=&quot;generator&quot; content=&quot;archify 3.2.1-dev.1&quot;&gt;
   &lt;meta name=&quot;archify-reader-contract&quot; content=&quot;declared-wide-v1&quot;&gt;
   &lt;title&gt;Checkout Platform — Baseline Diagram&lt;/title&gt;
   &lt;script&gt;
@@ -10654,6 +10654,34 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       });
     }
 
+    (function () {
+      function attachToolbarNavigation(toolbar, selector) {
+        if (!toolbar) return;
+        toolbar.addEventListener(&#39;keydown&#39;, function (event) {
+          if (![&#39;ArrowLeft&#39;, &#39;ArrowRight&#39;, &#39;Home&#39;, &#39;End&#39;].includes(event.key)) return;
+          if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+          var controls = Array.from(toolbar.querySelectorAll(selector)).filter(function (control) {
+            return !control.disabled &amp;&amp; !control.hidden &amp;&amp; control.getClientRects().length;
+          });
+          var current = controls.indexOf(event.target.closest(&#39;button&#39;));
+          if (current &lt; 0) return;
+          var next = event.key === &#39;Home&#39; ? 0
+            : event.key === &#39;End&#39; ? controls.length - 1
+              : (current + (event.key === &#39;ArrowRight&#39; ? 1 : -1) + controls.length) % controls.length;
+          if (next === current) return;
+          event.preventDefault();
+          controls[next].focus();
+        });
+      }
+
+      attachToolbarNavigation(
+        document.querySelector(&#39;.toolbar&#39;),
+        &#39;:scope &gt; .toolbar-group &gt; button, :scope &gt; .toolbar-group &gt; .preset-wrap &gt; #btn-preset, :scope &gt; .export-wrap &gt; #btn-export&#39;
+      );
+      attachToolbarNavigation(document.querySelector(&#39;.diagram-nav&#39;), &#39;:scope &gt; button&#39;);
+      attachToolbarNavigation(document.querySelector(&#39;.rail-controls&#39;), &#39;:scope &gt; button&#39;);
+    })();
+
     /* ============================================================
        Visual style try-on — one topology, four bundled presets.
        The reader&#39;s choice is intentionally session-only: it updates the
@@ -14229,6 +14257,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           inspectRelationship(target.getAttribute(&#39;data-relationship-key&#39;));
         });
         relationshipHitOverlay.addEventListener(&#39;keydown&#39;, function (event) {
+          if (event.isComposing || event.keyCode === 229) return;
           var target = event.target.closest(&#39;[data-relationship-hit-key]&#39;);
           if (!target) return;
           if (event.key === &#39;Escape&#39; &amp;&amp; pinnedRelationshipKey) {
@@ -15655,6 +15684,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         chooseRail(RAIL_PLACEMENT_KEY, toBottom ? &#39;bottom&#39; : &#39;right&#39;);
       });
       document.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === &#39;Escape&#39; &amp;&amp; html.getAttribute(&#39;data-reader-rail&#39;) === &#39;overlay&#39;) collapseRail();
       });
       document.addEventListener(&#39;pointerdown&#39;, function (event) {
@@ -17245,6 +17275,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (node) focusNode(node.getAttribute(&#39;data-radar-node-id&#39;));
       });
       surface.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === &#39;Escape&#39;) {
           event.preventDefault();
           event.stopPropagation();
@@ -17273,6 +17304,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         sync();
       });
       document.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (!panelDrag || event.key !== &#39;Escape&#39;) return;
         finishPanelDrag({
           pointerId: panelDrag.pointerId,
@@ -17310,6 +17342,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         count: function () { return nodes.length; }
       };
     })();
+
 
     /* ============================================================
        Presentation Stage — a shareable, viewport-filling live view.
@@ -17604,6 +17637,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       closeBtn.addEventListener(&#39;click&#39;, function () { close(); });
       input.addEventListener(&#39;input&#39;, function () { render(input.value); });
       input.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         if (event.key === &#39;ArrowDown&#39; &amp;&amp; buttons.length) {
@@ -17615,6 +17649,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       results.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         var index = buttons.indexOf(document.activeElement);
@@ -17630,6 +17665,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       panel.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key !== &#39;Escape&#39;) return;
         event.preventDefault();
         event.stopPropagation();
@@ -19443,6 +19479,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (next !== null) { event.preventDefault(); buttons[next].focus(); }
       });
       panel.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key !== &#39;Escape&#39;) return;
         event.preventDefault();
         event.stopPropagation();
@@ -19604,6 +19641,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         execute(button.getAttribute(&#39;data-guide-action&#39;));
       });
       panel.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === &#39;Escape&#39; || event.key === &#39;?&#39;) {
           event.preventDefault();
           event.stopPropagation();
@@ -20085,7 +20123,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 &lt;head&gt;
   &lt;meta charset=&quot;UTF-8&quot;&gt;
   &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;&gt;
-  &lt;meta name=&quot;generator&quot; content=&quot;archify 3.1.1-dev.1&quot;&gt;
+  &lt;meta name=&quot;generator&quot; content=&quot;archify 3.2.1-dev.1&quot;&gt;
   &lt;meta name=&quot;archify-reader-contract&quot; content=&quot;declared-wide-v1&quot;&gt;
   &lt;title&gt;Checkout Platform — Fraud Gate Diagram&lt;/title&gt;
   &lt;script&gt;
@@ -25802,6 +25840,34 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       });
     }
 
+    (function () {
+      function attachToolbarNavigation(toolbar, selector) {
+        if (!toolbar) return;
+        toolbar.addEventListener(&#39;keydown&#39;, function (event) {
+          if (![&#39;ArrowLeft&#39;, &#39;ArrowRight&#39;, &#39;Home&#39;, &#39;End&#39;].includes(event.key)) return;
+          if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+          var controls = Array.from(toolbar.querySelectorAll(selector)).filter(function (control) {
+            return !control.disabled &amp;&amp; !control.hidden &amp;&amp; control.getClientRects().length;
+          });
+          var current = controls.indexOf(event.target.closest(&#39;button&#39;));
+          if (current &lt; 0) return;
+          var next = event.key === &#39;Home&#39; ? 0
+            : event.key === &#39;End&#39; ? controls.length - 1
+              : (current + (event.key === &#39;ArrowRight&#39; ? 1 : -1) + controls.length) % controls.length;
+          if (next === current) return;
+          event.preventDefault();
+          controls[next].focus();
+        });
+      }
+
+      attachToolbarNavigation(
+        document.querySelector(&#39;.toolbar&#39;),
+        &#39;:scope &gt; .toolbar-group &gt; button, :scope &gt; .toolbar-group &gt; .preset-wrap &gt; #btn-preset, :scope &gt; .export-wrap &gt; #btn-export&#39;
+      );
+      attachToolbarNavigation(document.querySelector(&#39;.diagram-nav&#39;), &#39;:scope &gt; button&#39;);
+      attachToolbarNavigation(document.querySelector(&#39;.rail-controls&#39;), &#39;:scope &gt; button&#39;);
+    })();
+
     /* ============================================================
        Visual style try-on — one topology, four bundled presets.
        The reader&#39;s choice is intentionally session-only: it updates the
@@ -29377,6 +29443,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           inspectRelationship(target.getAttribute(&#39;data-relationship-key&#39;));
         });
         relationshipHitOverlay.addEventListener(&#39;keydown&#39;, function (event) {
+          if (event.isComposing || event.keyCode === 229) return;
           var target = event.target.closest(&#39;[data-relationship-hit-key]&#39;);
           if (!target) return;
           if (event.key === &#39;Escape&#39; &amp;&amp; pinnedRelationshipKey) {
@@ -30803,6 +30870,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         chooseRail(RAIL_PLACEMENT_KEY, toBottom ? &#39;bottom&#39; : &#39;right&#39;);
       });
       document.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === &#39;Escape&#39; &amp;&amp; html.getAttribute(&#39;data-reader-rail&#39;) === &#39;overlay&#39;) collapseRail();
       });
       document.addEventListener(&#39;pointerdown&#39;, function (event) {
@@ -32393,6 +32461,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (node) focusNode(node.getAttribute(&#39;data-radar-node-id&#39;));
       });
       surface.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === &#39;Escape&#39;) {
           event.preventDefault();
           event.stopPropagation();
@@ -32421,6 +32490,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         sync();
       });
       document.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (!panelDrag || event.key !== &#39;Escape&#39;) return;
         finishPanelDrag({
           pointerId: panelDrag.pointerId,
@@ -32458,6 +32528,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         count: function () { return nodes.length; }
       };
     })();
+
 
     /* ============================================================
        Presentation Stage — a shareable, viewport-filling live view.
@@ -32752,6 +32823,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       closeBtn.addEventListener(&#39;click&#39;, function () { close(); });
       input.addEventListener(&#39;input&#39;, function () { render(input.value); });
       input.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         if (event.key === &#39;ArrowDown&#39; &amp;&amp; buttons.length) {
@@ -32763,6 +32835,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       results.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         var index = buttons.indexOf(document.activeElement);
@@ -32778,6 +32851,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       panel.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key !== &#39;Escape&#39;) return;
         event.preventDefault();
         event.stopPropagation();
@@ -34591,6 +34665,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (next !== null) { event.preventDefault(); buttons[next].focus(); }
       });
       panel.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key !== &#39;Escape&#39;) return;
         event.preventDefault();
         event.stopPropagation();
@@ -34752,6 +34827,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         execute(button.getAttribute(&#39;data-guide-action&#39;));
       });
       panel.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === &#39;Escape&#39; || event.key === &#39;?&#39;) {
           event.preventDefault();
           event.stopPropagation();
