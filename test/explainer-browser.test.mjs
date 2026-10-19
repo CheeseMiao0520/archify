@@ -112,7 +112,7 @@ test('text names light their diagram nodes and walk-throughs step through steps 
  const spec=compileExplainerDiagram('sequence',['actor api | API | backend','actor redis | Redis | database','api | redis | Read cache','redis | api | Return cache'],{title:'Cache lookup',id:'native',quality:'showcase'});
  const flow=compileExplainerDiagram('workflow',['alert | Alert','check | Check signal','fix | Fix','alert > check','check > fix'],{title:'Triage',id:'flow',quality:'showcase'});
  const doc=formalDocument();doc.meta.id='walk-browser';doc.meta.quality_profile='showcase';doc.panels.push({id:'how',title:'Where does the request go?',blocks:[{id:'native',type:'diagram',diagramType:'sequence',spec},{id:'why',type:'prose',text:'The API asks Redis first, and Redis answers from memory.'},{id:'step',type:'steps',items:[{id:'read-step',text:'Read cache',target:{diagram:'native',node:'api',edges:['api-to-redis-1']}},{id:'return-step',text:'Return cache',target:{diagram:'native',node:'redis',edges:['redis-to-api-1']}}]}]});
- doc.panels.push({id:'triage',title:'How is it handled?',blocks:[{id:'flow',type:'diagram',diagramType:'workflow',spec:flow}]});
+ doc.panels.push({id:'triage',title:'How is it handled?',blocks:[{id:'flow',type:'diagram',diagramType:'workflow',spec:flow},{id:'checks',type:'list',checklist:true,items:['Verify Redis latency','Inspect slow trace']}]});
  const preparedDiagrams=await prepareExplainerDiagrams(doc,{baseDir:dir,sourcePath:path.join(dir,'walk.json'),quality:'showcase'});
  const file=artifact('walk',renderExplainer(doc,{sourceText:JSON.stringify(doc),preparedDiagrams,preparedSources:{sources:{example:{title:'Example'}}}}));
  const browser=new ChromeVisualBrowser(chrome);try {
@@ -125,19 +125,27 @@ test('text names light their diagram nodes and walk-throughs step through steps 
    step.dispatchEvent(new MouseEvent('click',{bubbles:true}));step.dispatchEvent(new MouseEvent('mouseleave'));const stepLocked=step.classList.contains('step-locked')&&Boolean(document.querySelector('#native .reader-highlight'));
    step.dispatchEvent(new MouseEvent('click',{bubbles:true}));const stepUnlocked=!step.classList.contains('step-locked')&&!document.querySelector('#native .reader-highlight');
    const reasonJump=document.querySelector('#answer .reason-panel-link')?.getAttribute('href');
+   const checkBox=document.querySelector('#checks .checklist input');checkBox.click();
+   const checklistCount=document.querySelector('#checks .checklist-count')?.textContent;
+   document.querySelector('#checks .checklist-reset').click();
+   const checklistResetCount=document.querySelector('#checks .checklist-count')?.textContent;
    const steps=document.querySelector('ol.steps').previousElementSibling;steps.click();document.querySelector('.walk-bar [data-walk=next]').click();
    const current=document.querySelector('.walk-current')?.id,stepLit=[...document.querySelectorAll('#native .reader-highlight')].map(e=>e.dataset.nodeId||e.dataset.edgeId);
    document.querySelector('.walk-bar [data-walk=end]').click();const ended=!document.querySelector('.walk-bar')&&!document.querySelector('.walk-current');
    const messages=document.querySelector('#native figcaption .walk-start');messages.click();
    const text=document.querySelector('.walk-text').textContent;
    document.querySelector('#how .ask-button').click();document.querySelector('.ask-dialog [data-chip]').click();
-   let copied='';navigator.clipboard.writeText=value=>{copied=value;return Promise.resolve();};document.querySelector('.ask-dialog [type=submit]').click();
-   return new Promise(resolve=>setTimeout(()=>resolve({terms,lit,stepHover,cleared,stepLocked,stepUnlocked,reasonJump,current,stepLit,ended,text,copied,open:document.querySelector('.ask-dialog').open}),50));})()`);
+   let copied='';navigator.clipboard.writeText=value=>{copied=value;return Promise.resolve();};document.querySelector('#how a.panel-id').click();const panelLinkCopied=copied;
+   document.querySelector('.ask-dialog [type=submit]').click();
+   return new Promise(resolve=>setTimeout(()=>resolve({terms,lit,stepHover,cleared,stepLocked,stepUnlocked,reasonJump,checklistCount,checklistResetCount,panelLinkCopied,current,stepLit,ended,text,copied,open:document.querySelector('.ask-dialog').open}),50));})()`);
   assert.deepEqual(result.terms,['API','Redis'],'each name is linked once per panel');
   assert.deepEqual(result.lit,['redis']);
   assert.equal(result.stepLocked,true,'clicking a step row outside its Viewer link locks the diagram spotlight in place');
   assert.equal(result.stepUnlocked,true,'clicking the locked step row again unlocks the spotlight');
   assert.equal(result.reasonJump,'#why','conclusion reasons link to their substantiating question panels');
+  assert.equal(result.checklistCount,'1 / 2 checked','checklist progress bar tracks checked items');
+  assert.equal(result.checklistResetCount,'0 / 2 checked','checklist reset button clears progress');
+  assert.match(result.panelLinkCopied,/#how$/,'clicking panel badge copies panel link');
   const flowWalk=await pageValue(browser,`(function(){const start=document.querySelector('#flow figcaption .walk-start');start.click();const hidden=start.hidden;document.querySelector('.walk-bar [data-walk=next]').click();const lit=[...document.querySelectorAll('#flow .reader-highlight')].map(e=>e.dataset.nodeId||e.dataset.edgeId);const text=document.querySelector('.walk-text').textContent;document.querySelector('.walk-bar [data-walk=end]').click();return {hidden,lit,text,restored:!start.hidden&&!document.querySelector('.walk-bar')};})()`);
   assert.equal(flowWalk.hidden,true,'the walk bar replaces the start button');
   assert.equal(flowWalk.text,'Check signal');

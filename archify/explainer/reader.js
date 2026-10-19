@@ -266,7 +266,7 @@
     const shell = document.querySelector('.shell'), width = document.documentElement.clientWidth, height = Math.ceil(shell.getBoundingClientRect().height + 48);
     const clone = root.cloneNode(true);
     clone.querySelectorAll('script,dialog,#toast,.skip-link,.tools,.ask-button,.ask-floating,.walk-bar,.walk-start,.interactive,.diagram-fit-status,.node-source-badge').forEach(element=>element.remove());
-    clone.querySelectorAll('.reader-highlight,.focusing,.step-locked,.walk-current,.panel-linked-hover,.panel-pulse').forEach(element=>element.classList.remove('reader-highlight','focusing','step-locked','walk-current','panel-linked-hover','panel-pulse'));
+    clone.querySelectorAll('.reader-highlight,.focusing,.step-locked,.walk-current,.panel-linked-hover,.panel-pulse,.source-pulse').forEach(element=>element.classList.remove('reader-highlight','focusing','step-locked','walk-current','panel-linked-hover','panel-pulse','source-pulse'));
     // Inside a foreignObject the page's <html> is not :root, so theme and style rules would drop out;
     // the root's own attribute selects the same element with the same specificity.
     const sheet = clone.querySelector('head>style'); if (sheet) sheet.textContent = sheet.textContent.replace(/:root\b/g,'[data-archify-artifact]');
@@ -451,6 +451,18 @@
       clearTimeout(pulseTimer);
       pulseTimer = setTimeout(()=>panel.classList.remove('panel-pulse'),1500);
     };
+    const tokensOf = text => {
+      const words = [...String(text || '').toLowerCase().matchAll(/[a-z0-9_.-]{3,}/gu)].map(m=>m[0]);
+      const han = [];
+      for (const m of String(text || '').matchAll(/\p{Script=Han}{2,}/gu)) {
+        const chunk = m[0];
+        if (chunk.length <= 4) han.push(chunk);
+        for (let i = 0; i < chunk.length - 1; i++) han.push(chunk.slice(i,i + 2));
+      }
+      return [...new Set([...words,...han])];
+    };
+    const panelTokens = new Map(panels.map(panel=>[panel,new Set(tokensOf(`${panel.dataset.title || ''} ${panel.textContent || ''}`))]));
+    const panelTitleTokens = new Map(panels.map(panel=>[panel,new Set(tokensOf(panel.dataset.title || panel.querySelector('h2')?.textContent || ''))]));
     reasons.forEach((li,index)=>{
       let targetPanel = null;
       // 1. Explicit in-page block/panel link inside the reason
@@ -458,7 +470,12 @@
         const found = byId(decodeURIComponent(a.getAttribute('href').slice(1)))?.closest('.panel:not(#answer)');
         if (found) { targetPanel = found; break; }
       }
-      // 2. Shared source citation between the reason and a question panel
+      // 2. Linked diagram term inside the reason
+      if (!targetPanel) {
+        const termDiagram = li.querySelector('.term[data-diagram]')?.dataset.diagram;
+        if (termDiagram) targetPanel = byId(termDiagram)?.closest('.panel:not(#answer)') || null;
+      }
+      // 3. Shared source citation between the reason and a question panel
       if (!targetPanel) {
         const cites = all('.cite a[href^="#source-"]',li).map(a=>a.getAttribute('href'));
         if (cites.length) {
@@ -469,7 +486,17 @@
           }
         }
       }
-      // 3. Positional 1-to-1 correspondence when reason count matches panel count, or index fallback
+      // 4. Semantic token overlap between the reason and each panel's title/body
+      if (!targetPanel) {
+        const rTokens = tokensOf(li.textContent);
+        let bestScore = 0;
+        for (const panel of panels) {
+          const pSet = panelTokens.get(panel), tSet = panelTitleTokens.get(panel);
+          const score = rTokens.reduce((sum,tok)=>sum + (tSet.has(tok) ? 3 : 0) + (pSet.has(tok) ? 1 : 0),0);
+          if (score > bestScore) { bestScore = score; targetPanel = panel; }
+        }
+      }
+      // 5. Positional fallback
       if (!targetPanel && index < panels.length) targetPanel = panels[index];
       if (!targetPanel) return;
       const num = targetPanel.querySelector('.panel-id')?.textContent.trim() || String(panels.indexOf(targetPanel) + 1);
@@ -698,7 +725,7 @@
     let hideTimer;
     const hide = () => { hideTimer = setTimeout(()=>{ card.hidden = true; },160); };
     card.addEventListener('mouseenter',()=>clearTimeout(hideTimer)); card.addEventListener('mouseleave',hide);
-    const show = (link, id = decodeURIComponent(link.getAttribute('href').slice('#source-'.length))) => {
+    const show = (link, id = decodeURIComponent(link.getAttribute('href').slice('#source-'.length)), expanded = false) => {
       const source = sources[id] || prepared.document?.sources?.find(entry=>entry.id === id);
       if (!source) return;
       clearTimeout(hideTimer);
@@ -710,22 +737,68 @@
       const lines = source.path && typeof source.text === 'string' ? source.text.split('\n') : [];
       const first = source.lines?.[0] || 1;
       const focus = source.focus;
-      const startOffset = Array.isArray(focus) && lines.length > 14 ? Math.max(0,Math.min(lines.length - 14,focus[0] - first - 4)) : 0;
-      const visible = lines.slice(startOffset,startOffset + 14);
-      const excerpt = visible.length ? `<pre><code>${startOffset > 0 ? `<span class="line more"><i></i>…</span>` : ''}${visible.map((line,index)=>{ const num = first + startOffset + index; const isFocus = Array.isArray(focus) && num >= focus[0] && num <= focus[1]; return `<span class="line${isFocus ? ' line-focus' : ''}"><i>${num}</i>${escapeText(line) || ' '}</span>`; }).join('')}${startOffset + 14 < lines.length ? `<span class="line more"><i></i>…</span>` : ''}</code></pre>` : '';
+      const maxLines = expanded ? lines.length : 14;
+      const startOffset = !expanded && Array.isArray(focus) && lines.length > maxLines ? Math.max(0,Math.min(lines.length - maxLines,focus[0] - first - 4)) : 0;
+      const visible = lines.slice(startOffset,startOffset + maxLines);
+      const hiddenCount = lines.length - visible.length;
+      const excerpt = visible.length ? `<pre><code>${startOffset > 0 ? `<span class="line more"><i></i>…</span>` : ''}${visible.map((line,index)=>{ const num = first + startOffset + index; const isFocus = Array.isArray(focus) && num >= focus[0] && num <= focus[1]; return `<span class="line${isFocus ? ' line-focus' : ''}"><i>${num}</i>${escapeText(line) || ' '}</span>`; }).join('')}${startOffset + maxLines < lines.length ? `<span class="line more"><i></i>…</span>` : ''}</code></pre>` : '';
       const note = !source.path && (source.text || source.method) ? `<p class="source-note">${escapeText(source.text || '')}${source.method ? `<span>${escapeText(source.method)}</span>` : ''}</p>` : '';
       const number = /^\d+$/.test(link.textContent.trim()) ? link.textContent.trim() : '';
-      card.innerHTML = `<header><span class="source-icon" data-kind="${kind}" aria-hidden="true">${sourceIcons[kind]}</span><span class="source-head"><b>${escapeText(source.title || source.path || id)}</b>${where ? `<span class="source-where">${escapeText(where)}</span>` : ''}</span>${number ? `<span class="source-number">${number}</span>` : ''}</header>${excerpt}${note}${source.revision || source.url ? `<footer>${source.revision ? `<span class="source-pin">${say('Pinned at','固定在')} <code>${escapeText(String(source.revision).slice(0,7))}</code></span>` : '<span></span>'}${source.url ? `<a href="${escapeText(source.url)}" target="_blank" rel="noopener noreferrer">${say('Open source','打开原文')} ↗</a>` : ''}</footer>` : ''}`;
+      const expandControl = hiddenCount > 0 ? `<button type="button" class="text-button source-expand" data-source-expand>${say(`Show all ${lines.length} lines`,`展开全部 ${lines.length} 行`)}</button>` : '';
+      const copyControl = lines.length ? `<button type="button" class="text-button source-copy" data-source-copy>${words.copy}</button>` : '';
+      const hasFooter = Boolean(source.revision || source.url || expandControl || copyControl);
+      card.innerHTML = `<header><span class="source-icon" data-kind="${kind}" aria-hidden="true">${sourceIcons[kind]}</span><span class="source-head"><b>${escapeText(source.title || source.path || id)}</b>${where ? `<span class="source-where">${escapeText(where)}</span>` : ''}</span>${number ? `<span class="source-number">${number}</span>` : ''}</header>${excerpt}${note}${hasFooter ? `<footer><span class="source-footer-left">${source.revision ? `<span class="source-pin">${say('Pinned at','固定在')} <code>${escapeText(String(source.revision).slice(0,7))}</code></span>` : ''}${expandControl}</span><span class="source-footer-right">${copyControl}${source.url ? `<a href="${escapeText(source.url)}" target="_blank" rel="noopener noreferrer">${say('Open source','打开原文')} ↗</a>` : ''}</span></footer>` : ''}`;
+      card.querySelector('[data-source-expand]')?.addEventListener('click',()=>show(link,id,true));
+      card.querySelector('[data-source-copy]')?.addEventListener('click',event=>{
+        const btn = event.currentTarget;
+        Promise.resolve(navigator.clipboard?.writeText(source.text || '')).then(()=>{ btn.textContent = words.copied; setTimeout(()=>{ btn.textContent = words.copy; },1500); },()=>notify(say('Copy failed.','复制失败。')));
+      });
       card.hidden = false;
-      const box = link.getBoundingClientRect(), width = Math.min(520,innerWidth - 24);
+      const box = link.getBoundingClientRect(), width = Math.min(540,innerWidth - 24);
       card.style.width = `${width}px`;
       card.style.left = `${Math.max(12,Math.min(innerWidth - width - 12,box.left - 24)) + scrollX}px`;
       const below = box.bottom + 8 + card.offsetHeight < innerHeight;
-      card.style.top = `${(below ? box.bottom + 8 : box.top - 8 - card.offsetHeight) + scrollY}px`;
+      card.style.top = `${Math.max(8 + scrollY,(below ? box.bottom + 8 : box.top - 8 - card.offsetHeight) + scrollY)}px`;
     };
+    let sourcePulseTimer;
+    const seenCites = new Set();
     all('.cite a[href^="#source-"]').forEach(link=>{
-      link.addEventListener('mouseenter',()=>show(link)); link.addEventListener('focus',()=>show(link));
+      const id = decodeURIComponent(link.getAttribute('href').slice('#source-'.length));
+      if (!link.id && !seenCites.has(id)) { link.id = `cite-ref-${id}`; seenCites.add(id); }
+      link.addEventListener('mouseenter',()=>show(link,id)); link.addEventListener('focus',()=>show(link,id));
       link.addEventListener('mouseleave',hide); link.addEventListener('blur',hide);
+      link.addEventListener('click',event=>{
+        const target = byId(`source-${id}`);
+        if (!target) return;
+        event.preventDefault();
+        card.hidden = true;
+        target.scrollIntoView({behavior:'smooth',block:'nearest'});
+        all('.source-pulse').forEach(el=>el.classList.remove('source-pulse'));
+        target.classList.add('source-pulse');
+        clearTimeout(sourcePulseTimer);
+        sourcePulseTimer = setTimeout(()=>target.classList.remove('source-pulse'),1600);
+      });
+    });
+    all('.sources li[id^="source-"]').forEach(item=>{
+      const id = item.id.slice('source-'.length);
+      const firstCite = document.querySelector(`.cite a[href="#source-${CSS.escape(id)}"]`);
+      if (!firstCite) return;
+      const back = document.createElement('a');
+      back.className = 'source-backlink interactive';
+      back.href = `#${firstCite.id}`;
+      back.title = say('Back to citation in text','回到正文引用处');
+      back.textContent = '↩';
+      back.addEventListener('click',event=>{
+        event.preventDefault();
+        const panel = firstCite.closest('.panel');
+        firstCite.scrollIntoView({behavior:'smooth',block:'center'});
+        firstCite.focus({preventScroll:true});
+        if (panel) {
+          panel.classList.add('panel-pulse');
+          setTimeout(()=>panel.classList.remove('panel-pulse'),1500);
+        }
+      });
+      item.append(' ',back);
     });
     // A diagram node tied to a source opens the same card, so a code diagram doubles as a code tour.
     all('.diagram-preview[data-node-sources]').forEach(preview=>{
@@ -753,8 +826,65 @@
   // Checklist ticks are the reader's own progress; keep them per page and block across reloads.
   all('.checklist').forEach(list=>{
     const key = `archify-checklist:${root.dataset.artifact}:${list.closest('.block').id}`, boxes = all('input',list);
+    if (!boxes.length) return;
     let saved = []; try { saved = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
-    boxes.forEach((box,index)=>{ box.checked = saved[index] === 1; box.addEventListener('change',()=>{ try { localStorage.setItem(key,JSON.stringify(boxes.map(b=>b.checked ? 1 : 0))); } catch {} }); });
+    const bar = document.createElement('div');
+    bar.className = 'checklist-progress interactive';
+    bar.innerHTML = `<span class="checklist-count"></span><span class="checklist-track" aria-hidden="true"><span class="checklist-fill"></span></span><button type="button" class="text-button checklist-reset" hidden>${say('Reset','重置')}</button>`;
+    list.before(bar);
+    const countEl = bar.querySelector('.checklist-count'), fillEl = bar.querySelector('.checklist-fill'), resetBtn = bar.querySelector('.checklist-reset');
+    const sync = () => {
+      const done = boxes.filter(b=>b.checked).length;
+      countEl.textContent = say(`${done} / ${boxes.length} checked`,`已完成 ${done} / ${boxes.length}`);
+      fillEl.style.width = `${Math.round((done / boxes.length) * 100)}%`;
+      bar.dataset.complete = String(done === boxes.length);
+      resetBtn.hidden = done === 0;
+    };
+    boxes.forEach((box,index)=>{
+      box.checked = saved[index] === 1;
+      box.addEventListener('change',()=>{
+        try { localStorage.setItem(key,JSON.stringify(boxes.map(b=>b.checked ? 1 : 0))); } catch {}
+        sync();
+      });
+    });
+    resetBtn.addEventListener('click',()=>{
+      boxes.forEach(b=>{ b.checked = false; });
+      try { localStorage.removeItem(key); } catch {}
+      sync();
+    });
+    sync();
+  });
+  // Chart series and slice hover spotlighting
+  all('.chart>svg').forEach(svg=>{
+    const groups = all('[data-id]',svg);
+    if (groups.length < 2) return;
+    const focusSeries = id => {
+      svg.classList.toggle('chart-focusing',Boolean(id));
+      groups.forEach(g=>g.classList.toggle('series-active',Boolean(id) && g.dataset.id === id));
+    };
+    groups.forEach(g=>{
+      g.addEventListener('mouseenter',()=>focusSeries(g.dataset.id));
+      g.addEventListener('mouseleave',()=>focusSeries(''));
+    });
+  });
+  // Panel anchor link copy feedback
+  all('a.panel-id[href^="#"]').forEach(anchor=>{
+    anchor.addEventListener('click',event=>{
+      const hash = anchor.getAttribute('href');
+      if (!hash) return;
+      try { history.replaceState(null,'',hash); } catch {}
+      const url = `${location.href.split('#')[0]}${hash}`;
+      if (navigator.clipboard?.writeText) {
+        event.preventDefault();
+        const panel = anchor.closest('.panel');
+        if (panel) {
+          panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+          panel.classList.add('panel-pulse');
+          setTimeout(()=>panel.classList.remove('panel-pulse'),1500);
+        }
+        Promise.resolve(navigator.clipboard.writeText(url)).then(()=>notify(say(`Copied link to Panel ${anchor.textContent.trim()}`,`已复制面板 ${anchor.textContent.trim()} 链接`)),()=>{});
+      }
+    });
   });
   // Native dialogs supply Escape, focus trapping and the accessible modal semantics.
   const printDetails = new Map();

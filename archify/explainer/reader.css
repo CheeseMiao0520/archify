@@ -119,6 +119,13 @@ ol.text-list{counter-reset:item}
 ol.text-list li{counter-increment:item;padding-left:24px}
 ol.text-list li::before{content:counter(item) ".";position:absolute;left:0;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
 .checklist{list-style:none;padding:0}
+.js .checklist-progress{display:flex!important;align-items:center;gap:10px;margin:0 0 8px;padding:6px 10px;border-radius:8px;background:var(--sunk);border:1px solid var(--rule);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.checklist-progress[data-complete=true]{background:var(--good-soft);border-color:color-mix(in srgb,var(--good) 28%,transparent);color:var(--good)}
+.checklist-count{font-weight:600;white-space:nowrap}
+.checklist-track{flex:1;height:5px;border-radius:999px;background:var(--rule);overflow:hidden}
+.checklist-fill{display:block;height:100%;width:0;border-radius:999px;background:var(--accent);transition:width .2s,background .2s}
+.checklist-progress[data-complete=true] .checklist-fill{background:var(--good)}
+.checklist-reset{font-size:11.5px;white-space:nowrap}
 .checklist li+li{border-top:1px dashed var(--rule)}
 .checklist label{display:flex;gap:10px;align-items:flex-start;padding:7px 0;cursor:pointer}
 .checklist input{appearance:none;flex-shrink:0;width:17px;height:17px;margin:3px 0 0;border:1.5px solid var(--rule-strong);border-radius:5px;background:var(--panel);display:grid;place-items:center;cursor:pointer;transition:background .15s,border-color .15s}
@@ -171,7 +178,11 @@ td{min-width:112px;color:var(--secondary)}
 .metric-value span,.metric-value small{font:500 14px var(--sans);margin-left:5px;color:var(--muted);letter-spacing:0}
 .metric-delta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:2px 0 6px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .delta-badge{display:inline-flex;align-items:center;padding:0 6px;border-radius:999px;font-size:11px;font-weight:600;background:var(--accent-soft);color:var(--accent-ink);border:1px solid color-mix(in srgb,var(--accent) 25%,transparent)}
-meter{width:100%;height:8px;accent-color:var(--accent)}
+meter{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.metric-bar{position:relative;height:6px;margin:6px 0 4px;border-radius:999px;background:var(--rule);overflow:visible}
+.metric-bar-fill{display:block;height:100%;border-radius:999px;background:var(--accent);transition:width .2s}
+.metric-over-limit .metric-bar-fill{background:var(--bad)}
+.metric-bar-limit{position:absolute;top:-3px;bottom:-3px;width:2px;border-radius:1px;background:var(--ink);box-shadow:0 0 0 1.5px var(--panel)}
 .metric-over-limit .metric-value,.metric-overflow{color:var(--bad)}
 .metric-overflow{font-size:12px;font-weight:600;margin-top:6px}
 .typical,.chip{display:inline-block;border:1px solid var(--rule-strong);padding:0 6px;font-size:10.5px;border-radius:4px;color:var(--muted)}
@@ -269,6 +280,9 @@ meter{width:100%;height:8px;accent-color:var(--accent)}
 .chart{margin:0;display:flex;flex-direction:column;--pele-bg:transparent;--pele-fg:var(--ink);--pele-muted:var(--muted);--pele-line:var(--rule-strong);--pele-surface:var(--sunk);--pele-surface-alt:var(--zebra);--pele-border:var(--rule-strong);--pele-accent:var(--accent);--pele-font:var(--sans);--pele-font-mono:var(--mono);--pele-series-1:var(--accent);--pele-series-2:var(--caution);--pele-series-3:var(--good);--pele-series-4:var(--violet);--pele-series-5:var(--bad);--pele-series-6:var(--accent-ink);--pele-series-7:var(--muted);--pele-series-8:var(--faint)}
 /* Charts never scale above their native size, so their text stays at the page's small-text size. */
 .chart>svg{display:block;width:min(100%,var(--native-width,100vw));height:auto;margin-inline:auto}
+.chart>svg [data-id]{cursor:pointer;transition:opacity .15s,filter .15s}
+.chart>svg.chart-focusing [data-id]:not(.series-active){opacity:.28}
+.chart>svg.chart-focusing [data-id].series-active{filter:brightness(1.05)}
 .chart figcaption{font-size:12px;color:var(--muted);margin-top:8px;padding:0 4px}
 .snippet{border:1px solid var(--rule);border-radius:8px;background:var(--code);overflow:hidden}
 .snippet figcaption{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:6px 12px;border-bottom:1px solid var(--rule);font-size:12px;color:var(--muted);background:var(--panel)}
@@ -309,7 +323,10 @@ footer{padding:28px 0 32px}
 .sources{border-top:1px solid var(--rule);padding-top:16px}
 .sources:has(ol:empty){display:none}
 .sources ol{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 32px;padding-left:20px;font-size:12.5px;color:var(--muted)}
-.sources li{padding-left:4px;overflow-wrap:anywhere}
+.sources li{padding:2px 6px 2px 4px;border-radius:6px;overflow-wrap:anywhere;transition:background .2s,box-shadow .2s}
+.sources li.source-pulse{background:color-mix(in srgb,var(--accent-soft) 65%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent)}
+.source-backlink{display:inline-flex;align-items:center;margin-left:4px;padding:0 5px;border-radius:4px;font-size:11px;color:var(--faint);text-decoration:none}
+.source-backlink:hover{background:var(--accent-soft);color:var(--accent-ink);text-decoration:none}
 .sources li::marker{font-size:11px;font-weight:600;color:var(--faint)}
 .sources a{color:var(--secondary)}
 .sources a:hover{color:var(--accent)}
@@ -347,6 +364,7 @@ footer{padding:28px 0 32px}
 .source-note{margin:0;padding:8px 12px;border-radius:8px;background:var(--sunk);box-shadow:inset 3px 0 0 var(--rule-strong);line-height:1.6}
 .source-note span{display:block;margin-top:2px;font-size:11.5px;color:var(--muted)}
 .source-card footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0 0;border-top:1px solid var(--rule);font-size:11.5px;color:var(--muted)}
+.source-footer-left,.source-footer-right{display:inline-flex;align-items:center;gap:10px}
 .source-pin code{font-size:11px}
 .source-card a{font-size:12px;font-weight:500}
 @media print{.source-card{display:none!important}}
@@ -470,7 +488,7 @@ dialog::backdrop{background:rgb(10 10 12/.55);backdrop-filter:blur(2px)}
 [data-style=swiss] .callout{border-radius:0;box-shadow:inset 4px 0 0 var(--accent)}
 [data-style=swiss] .steps li::before{border-radius:0;border-color:var(--ink)}
 /* Swiss controls keep the square corners of its numbers, chips and rules. */
-[data-style=swiss] :is(.tool-button,.theme-controls,.theme-controls button,.menu-options,.menu-options button,.walk-bar,.walk-bar button,.walk-start,.ask-button,.ask-chips button,.ask-dialog,.ask-dialog footer button,.ask-dialog textarea,.ask-dialog blockquote,.source-card,.source-icon,.source-note,.colophon-mark,.viewer-dialog,.snippet,.checklist input,.assessment,.delta-badge,.reason-panel-link){border-radius:2px}
+[data-style=swiss] :is(.tool-button,.theme-controls,.theme-controls button,.menu-options,.menu-options button,.walk-bar,.walk-bar button,.walk-start,.ask-button,.ask-chips button,.ask-dialog,.ask-dialog footer button,.ask-dialog textarea,.ask-dialog blockquote,.source-card,.source-icon,.source-note,.colophon-mark,.viewer-dialog,.snippet,.checklist input,.checklist-progress,.assessment,.delta-badge,.reason-panel-link){border-radius:2px}
 /* Its neutral nodes take a grey outline; the full-strength rule colour is for page rules only. */
 :root[data-style=swiss] .board .diagram-preview.diagram-preview[class]{--frontend-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--database-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--cloud-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--external-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--messagebus-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--security-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper))}
 /* Style overrides that must beat the clean dark rules, and chart series that stay apart in warm palettes. */

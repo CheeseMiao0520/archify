@@ -120,6 +120,13 @@ ol.text-list{counter-reset:item}
 ol.text-list li{counter-increment:item;padding-left:24px}
 ol.text-list li::before{content:counter(item) ".";position:absolute;left:0;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
 .checklist{list-style:none;padding:0}
+.js .checklist-progress{display:flex!important;align-items:center;gap:10px;margin:0 0 8px;padding:6px 10px;border-radius:8px;background:var(--sunk);border:1px solid var(--rule);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.checklist-progress[data-complete=true]{background:var(--good-soft);border-color:color-mix(in srgb,var(--good) 28%,transparent);color:var(--good)}
+.checklist-count{font-weight:600;white-space:nowrap}
+.checklist-track{flex:1;height:5px;border-radius:999px;background:var(--rule);overflow:hidden}
+.checklist-fill{display:block;height:100%;width:0;border-radius:999px;background:var(--accent);transition:width .2s,background .2s}
+.checklist-progress[data-complete=true] .checklist-fill{background:var(--good)}
+.checklist-reset{font-size:11.5px;white-space:nowrap}
 .checklist li+li{border-top:1px dashed var(--rule)}
 .checklist label{display:flex;gap:10px;align-items:flex-start;padding:7px 0;cursor:pointer}
 .checklist input{appearance:none;flex-shrink:0;width:17px;height:17px;margin:3px 0 0;border:1.5px solid var(--rule-strong);border-radius:5px;background:var(--panel);display:grid;place-items:center;cursor:pointer;transition:background .15s,border-color .15s}
@@ -172,7 +179,11 @@ td{min-width:112px;color:var(--secondary)}
 .metric-value span,.metric-value small{font:500 14px var(--sans);margin-left:5px;color:var(--muted);letter-spacing:0}
 .metric-delta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:2px 0 6px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .delta-badge{display:inline-flex;align-items:center;padding:0 6px;border-radius:999px;font-size:11px;font-weight:600;background:var(--accent-soft);color:var(--accent-ink);border:1px solid color-mix(in srgb,var(--accent) 25%,transparent)}
-meter{width:100%;height:8px;accent-color:var(--accent)}
+meter{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.metric-bar{position:relative;height:6px;margin:6px 0 4px;border-radius:999px;background:var(--rule);overflow:visible}
+.metric-bar-fill{display:block;height:100%;border-radius:999px;background:var(--accent);transition:width .2s}
+.metric-over-limit .metric-bar-fill{background:var(--bad)}
+.metric-bar-limit{position:absolute;top:-3px;bottom:-3px;width:2px;border-radius:1px;background:var(--ink);box-shadow:0 0 0 1.5px var(--panel)}
 .metric-over-limit .metric-value,.metric-overflow{color:var(--bad)}
 .metric-overflow{font-size:12px;font-weight:600;margin-top:6px}
 .typical,.chip{display:inline-block;border:1px solid var(--rule-strong);padding:0 6px;font-size:10.5px;border-radius:4px;color:var(--muted)}
@@ -270,6 +281,9 @@ meter{width:100%;height:8px;accent-color:var(--accent)}
 .chart{margin:0;display:flex;flex-direction:column;--pele-bg:transparent;--pele-fg:var(--ink);--pele-muted:var(--muted);--pele-line:var(--rule-strong);--pele-surface:var(--sunk);--pele-surface-alt:var(--zebra);--pele-border:var(--rule-strong);--pele-accent:var(--accent);--pele-font:var(--sans);--pele-font-mono:var(--mono);--pele-series-1:var(--accent);--pele-series-2:var(--caution);--pele-series-3:var(--good);--pele-series-4:var(--violet);--pele-series-5:var(--bad);--pele-series-6:var(--accent-ink);--pele-series-7:var(--muted);--pele-series-8:var(--faint)}
 /* Charts never scale above their native size, so their text stays at the page's small-text size. */
 .chart>svg{display:block;width:min(100%,var(--native-width,100vw));height:auto;margin-inline:auto}
+.chart>svg [data-id]{cursor:pointer;transition:opacity .15s,filter .15s}
+.chart>svg.chart-focusing [data-id]:not(.series-active){opacity:.28}
+.chart>svg.chart-focusing [data-id].series-active{filter:brightness(1.05)}
 .chart figcaption{font-size:12px;color:var(--muted);margin-top:8px;padding:0 4px}
 .snippet{border:1px solid var(--rule);border-radius:8px;background:var(--code);overflow:hidden}
 .snippet figcaption{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:6px 12px;border-bottom:1px solid var(--rule);font-size:12px;color:var(--muted);background:var(--panel)}
@@ -310,7 +324,10 @@ footer{padding:28px 0 32px}
 .sources{border-top:1px solid var(--rule);padding-top:16px}
 .sources:has(ol:empty){display:none}
 .sources ol{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 32px;padding-left:20px;font-size:12.5px;color:var(--muted)}
-.sources li{padding-left:4px;overflow-wrap:anywhere}
+.sources li{padding:2px 6px 2px 4px;border-radius:6px;overflow-wrap:anywhere;transition:background .2s,box-shadow .2s}
+.sources li.source-pulse{background:color-mix(in srgb,var(--accent-soft) 65%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent)}
+.source-backlink{display:inline-flex;align-items:center;margin-left:4px;padding:0 5px;border-radius:4px;font-size:11px;color:var(--faint);text-decoration:none}
+.source-backlink:hover{background:var(--accent-soft);color:var(--accent-ink);text-decoration:none}
 .sources li::marker{font-size:11px;font-weight:600;color:var(--faint)}
 .sources a{color:var(--secondary)}
 .sources a:hover{color:var(--accent)}
@@ -348,6 +365,7 @@ footer{padding:28px 0 32px}
 .source-note{margin:0;padding:8px 12px;border-radius:8px;background:var(--sunk);box-shadow:inset 3px 0 0 var(--rule-strong);line-height:1.6}
 .source-note span{display:block;margin-top:2px;font-size:11.5px;color:var(--muted)}
 .source-card footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0 0;border-top:1px solid var(--rule);font-size:11.5px;color:var(--muted)}
+.source-footer-left,.source-footer-right{display:inline-flex;align-items:center;gap:10px}
 .source-pin code{font-size:11px}
 .source-card a{font-size:12px;font-weight:500}
 @media print{.source-card{display:none!important}}
@@ -471,7 +489,7 @@ dialog::backdrop{background:rgb(10 10 12/.55);backdrop-filter:blur(2px)}
 [data-style=swiss] .callout{border-radius:0;box-shadow:inset 4px 0 0 var(--accent)}
 [data-style=swiss] .steps li::before{border-radius:0;border-color:var(--ink)}
 /* Swiss controls keep the square corners of its numbers, chips and rules. */
-[data-style=swiss] :is(.tool-button,.theme-controls,.theme-controls button,.menu-options,.menu-options button,.walk-bar,.walk-bar button,.walk-start,.ask-button,.ask-chips button,.ask-dialog,.ask-dialog footer button,.ask-dialog textarea,.ask-dialog blockquote,.source-card,.source-icon,.source-note,.colophon-mark,.viewer-dialog,.snippet,.checklist input,.assessment,.delta-badge,.reason-panel-link){border-radius:2px}
+[data-style=swiss] :is(.tool-button,.theme-controls,.theme-controls button,.menu-options,.menu-options button,.walk-bar,.walk-bar button,.walk-start,.ask-button,.ask-chips button,.ask-dialog,.ask-dialog footer button,.ask-dialog textarea,.ask-dialog blockquote,.source-card,.source-icon,.source-note,.colophon-mark,.viewer-dialog,.snippet,.checklist input,.checklist-progress,.assessment,.delta-badge,.reason-panel-link){border-radius:2px}
 /* Its neutral nodes take a grey outline; the full-strength rule colour is for page rules only. */
 :root[data-style=swiss] .board .diagram-preview.diagram-preview[class]{--frontend-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--database-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--cloud-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--external-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--messagebus-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--security-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper))}
 /* Style overrides that must beat the clean dark rules, and chart series that stay apart in warm palettes. */
@@ -1610,7 +1628,7 @@ a{color:inherit}
     const shell = document.querySelector('.shell'), width = document.documentElement.clientWidth, height = Math.ceil(shell.getBoundingClientRect().height + 48);
     const clone = root.cloneNode(true);
     clone.querySelectorAll('script,dialog,#toast,.skip-link,.tools,.ask-button,.ask-floating,.walk-bar,.walk-start,.interactive,.diagram-fit-status,.node-source-badge').forEach(element=>element.remove());
-    clone.querySelectorAll('.reader-highlight,.focusing,.step-locked,.walk-current,.panel-linked-hover,.panel-pulse').forEach(element=>element.classList.remove('reader-highlight','focusing','step-locked','walk-current','panel-linked-hover','panel-pulse'));
+    clone.querySelectorAll('.reader-highlight,.focusing,.step-locked,.walk-current,.panel-linked-hover,.panel-pulse,.source-pulse').forEach(element=>element.classList.remove('reader-highlight','focusing','step-locked','walk-current','panel-linked-hover','panel-pulse','source-pulse'));
     // Inside a foreignObject the page's <html> is not :root, so theme and style rules would drop out;
     // the root's own attribute selects the same element with the same specificity.
     const sheet = clone.querySelector('head>style'); if (sheet) sheet.textContent = sheet.textContent.replace(/:root\b/g,'[data-archify-artifact]');
@@ -1795,6 +1813,18 @@ a{color:inherit}
       clearTimeout(pulseTimer);
       pulseTimer = setTimeout(()=>panel.classList.remove('panel-pulse'),1500);
     };
+    const tokensOf = text => {
+      const words = [...String(text || '').toLowerCase().matchAll(/[a-z0-9_.-]{3,}/gu)].map(m=>m[0]);
+      const han = [];
+      for (const m of String(text || '').matchAll(/\p{Script=Han}{2,}/gu)) {
+        const chunk = m[0];
+        if (chunk.length <= 4) han.push(chunk);
+        for (let i = 0; i < chunk.length - 1; i++) han.push(chunk.slice(i,i + 2));
+      }
+      return [...new Set([...words,...han])];
+    };
+    const panelTokens = new Map(panels.map(panel=>[panel,new Set(tokensOf(`${panel.dataset.title || ''} ${panel.textContent || ''}`))]));
+    const panelTitleTokens = new Map(panels.map(panel=>[panel,new Set(tokensOf(panel.dataset.title || panel.querySelector('h2')?.textContent || ''))]));
     reasons.forEach((li,index)=>{
       let targetPanel = null;
       // 1. Explicit in-page block/panel link inside the reason
@@ -1802,7 +1832,12 @@ a{color:inherit}
         const found = byId(decodeURIComponent(a.getAttribute('href').slice(1)))?.closest('.panel:not(#answer)');
         if (found) { targetPanel = found; break; }
       }
-      // 2. Shared source citation between the reason and a question panel
+      // 2. Linked diagram term inside the reason
+      if (!targetPanel) {
+        const termDiagram = li.querySelector('.term[data-diagram]')?.dataset.diagram;
+        if (termDiagram) targetPanel = byId(termDiagram)?.closest('.panel:not(#answer)') || null;
+      }
+      // 3. Shared source citation between the reason and a question panel
       if (!targetPanel) {
         const cites = all('.cite a[href^="#source-"]',li).map(a=>a.getAttribute('href'));
         if (cites.length) {
@@ -1813,7 +1848,17 @@ a{color:inherit}
           }
         }
       }
-      // 3. Positional 1-to-1 correspondence when reason count matches panel count, or index fallback
+      // 4. Semantic token overlap between the reason and each panel's title/body
+      if (!targetPanel) {
+        const rTokens = tokensOf(li.textContent);
+        let bestScore = 0;
+        for (const panel of panels) {
+          const pSet = panelTokens.get(panel), tSet = panelTitleTokens.get(panel);
+          const score = rTokens.reduce((sum,tok)=>sum + (tSet.has(tok) ? 3 : 0) + (pSet.has(tok) ? 1 : 0),0);
+          if (score > bestScore) { bestScore = score; targetPanel = panel; }
+        }
+      }
+      // 5. Positional fallback
       if (!targetPanel && index < panels.length) targetPanel = panels[index];
       if (!targetPanel) return;
       const num = targetPanel.querySelector('.panel-id')?.textContent.trim() || String(panels.indexOf(targetPanel) + 1);
@@ -2042,7 +2087,7 @@ a{color:inherit}
     let hideTimer;
     const hide = () => { hideTimer = setTimeout(()=>{ card.hidden = true; },160); };
     card.addEventListener('mouseenter',()=>clearTimeout(hideTimer)); card.addEventListener('mouseleave',hide);
-    const show = (link, id = decodeURIComponent(link.getAttribute('href').slice('#source-'.length))) => {
+    const show = (link, id = decodeURIComponent(link.getAttribute('href').slice('#source-'.length)), expanded = false) => {
       const source = sources[id] || prepared.document?.sources?.find(entry=>entry.id === id);
       if (!source) return;
       clearTimeout(hideTimer);
@@ -2054,22 +2099,68 @@ a{color:inherit}
       const lines = source.path && typeof source.text === 'string' ? source.text.split('\n') : [];
       const first = source.lines?.[0] || 1;
       const focus = source.focus;
-      const startOffset = Array.isArray(focus) && lines.length > 14 ? Math.max(0,Math.min(lines.length - 14,focus[0] - first - 4)) : 0;
-      const visible = lines.slice(startOffset,startOffset + 14);
-      const excerpt = visible.length ? `<pre><code>${startOffset > 0 ? `<span class="line more"><i></i>…</span>` : ''}${visible.map((line,index)=>{ const num = first + startOffset + index; const isFocus = Array.isArray(focus) && num >= focus[0] && num <= focus[1]; return `<span class="line${isFocus ? ' line-focus' : ''}"><i>${num}</i>${escapeText(line) || ' '}</span>`; }).join('')}${startOffset + 14 < lines.length ? `<span class="line more"><i></i>…</span>` : ''}</code></pre>` : '';
+      const maxLines = expanded ? lines.length : 14;
+      const startOffset = !expanded && Array.isArray(focus) && lines.length > maxLines ? Math.max(0,Math.min(lines.length - maxLines,focus[0] - first - 4)) : 0;
+      const visible = lines.slice(startOffset,startOffset + maxLines);
+      const hiddenCount = lines.length - visible.length;
+      const excerpt = visible.length ? `<pre><code>${startOffset > 0 ? `<span class="line more"><i></i>…</span>` : ''}${visible.map((line,index)=>{ const num = first + startOffset + index; const isFocus = Array.isArray(focus) && num >= focus[0] && num <= focus[1]; return `<span class="line${isFocus ? ' line-focus' : ''}"><i>${num}</i>${escapeText(line) || ' '}</span>`; }).join('')}${startOffset + maxLines < lines.length ? `<span class="line more"><i></i>…</span>` : ''}</code></pre>` : '';
       const note = !source.path && (source.text || source.method) ? `<p class="source-note">${escapeText(source.text || '')}${source.method ? `<span>${escapeText(source.method)}</span>` : ''}</p>` : '';
       const number = /^\d+$/.test(link.textContent.trim()) ? link.textContent.trim() : '';
-      card.innerHTML = `<header><span class="source-icon" data-kind="${kind}" aria-hidden="true">${sourceIcons[kind]}</span><span class="source-head"><b>${escapeText(source.title || source.path || id)}</b>${where ? `<span class="source-where">${escapeText(where)}</span>` : ''}</span>${number ? `<span class="source-number">${number}</span>` : ''}</header>${excerpt}${note}${source.revision || source.url ? `<footer>${source.revision ? `<span class="source-pin">${say('Pinned at','固定在')} <code>${escapeText(String(source.revision).slice(0,7))}</code></span>` : '<span></span>'}${source.url ? `<a href="${escapeText(source.url)}" target="_blank" rel="noopener noreferrer">${say('Open source','打开原文')} ↗</a>` : ''}</footer>` : ''}`;
+      const expandControl = hiddenCount > 0 ? `<button type="button" class="text-button source-expand" data-source-expand>${say(`Show all ${lines.length} lines`,`展开全部 ${lines.length} 行`)}</button>` : '';
+      const copyControl = lines.length ? `<button type="button" class="text-button source-copy" data-source-copy>${words.copy}</button>` : '';
+      const hasFooter = Boolean(source.revision || source.url || expandControl || copyControl);
+      card.innerHTML = `<header><span class="source-icon" data-kind="${kind}" aria-hidden="true">${sourceIcons[kind]}</span><span class="source-head"><b>${escapeText(source.title || source.path || id)}</b>${where ? `<span class="source-where">${escapeText(where)}</span>` : ''}</span>${number ? `<span class="source-number">${number}</span>` : ''}</header>${excerpt}${note}${hasFooter ? `<footer><span class="source-footer-left">${source.revision ? `<span class="source-pin">${say('Pinned at','固定在')} <code>${escapeText(String(source.revision).slice(0,7))}</code></span>` : ''}${expandControl}</span><span class="source-footer-right">${copyControl}${source.url ? `<a href="${escapeText(source.url)}" target="_blank" rel="noopener noreferrer">${say('Open source','打开原文')} ↗</a>` : ''}</span></footer>` : ''}`;
+      card.querySelector('[data-source-expand]')?.addEventListener('click',()=>show(link,id,true));
+      card.querySelector('[data-source-copy]')?.addEventListener('click',event=>{
+        const btn = event.currentTarget;
+        Promise.resolve(navigator.clipboard?.writeText(source.text || '')).then(()=>{ btn.textContent = words.copied; setTimeout(()=>{ btn.textContent = words.copy; },1500); },()=>notify(say('Copy failed.','复制失败。')));
+      });
       card.hidden = false;
-      const box = link.getBoundingClientRect(), width = Math.min(520,innerWidth - 24);
+      const box = link.getBoundingClientRect(), width = Math.min(540,innerWidth - 24);
       card.style.width = `${width}px`;
       card.style.left = `${Math.max(12,Math.min(innerWidth - width - 12,box.left - 24)) + scrollX}px`;
       const below = box.bottom + 8 + card.offsetHeight < innerHeight;
-      card.style.top = `${(below ? box.bottom + 8 : box.top - 8 - card.offsetHeight) + scrollY}px`;
+      card.style.top = `${Math.max(8 + scrollY,(below ? box.bottom + 8 : box.top - 8 - card.offsetHeight) + scrollY)}px`;
     };
+    let sourcePulseTimer;
+    const seenCites = new Set();
     all('.cite a[href^="#source-"]').forEach(link=>{
-      link.addEventListener('mouseenter',()=>show(link)); link.addEventListener('focus',()=>show(link));
+      const id = decodeURIComponent(link.getAttribute('href').slice('#source-'.length));
+      if (!link.id && !seenCites.has(id)) { link.id = `cite-ref-${id}`; seenCites.add(id); }
+      link.addEventListener('mouseenter',()=>show(link,id)); link.addEventListener('focus',()=>show(link,id));
       link.addEventListener('mouseleave',hide); link.addEventListener('blur',hide);
+      link.addEventListener('click',event=>{
+        const target = byId(`source-${id}`);
+        if (!target) return;
+        event.preventDefault();
+        card.hidden = true;
+        target.scrollIntoView({behavior:'smooth',block:'nearest'});
+        all('.source-pulse').forEach(el=>el.classList.remove('source-pulse'));
+        target.classList.add('source-pulse');
+        clearTimeout(sourcePulseTimer);
+        sourcePulseTimer = setTimeout(()=>target.classList.remove('source-pulse'),1600);
+      });
+    });
+    all('.sources li[id^="source-"]').forEach(item=>{
+      const id = item.id.slice('source-'.length);
+      const firstCite = document.querySelector(`.cite a[href="#source-${CSS.escape(id)}"]`);
+      if (!firstCite) return;
+      const back = document.createElement('a');
+      back.className = 'source-backlink interactive';
+      back.href = `#${firstCite.id}`;
+      back.title = say('Back to citation in text','回到正文引用处');
+      back.textContent = '↩';
+      back.addEventListener('click',event=>{
+        event.preventDefault();
+        const panel = firstCite.closest('.panel');
+        firstCite.scrollIntoView({behavior:'smooth',block:'center'});
+        firstCite.focus({preventScroll:true});
+        if (panel) {
+          panel.classList.add('panel-pulse');
+          setTimeout(()=>panel.classList.remove('panel-pulse'),1500);
+        }
+      });
+      item.append(' ',back);
     });
     // A diagram node tied to a source opens the same card, so a code diagram doubles as a code tour.
     all('.diagram-preview[data-node-sources]').forEach(preview=>{
@@ -2097,8 +2188,65 @@ a{color:inherit}
   // Checklist ticks are the reader's own progress; keep them per page and block across reloads.
   all('.checklist').forEach(list=>{
     const key = `archify-checklist:${root.dataset.artifact}:${list.closest('.block').id}`, boxes = all('input',list);
+    if (!boxes.length) return;
     let saved = []; try { saved = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
-    boxes.forEach((box,index)=>{ box.checked = saved[index] === 1; box.addEventListener('change',()=>{ try { localStorage.setItem(key,JSON.stringify(boxes.map(b=>b.checked ? 1 : 0))); } catch {} }); });
+    const bar = document.createElement('div');
+    bar.className = 'checklist-progress interactive';
+    bar.innerHTML = `<span class="checklist-count"></span><span class="checklist-track" aria-hidden="true"><span class="checklist-fill"></span></span><button type="button" class="text-button checklist-reset" hidden>${say('Reset','重置')}</button>`;
+    list.before(bar);
+    const countEl = bar.querySelector('.checklist-count'), fillEl = bar.querySelector('.checklist-fill'), resetBtn = bar.querySelector('.checklist-reset');
+    const sync = () => {
+      const done = boxes.filter(b=>b.checked).length;
+      countEl.textContent = say(`${done} / ${boxes.length} checked`,`已完成 ${done} / ${boxes.length}`);
+      fillEl.style.width = `${Math.round((done / boxes.length) * 100)}%`;
+      bar.dataset.complete = String(done === boxes.length);
+      resetBtn.hidden = done === 0;
+    };
+    boxes.forEach((box,index)=>{
+      box.checked = saved[index] === 1;
+      box.addEventListener('change',()=>{
+        try { localStorage.setItem(key,JSON.stringify(boxes.map(b=>b.checked ? 1 : 0))); } catch {}
+        sync();
+      });
+    });
+    resetBtn.addEventListener('click',()=>{
+      boxes.forEach(b=>{ b.checked = false; });
+      try { localStorage.removeItem(key); } catch {}
+      sync();
+    });
+    sync();
+  });
+  // Chart series and slice hover spotlighting
+  all('.chart>svg').forEach(svg=>{
+    const groups = all('[data-id]',svg);
+    if (groups.length < 2) return;
+    const focusSeries = id => {
+      svg.classList.toggle('chart-focusing',Boolean(id));
+      groups.forEach(g=>g.classList.toggle('series-active',Boolean(id) && g.dataset.id === id));
+    };
+    groups.forEach(g=>{
+      g.addEventListener('mouseenter',()=>focusSeries(g.dataset.id));
+      g.addEventListener('mouseleave',()=>focusSeries(''));
+    });
+  });
+  // Panel anchor link copy feedback
+  all('a.panel-id[href^="#"]').forEach(anchor=>{
+    anchor.addEventListener('click',event=>{
+      const hash = anchor.getAttribute('href');
+      if (!hash) return;
+      try { history.replaceState(null,'',hash); } catch {}
+      const url = `${location.href.split('#')[0]}${hash}`;
+      if (navigator.clipboard?.writeText) {
+        event.preventDefault();
+        const panel = anchor.closest('.panel');
+        if (panel) {
+          panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+          panel.classList.add('panel-pulse');
+          setTimeout(()=>panel.classList.remove('panel-pulse'),1500);
+        }
+        Promise.resolve(navigator.clipboard.writeText(url)).then(()=>notify(say(`Copied link to Panel ${anchor.textContent.trim()}`,`已复制面板 ${anchor.textContent.trim()} 链接`)),()=>{});
+      }
+    });
   });
   // Native dialogs supply Escape, focus trapping and the accessible modal semantics.
   const printDetails = new Map();
