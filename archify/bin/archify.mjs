@@ -4869,7 +4869,8 @@ async function commandDeliver(args) {
     }
     const render = runNode([renderer, specificationSnapshotPath, candidatePath], {
       stdio: 'pipe',
-      env: { ...rendererEnv(qualityArgs.quality, repoArgs.repoRoot, true), ...(preparedBundlePath ? { ARCHIFY_EXPLAINER_PREPARED: preparedBundlePath, ARCHIFY_EXPLAINER_SNAPSHOT_INPUT: inputPath } : {}) },
+      // The page is rendered in staging; paths inside it are written relative to where it is delivered.
+      env: { ...rendererEnv(qualityArgs.quality, repoArgs.repoRoot, true), ...(preparedBundlePath ? { ARCHIFY_EXPLAINER_PREPARED: preparedBundlePath, ARCHIFY_EXPLAINER_SNAPSHOT_INPUT: inputPath, ARCHIFY_EXPLAINER_PAGE_DIR: path.dirname(outputPath) } : {}) },
     });
     if (render.status !== 0) {
       const failure = rendererFailure(render);

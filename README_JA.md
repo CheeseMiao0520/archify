@@ -75,6 +75,24 @@ the API checks Redis, and a cache miss queries PostgreSQL and fills the cache.
 
 [エージェントを選ぶ](https://archify.si/start.html?agent=cursor&type=architecture) · [インストールの詳細と更新チェック](#クイックスタート)
 
+## 質問すると、1 ページで答えが返る
+
+答えがいつも 1 枚の図とは限りません。エージェントに「1 ページで答えて」と頼むと、Archify は **explainer** を作ります。結論を先に示し、質問ごとのパネルで、表・手順・チャート・コード・検証済みの図を使って理由を説明します。
+
+[![explainer の例：結論が先頭にあり、手順がそれを説明するシーケンス図の横に並ぶ](docs/assets/explainer-tls-en.png)](https://archify.si/cases/explainer/tls-first-visit.html)
+
+- **結論が先。** 答えと理由が先頭に来て、各パネルは 1 つの質問に答えます。
+- **図と文章が連動する。** 手順は説明対象の図の横に並び、読んでいる手順に合わせて図の該当部分が光ります。ノードをクリックすると完全なインタラクティブ表示が開きます。
+- **確かめられる。** 主張には番号付きの出典が付き、リポジトリの抜粋は特定のコミットに固定され、ソースカードで開けます。
+- **共有しやすい。** 1 つの HTML ファイルに 4 つのスタイルとライト／ダークテーマ。PNG・WebP・JPG の縦長画像や PDF 印刷で書き出せます。どのパネルにも追加の質問ができ、エージェントはそのパネルだけを直せます。
+
+```text
+Archify で 1 ページにまとめて答えて：API の P99 が 80 ms から 600 ms に上がったが、
+平均はほとんど変わらない。考えられる原因と調べ方は？
+```
+
+ライブ例：[初めての HTTPS 接続（英語）](https://archify.si/cases/explainer/tls-first-visit.html) · [P99 レイテンシ（中国語）](https://archify.si/cases/explainer/p99-tail-latency.html) · [Archify の finalize をリポジトリから読む（中国語）](https://archify.si/cases/explainer/finalize-delivery.html) · [初めての賃貸チェックリスト（中国語）](https://archify.si/cases/explainer/first-rental.html)
+
 ## ❤️ スポンサー
 
 <table>

@@ -61,6 +61,24 @@ API는 Redis를 확인해. 캐시 미스면 PostgreSQL을 조회하고 캐시를
 
 [에이전트 선택하기](https://tt-a1i.github.io/archify/start.html?agent=cursor&type=architecture) · [설치와 업데이트 확인 상세](#빠른-시작)
 
+## 질문하면 한 페이지로 답합니다
+
+모든 답이 다이어그램 한 장은 아닙니다. 에이전트에게 한 페이지로 답해 달라고 하면 Archify가 **explainer**를 만듭니다. 결론을 먼저 보여 주고, 질문마다 패널을 나누어 표, 단계, 차트, 코드, 검증된 다이어그램으로 이유를 설명합니다.
+
+[![explainer 예시: 결론이 먼저 나오고, 단계가 설명하는 시퀀스 다이어그램 옆에 나란히 놓입니다](docs/assets/explainer-tls-en.png)](https://archify.si/cases/explainer/tls-first-visit.html)
+
+- **결론 먼저.** 답과 이유가 앞에 오고, 패널마다 질문 하나에 답합니다.
+- **글과 그림이 함께 설명합니다.** 단계는 설명하는 다이어그램 옆에 놓이고, 읽는 단계에 맞춰 해당 부분이 강조됩니다. 노드를 클릭하면 전체 인터랙티브 뷰가 열립니다.
+- **확인할 수 있습니다.** 주장에는 번호가 붙은 출처가 있고, 저장소 발췌는 특정 커밋에 고정되어 소스 카드로 열립니다.
+- **공유하기 쉽습니다.** HTML 파일 하나에 네 가지 스타일과 라이트·다크 테마가 들어 있습니다. PNG, WebP, JPG 긴 이미지나 PDF로 내보낼 수 있고, 어느 패널이든 후속 질문을 만들어 에이전트가 그 패널만 고치게 할 수 있습니다.
+
+```text
+Archify로 한 페이지로 답해 줘: API P99가 80 ms에서 600 ms로 올랐는데
+평균은 거의 그대로야. 원인은 무엇이고 어떻게 조사해야 해?
+```
+
+라이브 예시: [처음 HTTPS 접속(영어)](https://archify.si/cases/explainer/tls-first-visit.html) · [P99 지연(중국어)](https://archify.si/cases/explainer/p99-tail-latency.html) · [저장소에서 읽은 Archify finalize(중국어)](https://archify.si/cases/explainer/finalize-delivery.html) · [첫 임대 체크리스트(중국어)](https://archify.si/cases/explainer/first-rental.html)
+
 ## 무엇을 보여줄 수 있나요?
 
 | 에이전트 워크플로 설명 | 캐시 미스 추적 | 서비스 관계 탐색 |

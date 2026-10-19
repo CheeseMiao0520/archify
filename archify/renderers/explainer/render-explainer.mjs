@@ -18,7 +18,7 @@ fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 const capture = captureAtomicOutput(outputPath, { requestedEntryPolicy: 'regular-or-absent' });
 if (capture.status !== 'captured') throwDiagnosticError('Could not capture explainer output safely.', [{code:'output/target-indeterminate',message:'Could not capture explainer output safely.',subject:{output:outputPath},evidence:{reason:capture.reason},supportedFixes:[]}]);
 let html;
-try { html = renderExplainer(bundle.document, { ...bundle, preparedBundle: bundle }); }
+try { html = renderExplainer(bundle.document, { ...bundle, preparedBundle: bundle, pageDirectory: process.env.ARCHIFY_EXPLAINER_PAGE_DIR || path.dirname(outputPath) }); }
 catch (error) { if (error.diagnostics) error.archifyDiagnostics = error.diagnostics; throw error; }
 const bytes = Buffer.from(html);
 const candidate = path.join(path.dirname(capture.commitPath), `.archify-explainer-${randomUUID()}.html`);
