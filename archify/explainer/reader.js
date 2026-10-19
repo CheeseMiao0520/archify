@@ -265,7 +265,7 @@
   async function pageImage(format = 'png') {
     const shell = document.querySelector('.shell'), width = document.documentElement.clientWidth, height = Math.ceil(shell.getBoundingClientRect().height + 48);
     const clone = root.cloneNode(true);
-    clone.querySelectorAll('script,dialog,#toast,.skip-link,.tools,.ask-button,.ask-floating,.walk-bar,.walk-start,.interactive,.diagram-fit-status,.node-source-badge').forEach(element=>element.remove());
+    clone.querySelectorAll('script,dialog,#toast,.skip-link,.tools,.ask-button,.ask-floating,.walk-bar,.walk-start,.interactive,.diagram-fit-status').forEach(element=>element.remove());
     clone.querySelectorAll('.reader-highlight,.focusing,.step-locked,.walk-current,.panel-linked-hover,.panel-pulse,.source-pulse').forEach(element=>element.classList.remove('reader-highlight','focusing','step-locked','walk-current','panel-linked-hover','panel-pulse','source-pulse'));
     // Inside a foreignObject the page's <html> is not :root, so theme and style rules would drop out;
     // the root's own attribute selects the same element with the same specificity.
@@ -502,22 +502,10 @@
       const num = targetPanel.querySelector('.panel-id')?.textContent.trim() || String(panels.indexOf(targetPanel) + 1);
       const title = targetPanel.dataset.title || targetPanel.querySelector('h2')?.textContent.trim() || '';
       li.dataset.targetPanel = targetPanel.id;
-      const jump = document.createElement('a');
-      jump.className = 'reason-panel-link interactive';
-      jump.href = `#${targetPanel.id}`;
-      jump.title = `${say('Jump to Panel ','跳至面板 ')}${num}${title ? ` · ${title}` : ''}`;
-      jump.textContent = `§${num}`;
-      li.append(' ',jump);
+      li.title = `${say('Jump to Panel ','跳至面板 ')}${num}${title ? ` · ${title}` : ''}`;
       const setHover = on => targetPanel.classList.toggle('panel-linked-hover',on);
       li.addEventListener('mouseenter',()=>setHover(true));
       li.addEventListener('mouseleave',()=>setHover(false));
-      jump.addEventListener('focus',()=>setHover(true));
-      jump.addEventListener('blur',()=>setHover(false));
-      jump.addEventListener('click',event=>{
-        event.preventDefault();
-        targetPanel.scrollIntoView({behavior:'smooth',block:'nearest'});
-        pulsePanel(targetPanel);
-      });
       li.addEventListener('click',event=>{
         if (event.target.closest('a,button')) return;
         targetPanel.scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -761,10 +749,8 @@
       card.style.top = `${Math.max(8 + scrollY,(below ? box.bottom + 8 : box.top - 8 - card.offsetHeight) + scrollY)}px`;
     };
     let sourcePulseTimer;
-    const seenCites = new Set();
     all('.cite a[href^="#source-"]').forEach(link=>{
       const id = decodeURIComponent(link.getAttribute('href').slice('#source-'.length));
-      if (!link.id && !seenCites.has(id)) { link.id = `cite-ref-${id}`; seenCites.add(id); }
       link.addEventListener('mouseenter',()=>show(link,id)); link.addEventListener('focus',()=>show(link,id));
       link.addEventListener('mouseleave',hide); link.addEventListener('blur',hide);
       link.addEventListener('click',event=>{
@@ -779,45 +765,12 @@
         sourcePulseTimer = setTimeout(()=>target.classList.remove('source-pulse'),1600);
       });
     });
-    all('.sources li[id^="source-"]').forEach(item=>{
-      const id = item.id.slice('source-'.length);
-      const firstCite = document.querySelector(`.cite a[href="#source-${CSS.escape(id)}"]`);
-      if (!firstCite) return;
-      const back = document.createElement('a');
-      back.className = 'source-backlink interactive';
-      back.href = `#${firstCite.id}`;
-      back.title = say('Back to citation in text','回到正文引用处');
-      back.textContent = '↩';
-      back.addEventListener('click',event=>{
-        event.preventDefault();
-        const panel = firstCite.closest('.panel');
-        firstCite.scrollIntoView({behavior:'smooth',block:'center'});
-        firstCite.focus({preventScroll:true});
-        if (panel) {
-          panel.classList.add('panel-pulse');
-          setTimeout(()=>panel.classList.remove('panel-pulse'),1500);
-        }
-      });
-      item.append(' ',back);
-    });
     // A diagram node tied to a source opens the same card, so a code diagram doubles as a code tour.
     all('.diagram-preview[data-node-sources]').forEach(preview=>{
       let map = {}; try { map = JSON.parse(preview.dataset.nodeSources); } catch {}
       all('[data-node-id]',preview).forEach(node=>{
         const id = map[node.dataset.nodeId]; if (!id) return;
         node.classList.add('has-source');
-        const rect = node.querySelector('rect:not(.c-mask)');
-        if (rect && !node.querySelector('.node-source-badge')) {
-          const x = parseFloat(rect.getAttribute('x')) || 0, y = parseFloat(rect.getAttribute('y')) || 0, w = parseFloat(rect.getAttribute('width')) || 0;
-          if (w > 0) {
-            const badge = document.createElementNS('http://www.w3.org/2000/svg','g');
-            badge.setAttribute('class','node-source-badge');
-            badge.setAttribute('aria-hidden','true');
-            const bx = Math.round(x + w - 11), by = Math.round(y + 11);
-            badge.innerHTML = `<circle cx="${bx}" cy="${by}" r="7"/><path d="M${bx - 2} ${by - 2}L${bx - 4} ${by}l2 2M${bx + 2} ${by - 2}l2 2-2 2"/>`;
-            node.append(badge);
-          }
-        }
         node.addEventListener('mouseenter',()=>show(node,id)); node.addEventListener('mouseleave',hide);
       });
     });
@@ -826,33 +779,8 @@
   // Checklist ticks are the reader's own progress; keep them per page and block across reloads.
   all('.checklist').forEach(list=>{
     const key = `archify-checklist:${root.dataset.artifact}:${list.closest('.block').id}`, boxes = all('input',list);
-    if (!boxes.length) return;
     let saved = []; try { saved = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
-    const bar = document.createElement('div');
-    bar.className = 'checklist-progress interactive';
-    bar.innerHTML = `<span class="checklist-count"></span><span class="checklist-track" aria-hidden="true"><span class="checklist-fill"></span></span><button type="button" class="text-button checklist-reset" hidden>${say('Reset','重置')}</button>`;
-    list.before(bar);
-    const countEl = bar.querySelector('.checklist-count'), fillEl = bar.querySelector('.checklist-fill'), resetBtn = bar.querySelector('.checklist-reset');
-    const sync = () => {
-      const done = boxes.filter(b=>b.checked).length;
-      countEl.textContent = say(`${done} / ${boxes.length} checked`,`已完成 ${done} / ${boxes.length}`);
-      fillEl.style.width = `${Math.round((done / boxes.length) * 100)}%`;
-      bar.dataset.complete = String(done === boxes.length);
-      resetBtn.hidden = done === 0;
-    };
-    boxes.forEach((box,index)=>{
-      box.checked = saved[index] === 1;
-      box.addEventListener('change',()=>{
-        try { localStorage.setItem(key,JSON.stringify(boxes.map(b=>b.checked ? 1 : 0))); } catch {}
-        sync();
-      });
-    });
-    resetBtn.addEventListener('click',()=>{
-      boxes.forEach(b=>{ b.checked = false; });
-      try { localStorage.removeItem(key); } catch {}
-      sync();
-    });
-    sync();
+    boxes.forEach((box,index)=>{ box.checked = saved[index] === 1; box.addEventListener('change',()=>{ try { localStorage.setItem(key,JSON.stringify(boxes.map(b=>b.checked ? 1 : 0))); } catch {} }); });
   });
   // Chart series and slice hover spotlighting
   all('.chart>svg').forEach(svg=>{

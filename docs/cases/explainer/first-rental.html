@@ -89,20 +89,18 @@ h1{font:700 26px/1.35 var(--sans);color:var(--ink);letter-spacing:-.015em;max-wi
 .block>p+p{margin-top:8px}
 
 /* Conclusion: the same card, read first. One quiet tinted box carries the verdict. */
-.answer-panel{border-color:color-mix(in srgb,var(--accent) 26%,var(--rule));background:linear-gradient(180deg,color-mix(in srgb,var(--accent-soft) 38%,var(--panel)) 0%,var(--panel) 84px);box-shadow:0 1px 2px rgb(16 24 40/.05),0 6px 20px color-mix(in srgb,var(--accent) 6%,transparent)}
+.answer-panel{border-color:color-mix(in srgb,var(--accent) 22%,var(--rule));background:linear-gradient(180deg,color-mix(in srgb,var(--accent-soft) 32%,var(--panel)) 0%,var(--panel) 80px);box-shadow:0 1px 2px rgb(16 24 40/.05),0 6px 20px color-mix(in srgb,var(--accent) 5%,transparent)}
 .answer-id{background:var(--accent);color:#fff}
 :root[data-theme=dark] .answer-id{color:#0c0d10}
 @media(prefers-color-scheme:dark){:root:not([data-theme]) .answer-id{color:#0c0d10}}
-.verdict{padding:12px 16px;border-radius:8px;background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent);font:600 17px/1.65 var(--sans);color:var(--ink);letter-spacing:-.005em;text-wrap:pretty}
+.verdict{padding:14px 18px;border-radius:10px;background:color-mix(in srgb,var(--accent-soft) 72%,var(--panel));border:1px solid color-mix(in srgb,var(--accent) 18%,transparent);box-shadow:inset 3.5px 0 0 var(--accent);font:600 17px/1.65 var(--sans);color:var(--ink);letter-spacing:-.005em;text-wrap:pretty}
 .verdict strong{font-weight:700;color:var(--accent-ink)}
 .reasons{list-style:none;padding:0;margin:14px 0 0;counter-reset:reason}
-.reasons li{counter-increment:reason;position:relative;padding:5px 6px 5px 26px;font-size:14px;line-height:1.7;color:var(--secondary);border-radius:6px;transition:background .15s}
-.reasons li::before{content:counter(reason);position:absolute;left:2px;top:9px;width:17px;height:17px;border-radius:50%;display:grid;place-items:center;font:600 10.5px/1 var(--sans);color:var(--muted);background:var(--sunk);box-shadow:inset 0 0 0 1px var(--rule-strong);transition:background .15s,color .15s,box-shadow .15s}
+.reasons li{counter-increment:reason;position:relative;padding:6px 8px 6px 28px;font-size:14px;line-height:1.7;color:var(--secondary);border-radius:8px;transition:background .15s,color .15s}
+.reasons li::before{content:counter(reason);position:absolute;left:3px;top:9px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font:600 11px/1 var(--sans);color:var(--muted);background:var(--sunk);box-shadow:inset 0 0 0 1px var(--rule-strong);transition:background .15s,color .15s,box-shadow .15s}
 .reasons li[data-target-panel]{cursor:pointer}
-.reasons li[data-target-panel]:hover{background:color-mix(in srgb,var(--accent-soft) 50%,transparent)}
+.reasons li[data-target-panel]:hover{background:color-mix(in srgb,var(--accent-soft) 55%,transparent);color:var(--ink)}
 .reasons li[data-target-panel]:hover::before{background:var(--accent);color:#fff;box-shadow:none}
-.reason-panel-link{display:inline-flex;align-items:center;margin-left:5px;padding:0 6px;border-radius:999px;background:var(--sunk);border:1px solid var(--rule-strong);color:var(--muted);font:600 10.5px/1.55 var(--sans);text-decoration:none;vertical-align:baseline;transition:background .15s,color .15s,border-color .15s}
-.reasons li:hover .reason-panel-link,.reason-panel-link:hover,.reason-panel-link:focus-visible{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 45%,var(--rule));color:var(--accent-ink);text-decoration:none}
 /* A full-width conclusion sets the verdict beside its reasons instead of in one long line. */
 .answer-panel{container-type:inline-size}
 @container (min-width:900px){.answer-panel .panel-body{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:start}.answer-panel .reasons{margin-top:-5px}}
@@ -120,24 +118,18 @@ ol.text-list{counter-reset:item}
 ol.text-list li{counter-increment:item;padding-left:24px}
 ol.text-list li::before{content:counter(item) ".";position:absolute;left:0;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
 .checklist{list-style:none;padding:0}
-.js .checklist-progress{display:flex!important;align-items:center;gap:10px;margin:0 0 8px;padding:6px 10px;border-radius:8px;background:var(--sunk);border:1px solid var(--rule);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
-.checklist-progress[data-complete=true]{background:var(--good-soft);border-color:color-mix(in srgb,var(--good) 28%,transparent);color:var(--good)}
-.checklist-count{font-weight:600;white-space:nowrap}
-.checklist-track{flex:1;height:5px;border-radius:999px;background:var(--rule);overflow:hidden}
-.checklist-fill{display:block;height:100%;width:0;border-radius:999px;background:var(--accent);transition:width .2s,background .2s}
-.checklist-progress[data-complete=true] .checklist-fill{background:var(--good)}
-.checklist-reset{font-size:11.5px;white-space:nowrap}
 .checklist li+li{border-top:1px dashed var(--rule)}
-.checklist label{display:flex;gap:10px;align-items:flex-start;padding:7px 0;cursor:pointer}
+.checklist label{display:flex;gap:11px;align-items:flex-start;padding:8px 6px;margin:0 -6px;border-radius:6px;cursor:pointer;transition:background .15s}
+.checklist label:hover{background:var(--sunk)}
 .checklist input{appearance:none;flex-shrink:0;width:17px;height:17px;margin:3px 0 0;border:1.5px solid var(--rule-strong);border-radius:5px;background:var(--panel);display:grid;place-items:center;cursor:pointer;transition:background .15s,border-color .15s}
 .checklist input::after{content:"";width:5px;height:9px;margin-top:-2px;border:solid var(--panel);border-width:0 2px 2px 0;transform:rotate(45deg) scale(0);transition:transform .12s}
 .checklist input:checked{background:var(--good);border-color:var(--good)}
 .checklist input:checked::after{transform:rotate(45deg) scale(1)}
 .checklist input:checked+span{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--faint)}
-.callout{padding:11px 16px;background:var(--sunk);border-radius:8px;box-shadow:inset 3px 0 0 var(--faint);color:var(--secondary)}
-.callout h3{font-size:14px;color:var(--ink);margin-bottom:2px}
-.callout.warning{background:var(--caution-soft);box-shadow:inset 3px 0 0 var(--caution)}
-.callout.open-question{background:var(--violet-soft);box-shadow:inset 3px 0 0 var(--violet)}
+.callout{padding:12px 16px;background:var(--sunk);border:1px solid var(--rule);border-radius:10px;box-shadow:inset 3.5px 0 0 var(--faint);color:var(--secondary)}
+.callout h3{font-size:14px;color:var(--ink);margin-bottom:3px}
+.callout.warning{background:var(--caution-soft);border-color:color-mix(in srgb,var(--caution) 22%,transparent);box-shadow:inset 3.5px 0 0 var(--caution)}
+.callout.open-question{background:var(--violet-soft);border-color:color-mix(in srgb,var(--violet) 22%,transparent);box-shadow:inset 3.5px 0 0 var(--violet)}
 .cite{vertical-align:super;font-size:10px;line-height:0;margin-left:1px}
 .cite a{font-weight:600;color:var(--accent);padding:0 1px;font-variant-numeric:tabular-nums}
 .cite a:hover{text-decoration:none;background:var(--accent-soft);border-radius:3px}
@@ -145,16 +137,16 @@ ol.text-list li::before{content:counter(item) ".";position:absolute;left:0;font-
 /* Comparison */
 .table-scroll{overflow:auto}
 table{border-collapse:separate;border-spacing:0;width:100%;font-size:13.5px}
-th,td{padding:9px 12px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
-thead th{font-size:12px;font-weight:500;color:var(--muted);padding-top:2px;padding-bottom:8px;border-bottom:1px solid var(--rule);white-space:nowrap}
-tbody tr:nth-child(even)>*{background:var(--zebra)}
-tbody tr:nth-child(even)>:first-child{border-radius:6px 0 0 6px}
-tbody tr:nth-child(even)>:last-child{border-radius:0 6px 6px 0}
-th[scope=row]{width:24%;min-width:96px;font-weight:500;color:var(--ink);font-size:13.5px}
+th,td{padding:10px 12px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+thead th{font-size:12px;font-weight:600;color:var(--muted);padding-top:2px;padding-bottom:9px;border-bottom:1.5px solid var(--rule-strong);white-space:nowrap}
+tbody tr>*{border-bottom:1px solid var(--rule);transition:background .12s}
+tbody tr:last-child>*{border-bottom:0}
+tbody tr:hover>*{background:color-mix(in srgb,var(--sunk) 75%,transparent)}
+th[scope=row]{width:24%;min-width:96px;font-weight:600;color:var(--ink);font-size:13.5px}
 td{min-width:112px;color:var(--secondary)}
-.assessment{display:inline-flex;align-items:center;gap:5px;padding:2px 9px 2px 4px;border-radius:999px;font-size:12.5px;line-height:1.4;font-weight:600;border:1px solid transparent}
+.assessment{display:inline-flex;align-items:center;gap:5px;padding:2px 9px 2px 4px;border-radius:999px;font-size:12px;line-height:1.4;font-weight:600;border:1px solid transparent}
 .assessment b{color:inherit;font-weight:600}
-.assessment::before{flex-shrink:0;width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font:700 10px/1 var(--sans);color:#fff}
+.assessment::before{flex-shrink:0;width:15px;height:15px;border-radius:50%;display:grid;place-items:center;font:700 9.5px/1 var(--sans);color:#fff}
 .assessment.good{color:var(--good);background:var(--good-soft);border-color:color-mix(in srgb,var(--good) 24%,transparent)}.assessment.good::before{content:"✓";background:var(--good)}
 .assessment.caution{color:var(--caution);background:var(--caution-soft);border-color:color-mix(in srgb,var(--caution) 24%,transparent)}.assessment.caution::before{content:"!";background:var(--caution)}
 .assessment.bad{color:var(--bad);background:var(--bad-soft);border-color:color-mix(in srgb,var(--bad) 24%,transparent)}.assessment.bad::before{content:"✕";background:var(--bad)}
@@ -165,27 +157,25 @@ td{min-width:112px;color:var(--secondary)}
 .assessment+.cell-text{color:var(--muted);font-size:12.5px;margin-top:4px}
 
 /* Facts and metrics */
-.facts>div{display:grid;grid-template-columns:minmax(80px,1fr) minmax(0,2fr);gap:16px;padding:8px 0;border-bottom:1px solid var(--rule)}
+.facts>div{display:grid;grid-template-columns:minmax(88px,1fr) minmax(0,2.2fr);gap:16px;padding:9px 4px;border-bottom:1px solid var(--rule);align-items:baseline}
 .facts>div:first-child{padding-top:0}
 .facts>div:last-child{border-bottom:0;padding-bottom:0}
-.facts dt{color:var(--muted);font-size:13px}
-.facts dd{font-size:14px;color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
+.facts dt{color:var(--secondary);font-size:13px;font-weight:600}
+.facts dd{font-size:13.5px;color:var(--secondary);line-height:1.65;font-variant-numeric:tabular-nums}
 .panel-body:has(>.block-metric+.block-metric){display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;align-content:start}
 .panel-body:has(>.block-metric+.block-metric)>.block:not(.block-metric){grid-column:1/-1}
 .panel-body:has(>.block-metric+.block-metric)>.block+.block{margin-top:0}
-.panel-body:has(>.block-metric+.block-metric)>.block-metric{padding:12px 14px;border-radius:10px;background:var(--sunk);border:1px solid var(--rule)}
-.metric-label{font-size:12.5px;color:var(--muted)}
-.metric-value{font:700 32px/1.25 var(--sans);color:var(--ink);margin:4px 0;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.metric-value span,.metric-value small{font:500 14px var(--sans);margin-left:5px;color:var(--muted);letter-spacing:0}
-.metric-delta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:2px 0 6px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
-.delta-badge{display:inline-flex;align-items:center;padding:0 6px;border-radius:999px;font-size:11px;font-weight:600;background:var(--accent-soft);color:var(--accent-ink);border:1px solid color-mix(in srgb,var(--accent) 25%,transparent)}
+.panel-body:has(>.block-metric+.block-metric)>.block-metric{padding:14px 16px;border-radius:10px;background:var(--sunk);border:1px solid var(--rule)}
+.panel-body:has(>.block-metric+.block-metric)>.block-metric:has(.metric-over-limit){background:color-mix(in srgb,var(--bad-soft) 45%,var(--sunk));border-color:color-mix(in srgb,var(--bad) 28%,var(--rule))}
+.metric-label{font-size:12.5px;font-weight:500;color:var(--muted)}
+.metric-value{font:700 32px/1.2 var(--sans);color:var(--ink);margin:4px 0;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.metric-value span,.metric-value small{font:500 13.5px var(--sans);margin-left:5px;color:var(--muted);letter-spacing:0}
+.metric-delta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:4px 0 6px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.delta-badge{display:inline-flex;align-items:center;padding:0 7px;border-radius:999px;font-size:11px;font-weight:600;background:var(--accent-soft);color:var(--accent-ink);border:1px solid color-mix(in srgb,var(--accent) 25%,transparent)}
+.metric-over-limit .delta-badge{background:var(--bad-soft);color:var(--bad);border-color:color-mix(in srgb,var(--bad) 28%,transparent)}
 meter{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
-.metric-bar{position:relative;height:6px;margin:6px 0 4px;border-radius:999px;background:var(--rule);overflow:visible}
-.metric-bar-fill{display:block;height:100%;border-radius:999px;background:var(--accent);transition:width .2s}
-.metric-over-limit .metric-bar-fill{background:var(--bad)}
-.metric-bar-limit{position:absolute;top:-3px;bottom:-3px;width:2px;border-radius:1px;background:var(--ink);box-shadow:0 0 0 1.5px var(--panel)}
 .metric-over-limit .metric-value,.metric-overflow{color:var(--bad)}
-.metric-overflow{font-size:12px;font-weight:600;margin-top:6px}
+.metric-overflow{font-size:12px;font-weight:600;margin-top:4px}
 .typical,.chip{display:inline-block;border:1px solid var(--rule-strong);padding:0 6px;font-size:10.5px;border-radius:4px;color:var(--muted)}
 .typical{margin:5px 0}
 .typical-ref{font-size:10px;display:inline-block;min-width:16px;text-align:center}
@@ -247,10 +237,6 @@ meter{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%
 @keyframes explainer-edge-flow{to{stroke-dashoffset:-18}}
 .diagram-preview [data-edge-id].reader-highlight path{stroke:var(--accent);stroke-width:2.2;stroke-dasharray:6 3;animation:explainer-edge-flow .75s linear infinite}
 .diagram-preview [data-edge-id].reader-highlight text{fill:var(--accent);font-weight:600}
-.diagram-preview .node-source-badge circle{fill:var(--accent-soft);stroke:color-mix(in srgb,var(--accent) 55%,var(--rule));stroke-width:1.2;transition:fill .15s,stroke .15s}
-.diagram-preview .node-source-badge path{fill:none;stroke:var(--accent-ink);stroke-width:1.25;stroke-linecap:round;stroke-linejoin:round;transition:stroke .15s}
-.diagram-preview .has-source:hover .node-source-badge circle{fill:var(--accent);stroke:var(--accent)}
-.diagram-preview .has-source:hover .node-source-badge path{stroke:#fff}
 /* Steps beside the diagram they walk through, text on the left. The reader sets the diagram column
    to the width its text needs; with less than 320px left for the steps, the diagram wraps above
    them. The diagram stays in view while long steps scroll. */
@@ -326,8 +312,6 @@ footer{padding:28px 0 32px}
 .sources ol{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 32px;padding-left:20px;font-size:12.5px;color:var(--muted)}
 .sources li{padding:2px 6px 2px 4px;border-radius:6px;overflow-wrap:anywhere;transition:background .2s,box-shadow .2s}
 .sources li.source-pulse{background:color-mix(in srgb,var(--accent-soft) 65%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent)}
-.source-backlink{display:inline-flex;align-items:center;margin-left:4px;padding:0 5px;border-radius:4px;font-size:11px;color:var(--faint);text-decoration:none}
-.source-backlink:hover{background:var(--accent-soft);color:var(--accent-ink);text-decoration:none}
 .sources li::marker{font-size:11px;font-weight:600;color:var(--faint)}
 .sources a{color:var(--secondary)}
 .sources a:hover{color:var(--accent)}
@@ -489,7 +473,7 @@ dialog::backdrop{background:rgb(10 10 12/.55);backdrop-filter:blur(2px)}
 [data-style=swiss] .callout{border-radius:0;box-shadow:inset 4px 0 0 var(--accent)}
 [data-style=swiss] .steps li::before{border-radius:0;border-color:var(--ink)}
 /* Swiss controls keep the square corners of its numbers, chips and rules. */
-[data-style=swiss] :is(.tool-button,.theme-controls,.theme-controls button,.menu-options,.menu-options button,.walk-bar,.walk-bar button,.walk-start,.ask-button,.ask-chips button,.ask-dialog,.ask-dialog footer button,.ask-dialog textarea,.ask-dialog blockquote,.source-card,.source-icon,.source-note,.colophon-mark,.viewer-dialog,.snippet,.checklist input,.checklist-progress,.assessment,.delta-badge,.reason-panel-link){border-radius:2px}
+[data-style=swiss] :is(.tool-button,.theme-controls,.theme-controls button,.menu-options,.menu-options button,.walk-bar,.walk-bar button,.walk-start,.ask-button,.ask-chips button,.ask-dialog,.ask-dialog footer button,.ask-dialog textarea,.ask-dialog blockquote,.source-card,.source-icon,.source-note,.colophon-mark,.viewer-dialog,.snippet,.checklist input,.assessment,.delta-badge){border-radius:2px}
 /* Its neutral nodes take a grey outline; the full-strength rule colour is for page rules only. */
 :root[data-style=swiss] .board .diagram-preview.diagram-preview[class]{--frontend-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--database-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--cloud-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--external-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--messagebus-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper));--security-stroke:color-mix(in srgb,var(--ink) 32%,var(--paper))}
 /* Style overrides that must beat the clean dark rules, and chart series that stay apart in warm palettes. */
@@ -1599,7 +1583,7 @@ a{color:inherit}
   async function pageImage(format = 'png') {
     const shell = document.querySelector('.shell'), width = document.documentElement.clientWidth, height = Math.ceil(shell.getBoundingClientRect().height + 48);
     const clone = root.cloneNode(true);
-    clone.querySelectorAll('script,dialog,#toast,.skip-link,.tools,.ask-button,.ask-floating,.walk-bar,.walk-start,.interactive,.diagram-fit-status,.node-source-badge').forEach(element=>element.remove());
+    clone.querySelectorAll('script,dialog,#toast,.skip-link,.tools,.ask-button,.ask-floating,.walk-bar,.walk-start,.interactive,.diagram-fit-status').forEach(element=>element.remove());
     clone.querySelectorAll('.reader-highlight,.focusing,.step-locked,.walk-current,.panel-linked-hover,.panel-pulse,.source-pulse').forEach(element=>element.classList.remove('reader-highlight','focusing','step-locked','walk-current','panel-linked-hover','panel-pulse','source-pulse'));
     // Inside a foreignObject the page's <html> is not :root, so theme and style rules would drop out;
     // the root's own attribute selects the same element with the same specificity.
@@ -1836,22 +1820,10 @@ a{color:inherit}
       const num = targetPanel.querySelector('.panel-id')?.textContent.trim() || String(panels.indexOf(targetPanel) + 1);
       const title = targetPanel.dataset.title || targetPanel.querySelector('h2')?.textContent.trim() || '';
       li.dataset.targetPanel = targetPanel.id;
-      const jump = document.createElement('a');
-      jump.className = 'reason-panel-link interactive';
-      jump.href = `#${targetPanel.id}`;
-      jump.title = `${say('Jump to Panel ','跳至面板 ')}${num}${title ? ` · ${title}` : ''}`;
-      jump.textContent = `§${num}`;
-      li.append(' ',jump);
+      li.title = `${say('Jump to Panel ','跳至面板 ')}${num}${title ? ` · ${title}` : ''}`;
       const setHover = on => targetPanel.classList.toggle('panel-linked-hover',on);
       li.addEventListener('mouseenter',()=>setHover(true));
       li.addEventListener('mouseleave',()=>setHover(false));
-      jump.addEventListener('focus',()=>setHover(true));
-      jump.addEventListener('blur',()=>setHover(false));
-      jump.addEventListener('click',event=>{
-        event.preventDefault();
-        targetPanel.scrollIntoView({behavior:'smooth',block:'nearest'});
-        pulsePanel(targetPanel);
-      });
       li.addEventListener('click',event=>{
         if (event.target.closest('a,button')) return;
         targetPanel.scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -2095,10 +2067,8 @@ a{color:inherit}
       card.style.top = `${Math.max(8 + scrollY,(below ? box.bottom + 8 : box.top - 8 - card.offsetHeight) + scrollY)}px`;
     };
     let sourcePulseTimer;
-    const seenCites = new Set();
     all('.cite a[href^="#source-"]').forEach(link=>{
       const id = decodeURIComponent(link.getAttribute('href').slice('#source-'.length));
-      if (!link.id && !seenCites.has(id)) { link.id = `cite-ref-${id}`; seenCites.add(id); }
       link.addEventListener('mouseenter',()=>show(link,id)); link.addEventListener('focus',()=>show(link,id));
       link.addEventListener('mouseleave',hide); link.addEventListener('blur',hide);
       link.addEventListener('click',event=>{
@@ -2113,45 +2083,12 @@ a{color:inherit}
         sourcePulseTimer = setTimeout(()=>target.classList.remove('source-pulse'),1600);
       });
     });
-    all('.sources li[id^="source-"]').forEach(item=>{
-      const id = item.id.slice('source-'.length);
-      const firstCite = document.querySelector(`.cite a[href="#source-${CSS.escape(id)}"]`);
-      if (!firstCite) return;
-      const back = document.createElement('a');
-      back.className = 'source-backlink interactive';
-      back.href = `#${firstCite.id}`;
-      back.title = say('Back to citation in text','回到正文引用处');
-      back.textContent = '↩';
-      back.addEventListener('click',event=>{
-        event.preventDefault();
-        const panel = firstCite.closest('.panel');
-        firstCite.scrollIntoView({behavior:'smooth',block:'center'});
-        firstCite.focus({preventScroll:true});
-        if (panel) {
-          panel.classList.add('panel-pulse');
-          setTimeout(()=>panel.classList.remove('panel-pulse'),1500);
-        }
-      });
-      item.append(' ',back);
-    });
     // A diagram node tied to a source opens the same card, so a code diagram doubles as a code tour.
     all('.diagram-preview[data-node-sources]').forEach(preview=>{
       let map = {}; try { map = JSON.parse(preview.dataset.nodeSources); } catch {}
       all('[data-node-id]',preview).forEach(node=>{
         const id = map[node.dataset.nodeId]; if (!id) return;
         node.classList.add('has-source');
-        const rect = node.querySelector('rect:not(.c-mask)');
-        if (rect && !node.querySelector('.node-source-badge')) {
-          const x = parseFloat(rect.getAttribute('x')) || 0, y = parseFloat(rect.getAttribute('y')) || 0, w = parseFloat(rect.getAttribute('width')) || 0;
-          if (w > 0) {
-            const badge = document.createElementNS('http://www.w3.org/2000/svg','g');
-            badge.setAttribute('class','node-source-badge');
-            badge.setAttribute('aria-hidden','true');
-            const bx = Math.round(x + w - 11), by = Math.round(y + 11);
-            badge.innerHTML = `<circle cx="${bx}" cy="${by}" r="7"/><path d="M${bx - 2} ${by - 2}L${bx - 4} ${by}l2 2M${bx + 2} ${by - 2}l2 2-2 2"/>`;
-            node.append(badge);
-          }
-        }
         node.addEventListener('mouseenter',()=>show(node,id)); node.addEventListener('mouseleave',hide);
       });
     });
@@ -2160,33 +2097,8 @@ a{color:inherit}
   // Checklist ticks are the reader's own progress; keep them per page and block across reloads.
   all('.checklist').forEach(list=>{
     const key = `archify-checklist:${root.dataset.artifact}:${list.closest('.block').id}`, boxes = all('input',list);
-    if (!boxes.length) return;
     let saved = []; try { saved = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
-    const bar = document.createElement('div');
-    bar.className = 'checklist-progress interactive';
-    bar.innerHTML = `<span class="checklist-count"></span><span class="checklist-track" aria-hidden="true"><span class="checklist-fill"></span></span><button type="button" class="text-button checklist-reset" hidden>${say('Reset','重置')}</button>`;
-    list.before(bar);
-    const countEl = bar.querySelector('.checklist-count'), fillEl = bar.querySelector('.checklist-fill'), resetBtn = bar.querySelector('.checklist-reset');
-    const sync = () => {
-      const done = boxes.filter(b=>b.checked).length;
-      countEl.textContent = say(`${done} / ${boxes.length} checked`,`已完成 ${done} / ${boxes.length}`);
-      fillEl.style.width = `${Math.round((done / boxes.length) * 100)}%`;
-      bar.dataset.complete = String(done === boxes.length);
-      resetBtn.hidden = done === 0;
-    };
-    boxes.forEach((box,index)=>{
-      box.checked = saved[index] === 1;
-      box.addEventListener('change',()=>{
-        try { localStorage.setItem(key,JSON.stringify(boxes.map(b=>b.checked ? 1 : 0))); } catch {}
-        sync();
-      });
-    });
-    resetBtn.addEventListener('click',()=>{
-      boxes.forEach(b=>{ b.checked = false; });
-      try { localStorage.removeItem(key); } catch {}
-      sync();
-    });
-    sync();
+    boxes.forEach((box,index)=>{ box.checked = saved[index] === 1; box.addEventListener('change',()=>{ try { localStorage.setItem(key,JSON.stringify(boxes.map(b=>b.checked ? 1 : 0))); } catch {} }); });
   });
   // Chart series and slice hover spotlighting
   all('.chart>svg').forEach(svg=>{
