@@ -10,12 +10,17 @@ export function toPosix(p) {
 }
 
 // Package boundaries are declared by marker files the adapters do not parse
-// (package.json, pyproject.toml). Record their paths separately so module
-// grouping can honour them; directories the config excludes stay excluded.
+// (package.json, pyproject.toml). Their paths come from the same frozen
+// inventory as the sources, so grouping never mixes two tree states;
+// directories the config excludes stay excluded.
 export const PACKAGE_MARKERS = ['package.json', 'pyproject.toml', '__init__.py'];
 
-export function listPackageMarkers(root, config) {
-  return collectFiles(root, { include: PACKAGE_MARKERS.map(name => `**/${name}`), exclude: config.exclude || [] }).map(entry => entry.rel);
+export function packageMarkersIn(names, config) {
+  const exclude = matcher(config.exclude || []);
+  return names.filter(rel => PACKAGE_MARKERS.includes(rel.slice(rel.lastIndexOf('/') + 1))
+    && !exclude(rel)
+    && !rel.split('/').slice(0, -1).some((_, i, parts) => exclude(`${parts.slice(0, i + 1).join('/')}/`)))
+    .sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
 }
 
 export function listFiles(root, config) {
@@ -26,6 +31,15 @@ export function listFiles(root, config) {
 // input. They must never reopen the enumerated names to obtain source text.
 export function snapshotFiles(root, config, accept = () => true) {
   return captureEntries(collectFiles(root, config).filter(entry => accept(entry.rel)));
+}
+
+// One enumeration yields both the captured sources and the package markers,
+// so a marker created or removed after it cannot regroup the captured bytes.
+export function snapshotSources(root, config, accept = () => true) {
+  const include = matcher(config.include);
+  const entries = collectFiles(root, { ...config, include: [...(config.include || []), ...PACKAGE_MARKERS.map(name => `**/${name}`)] });
+  const contents = captureEntries(entries.filter(entry => include(entry.rel) && accept(entry.rel)));
+  return { contents, packageMarkers: packageMarkersIn(entries.map(entry => entry.rel), config) };
 }
 
 // Resolution needs a frozen inventory even for files excluded from analysis.

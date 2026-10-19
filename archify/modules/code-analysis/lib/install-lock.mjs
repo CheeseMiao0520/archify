@@ -9,7 +9,7 @@ const OWNER_FILE = 'owner.json';
 // timed-out lock from a live owner: it may still be installing into the shared
 // directory. A lock whose recorded owner process has exited on this host (an
 // interrupted install, for example Ctrl+C during the first `npm ci`) is stale
-// and is removed so later starts do not wait for it.
+// and is reclaimed so later starts do not wait for it.
 export async function withInstallLock(root, operation, timeout = 120000) {
   const lock = path.join(fs.realpathSync(root), '.code-analysis-install.lock');
   const deadline = Date.now() + timeout;
@@ -33,20 +33,35 @@ export async function withInstallLock(root, operation, timeout = 120000) {
 // Returns true when the lock was left by a process that no longer runs on this
 // host and has been removed. Locks without a readable owner (a legacy lock, or
 // one whose owner has not written its record yet) are kept.
+//
+// Reclaimers serialize on a second atomic directory. While one holds it, the
+// lock can only disappear through its owner's release, and the owner is dead,
+// so the owner record validated inside the guard is still the lock being
+// removed: two processes that saw the same stale lock cannot delete a lock
+// that one of them has just acquired.
 export function removeIfStale(lock) {
+  if (!staleOwner(lock)) return false;
+  const guard = `${lock}.reclaim`;
+  try { fs.mkdirSync(guard); }
+  catch (error) {
+    if (error.code === 'EEXIST') return false; // another process is reclaiming; retry later
+    throw error;
+  }
+  try {
+    if (!staleOwner(lock)) return false;
+    fs.rmSync(lock, { recursive: true, force: true });
+    return true;
+  } finally {
+    fs.rmSync(guard, { recursive: true, force: true });
+  }
+}
+
+function staleOwner(lock) {
   let owner;
   try { owner = JSON.parse(fs.readFileSync(path.join(lock, OWNER_FILE), 'utf8')); }
   catch { return false; }
   if (!Number.isInteger(owner?.pid) || owner.pid <= 0 || owner.host !== hostId()) return false;
-  if (processAlive(owner.pid)) return false;
-  try {
-    // Re-check the record just before removing so a lock that another process
-    // already replaced is not taken away from its new owner.
-    const current = JSON.parse(fs.readFileSync(path.join(lock, OWNER_FILE), 'utf8'));
-    if (current.pid !== owner.pid || current.host !== owner.host) return false;
-    fs.rmSync(lock, { recursive: true, force: true });
-    return true;
-  } catch { return false; }
+  return !processAlive(owner.pid);
 }
 
 function processAlive(pid) {
