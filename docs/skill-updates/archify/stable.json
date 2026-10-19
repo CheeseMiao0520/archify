@@ -2,17 +2,17 @@
   "schemaVersion": 1,
   "skillId": "archify",
   "channel": "stable",
-  "version": "3.1.0",
-  "publishedAt": "2026-10-13T17:01:11Z",
+  "version": "3.2.0",
+  "publishedAt": "2026-10-19T00:20:11Z",
   "source": {
     "repository": "https://github.com/tt-a1i/archify",
-    "ref": "v3.1.0",
-    "treeSha": "7e1de2b2cf3a9a91823ee5dcc2089c1d96a7e4f1"
+    "ref": "v3.2.0",
+    "treeSha": "39069dd190f574064fe410aa3af1b6dfd98a522c"
   },
   "artifact": {
-    "sha256": "ffedc53390c9da6e859f41e432c5d2d0615a23cf00a503181f07efbba88a7ce8"
+    "sha256": "70e210265c59f24dcbdf2a502ff671104b5454e7ee7d3554aecd86bad32384f5"
   },
-  "summary": "Adds five diagram types for ten total, default Live motion, clearer layouts and verified delivery, with export and Windows portability fixes.",
-  "releaseNotes": "https://github.com/tt-a1i/archify/releases/tag/v3.1.0",
+  "summary": "Adds one-page answers with cited sources, interactive diagrams and image/PDF export, plus clearer node indexes, update notices and portability fixes.",
+  "releaseNotes": "https://github.com/tt-a1i/archify/releases/tag/v3.2.0",
   "severity": "normal"
 }
