@@ -89,3 +89,13 @@ test('default explainer finalize succeeds without discovering or launching a bro
  const summary=JSON.parse(result.stdout);assert.deepEqual(summary.gates,{validate:'pass',deliver:'pass',check:'pass','browser-check':'not-run'});assert.deepEqual(summary.browserCheck,{requested:false,ran:false});assert.equal(summary.ok,true);
  const full=JSON.parse(fs.readFileSync(summary.evidence.receipt,'utf8'));assert.deepEqual(full.browserCheck,summary.browserCheck);assert.equal(full.stages['browser-check'].execution,'not-requested');
 });
+
+test('explainer live preview explains the supported delivery path before reading input', t => {
+  const dir = temporary(t), output = path.join(dir, 'result.html');
+  fs.writeFileSync(output, 'last good artifact');
+  const result = run(['preview', 'explainer', path.join(dir, 'missing.md'), output, '--no-open']);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /Live preview supports the ten diagram types only/);
+  assert.match(result.stderr, /finalize explainer/);
+  assert.equal(fs.readFileSync(output, 'utf8'), 'last good artifact');
+});

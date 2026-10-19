@@ -64,6 +64,25 @@
         }]
       }
     },
+    "functions": {
+      "type": "array",
+      "description": "Function-level measurements (Python adapter). Absent when the adapter does not measure functions, which the complexity rule treats as not checked rather than clean.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "name", "qualname", "line", "endLine", "complexity", "nesting", "deepestLine"],
+        "properties": {
+          "file": { "$ref": "#/$defs/repoPath" },
+          "name": { "type": "string", "minLength": 1 },
+          "qualname": { "type": "string", "minLength": 1 },
+          "line": { "type": "integer", "minimum": 1 },
+          "endLine": { "type": "integer", "minimum": 1 },
+          "complexity": { "type": "integer", "minimum": 1, "description": "Cyclomatic complexity: 1 plus each branch point (see extract/py/extract.py)." },
+          "nesting": { "type": "integer", "minimum": 0, "description": "Deepest block nesting inside the body; elif stays at its if's depth." },
+          "deepestLine": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
     "symbols": {
       "type": "array",
       "description": "Module-scope bindings per file (Python adapter): the line where a name becomes bound at import time. Used to identify potential partial-initialization risks in import cycles; static binding order does not prove runtime failure. Empty for adapters that do not emit them.",

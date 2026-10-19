@@ -230,7 +230,7 @@ Test files import almost everything; keeping them would push every module's fan-
 
 ### The rule engine
 
-`evaluate/index.mjs` loads each rule module, runs it with the module graph, the raw facts, and the configuration, and gives every finding a stable id (`COUP-0001`) after a deterministic sort. Rules do not read each other's output. A suppressed rule is counted in `summary.suppressed` rather than silently skipped.
+`evaluate/index.mjs` loads each rule module, runs it with the module graph, the raw facts, and the configuration, and gives every finding a stable id such as `COUP-3f9a2c1b07de`: the dimension prefix plus a hash of the rule code and the finding's subject (sorted file paths, or module grouping paths rather than generated module ids). The id does not depend on output order, so adding or fixing one finding leaves the other ids unchanged and findings can be matched across runs. Changing the module grouping configuration changes module-level ids, because it changes what the module is. When raw facts are available, each finding also carries `evidenceDigest`: the files it is about (the subject's files, or every file of the subject's modules) and a SHA-256 over their source text. Editing an unrelated file leaves the digest unchanged, unlike `repository.snapshotId`, which changes on any edit; a changed digest with an unchanged id means the same problem whose evidence needs re-checking. Rules do not read each other's output. A suppressed rule is counted in `summary.suppressed` rather than silently skipped.
 
 ### Strongly connected components
 
@@ -269,6 +269,31 @@ semantic validation verifies uniqueness and cross-record references.
 
 `coupling/hub` is arithmetic on the module graph: fan-in and fan-out both at or above the configured thresholds. The thresholds are echoed in the finding so the reader can see what was compared.
 
+### Function complexity
+
+The Python extractor records one entry per function in `facts.functions`: `file`, `name`, `qualname` (`Class.method`, `outer.<locals>.inner`), `line`, `endLine`, `complexity`, `nesting`, and `deepestLine`. Complexity follows the McCabe/radon reading: 1 for the function, plus 1 for each `if`/`elif`, `for`/`while`, `except` handler, conditional expression, `match` case other than an irrefutable `case _`, each comprehension `for` and its `if`s, and each extra operand of an `and`/`or`. Nesting counts stacked `if`/loop/`with`/`try`/`match` blocks; an `elif` is an `If` alone in its parent's `orelse` and keeps the parent's depth. Nested functions and classes are measured separately and are not added to their parent; a lambda is part of the enclosing function. `ast.Match` and `TryStar` are looked up with `getattr`, so older interpreters still run.
+
+The JS/TS extractor records the same fields from the TypeScript syntax tree (`extract/ts/functions.mjs`).
+- **Complexity:** each `if` (including `else if`), conditional expression, `for`/`for…in`/`for…of`/`while`/`do`, `catch`, non-default `case`, and each `&&`, `||`, `??` and their assignment forms adds 1. Optional chaining is not counted.
+- **Nesting:** counts `if`/loop/`switch`/`try`/`with` blocks. An `else if` keeps its `if`'s depth and a `catch` stays at its `try`'s depth, so the same logic gets the same numbers in both languages; a parity test checks this.
+- **Records:** declarations, methods, constructors, accessors, and function or arrow expressions bound to a name (variable, object property, class field, assignment target, `export default`) get their own record. Names are qualified as `Class.method`, `object.method`, or `outer.<locals>.inner`.
+- **Callbacks:** an anonymous callback is folded into the function that contains it. At module scope it has none, so it is recorded as `<callback of callee>` (for example `<callback of runCheck(…).then>`), with the call's first literal argument when there is one (`<callback of server.on("request")>`), so registering or removing another handler does not rename it. Only callbacks with the same call and literal in one file get `#2`, `#3` in source order.
+- **Skipped:** functions without a body (overload signatures, abstract methods) and declaration files.
+
+On archify itself (1,245 source functions), the defaults flag 12% overall. Most directories sit at 5–9%, close to the Python rate; `bin/archify.mjs`, with ten functions over 200 lines, reaches 20%.
+
+`complexity/function` runs only when `facts.functions` is present (its `enabled(config, facts)` checks the facts), so a JS/TS run reports complexity as not checked rather than clean. It reports info from complexity 15 or nesting 5 and a warning from 25 or 6, configurable per level under `rules.complexity.function`. The subject is `{ file, function, line, endLine }`; the id hashes only file and qualified name, so edits above a function keep its id, and `evidenceDigest` hashes only the function's own lines (`evidenceDigest.lines`), so edits elsewhere in the file keep the evidence current. Defaults were checked against a 180-file Python project, where they flag about 6% of functions.
+
+The overview ranks a complexity finding by its size within the same severity and reach, and picks the best finding of each rule at the top severity before filling the remaining priorities, so one rule with many instances does not take all three slots.
+
+### Architecture boundaries
+
+`architecture/boundary` checks layer rules the reader declares under `boundaries` in the `--config` file: `layers` maps names to path globs, and each rule names a `from` layer with either `disallow` (forbidden layers) or `allow` (the only other layers permitted). It is opt-in: a rule may export `enabled(config)`, and the engine skips a rule that is not enabled and leaves it out of `findings.rules`, so the overview says boundaries were not checked instead of reporting them clean.
+
+The rule walks `facts.imports`, not module edges, because module edges keep at most five evidence imports. Each resolved import is assigned the first layer whose globs match each end; imports with an end in no layer, within one layer, or touching an excluded role (test, generated) are not checked. Type-only imports count and are marked. All crossing imports for one `from → to` pair form one finding (`subject: { boundary: { from, to } }`, severity warning, confidence 1), so its id stays the same as crossing imports are added or removed while `evidenceDigest`, computed over both ends of every cited import, changes. An invalid `boundaries` block stops analysis with `config/boundaries-invalid` rather than checking less than was declared. The architecture diagram is never used as a constraint source: a missing connection on the diagram does not forbid a dependency.
+
+The overview's coverage lists each declared layer with the number of analyzed files it matched; a layer matching nothing usually means a mistyped glob. On the page a component gets an "Architecture boundary" indicator only when a configured boundary is crossed by one of its files; there is no green boundary claim when nothing was configured.
+
 ---
 
 ## 9. overlay/inject: layering onto Archify's HTML
@@ -280,6 +305,14 @@ semantic validation verifies uniqueness and cross-record references.
 ### Mapping components to modules
 
 A component's `sources` in the IR name files; the deepest module whose path contains that file claims the component, and descendants follow their parent unless another component claims them. `--map` replaces this with an explicit `{ componentId: [moduleId] }` table. A module no component claims is listed, not dropped.
+
+Per-component `findings` repeat a finding on every component it touches, and a finding whose modules no component claims appears on none of them. The payload therefore also carries a top-level `findings` list: each finding exactly once, with `moduleIds` (named in its subject, or owning one of its files) and `componentIds` (the components that show it, possibly empty). A project-level view counts and ranks from this list rather than from the components.
+
+### The overview
+
+`overlay/overview.mjs` turns that list into the payload's `overview`, also written to `overview.json`. It produces no wording and no quality score: `verdict` is `attention` (a warning or error fired), `signals-only` (only info) or `none-found` (nothing fired within the checks that ran). `groups` counts findings per rule. Findings that are the same structure at another level are related: a file cycle nested in a wider file cycle, or a file cycle spanning two or more modules that all lie inside a module-level cycle. `priorities` takes at most three findings by severity, then by reach (modules, summed fan-in, files), then id, and skips any finding related to one already picked. `coverage` states the language and adapter, analyzed and role-excluded file counts, the configured exclude patterns (excluded paths are never enumerated, so they are named rather than counted), parse failures, sources of another language left out when `--language` was given, unresolved imports, the rules that ran and the ones suppressed, and the modules no component claims.
+
+On the page the overview is the left column's default: turning the layer on shows it (it replaces the former hint, and the colour key moves into it). Each priority and each finding under "All findings" opens in the detail panel with its diagram, evidence and related findings; the components it involves stay lit and the rest are dimmed (`data-bauify-focus`). A finding on no component opens the same way, using a stand-in component built from its modules. Clicking a component replaces the overview with that component's panel, whose "← Overview" link and close button return to it. The overview collapses to its verdict line. Below 1180 px the detail panel covers the left column, and below 860 px the source panel covers both, instead of overlapping them. The wording is template text in English, like the rest of the overlay.
 
 ### Indicators and the halo
 
@@ -304,7 +337,26 @@ The second panel's diagrams are plain SVG strings built in the page: the cycle r
 
 ### The click
 
-The button POSTs to `/analyze`. The request must come from the served page (the `Origin` header) and carry a token minted for this process; anything else is refused, so a page in another tab cannot start an analysis or pick paths. On the first accepted request the server calls `analyzeRepository` from `lib/analysis.mjs` in-process: extract → graphs → evaluate → overlay, with JSON stage outputs written to `<out>/analysis/` and validated against their schemas; the overlay produces HTML. The response is the analysis page. Concurrent clicks share the one run; later clicks get the finished page back without running again.
+The button POSTs to `/analyze`. The request must come from the served page (the `Origin` header) and carry a token minted for this process; anything else is refused, so a page in another tab cannot start an analysis or pick paths. On the first accepted request the server starts `bin/analyze-run.mjs` as a child process. It passes the `analyzeRepository` options as JSON on stdin and reads back one JSON line: the receipt, or the structured diagnostics. Extract → graphs → evaluate → overlay run there, so a large repository does not block the server's event loop.
+
+Each run writes to `<out>/analysis.next-<random>`. Only on success is it swapped in: the current `<out>/analysis` moves to `<out>/analysis.previous`, and the new directory becomes `<out>/analysis`. A failed run's directory is removed. The current `findings.json` is passed as `previous`, so every run carries a comparison with the one before. The response is the analysis page. Concurrent clicks share the one run; later clicks get the latest result back without running again.
+
+### Re-analysis
+
+A request with `X-Analysis-Refresh: 1` discards the cached result (unless a run is already in progress, which it joins) and starts a new run. The client exposes `window.__archifyReanalyze`; when it exists, the overview shows **Re-analyze**. On success the page reloads with `?analysis=open`, and the client clicks its start button, which fetches the new cached result. This re-mounts the layer from scratch instead of patching a running one; the query string is then removed. On failure the button re-enables and the error is shown under it, while the last good result stays on screen and on disk. A changed architecture IR is still refused with 409, as on the first click.
+
+### Review: baseline and comparison
+
+`lib/review.mjs` compares this run's findings with two things, both keyed by the stable finding id:
+
+- **Baseline** (`--baseline`, `schemas/baseline.schema.json`, ids unique). Each finding is `open`, `accepted`, or `accepted-changed`. An entry that recorded a `sha256` whose value no longer matches the finding's `evidenceDigest` is `accepted-changed`. Entries whose finding is gone are `stale`.
+- **Previous run** (`previous`). Findings are `new`, `evidence-changed`, or `unchanged`; previous findings that are gone are `notDetected` (`fixed` is kept as a deprecated alias with the same entries). `comparability(previous.analysis, current.analysis)` sets `comparable` (`true`, `false`, or `null` when a side has no `analysis` block) and `reasons[]` with codes `language-changed`, `analyzer-changed`, `config-changed`, `rules-removed`, `rules-added`, `rules-changed`, `scope-changed`, `parse-errors`, `context-missing`. Each `notDetected` entry may carry `likelyCause`: `rule-not-run`, `parse-error`, `files-missing` (needs the current file list), or `possibly-renamed` with `candidates` (new findings of the same rule over the same files).
+
+`findings.json` carries that `analysis` block (`evaluate/index.mjs`, `analysisContext`): analyzer name and version from `package.json`, `configDigest` (sha256 of the canonicalized merged config without `schema_version`), `ruleVersions` (rules that ran, suppressed ones left out; a rule exports `version` when its logic changes, default 1), and `coverage` (analyzed file count, excluded roles, files with parse errors). The block is optional in the schema so older findings stay valid.
+
+`review.json` holds both. The overlay copies each finding's status onto the top-level findings list. The overview keeps accepted findings in its lists and counts them as `counts.accepted`, but excludes them from the severity counts, the verdict, and the priorities. Component indicators and diagram rings are computed from open findings only. An unreadable previous `findings.json` means no comparison, not a failure; an invalid baseline stops the run with `baseline/invalid`.
+
+`bin/check.mjs` runs the same review without a diagram. The gate counts open findings at or above `--fail-on`; `accepted-changed` counts as open. With `--new-only`, only findings new since the comparison count; with no comparison available, every open finding counts as new. Exit codes are 0 (passed), 1 (gate failed), and 2 (diagnostic). `--update-baseline` writes `baselineFrom(findings)`: existing reasons are kept, new findings get `--reason`, and gone entries are dropped.
 
 ### Handing over to the layer
 
@@ -420,3 +472,9 @@ Most tests call the library directly (`extractFacts`, `buildGraph`, `evaluateGra
 - Graph algorithms: the DFS, topological sort, and strongly connected components (Tarjan) chapters of any algorithms textbook; `coupling/cycle` and `coupling/import-cycle` are Tarjan.
 - Dependency metrics: Robert C. Martin, *Agile Software Development: Principles, Patterns, and Practices*, chapter 20, "Principles of Package Design".
 - Archify's contract: `archify/references/authoring-contract.md` and `delivery-contract.md`; they explain what `deliver` checks and what its receipt guarantees.
+
+### AI tasks and evidence checks
+
+`lib/task.mjs` builds a task (`schemas/ai-task.schema.json`) from `findings.json` and `raw-facts.json` of one run; mixing runs is refused (`task/snapshot-mismatch`). `locationsOf` turns each finding into line ranges: a complexity finding into the function's lines (with `focusLine` at the deepest block), an import cycle into the imports along its path, a boundary or module cycle into its evidence imports (one location per line, all targets listed), a hub into its files without lines. Each range gets `sha256` over its exact lines joined with `\n`; the excerpt is bounded (`EXCERPT`: full functions up to 60 lines, otherwise head, ±10 lines around the focus, and the last lines, with `omitted` ranges and `complete: false`). `scope.modify` is the files with cited lines, `scope.read` the rest of the files the finding was computed from. Facts are the finding messages, suggestions are the rule's `supportedFixes`, and preserve/acceptance come from per-rule templates; verification commands appear only when supplied. `taskId` hashes the sorted finding ids with their evidence digests. `renderTaskMarkdown` renders the same object; source sits in a fence longer than any backtick run it contains. `buildTaskPayloads` returns `{ [findingId]: { task, markdown } }` for a page without a server.
+
+`lib/evidence.mjs` `verifyTask(task, root)` reads cited files only inside `root` (no absolute paths, `..`, or symlink escapes). A location is `valid` when its hash matches at the same lines or at another position in the file (`currentStartLine`), `changed` otherwise, `missing` when the file is gone, `unverifiable` without a captured hash. Per finding, the evidence digest is recomputed as `evaluate` computes it (function spans at their current position); a valid location with a changed digest makes the finding `changed`. The task roll-up is the worst of `missing > changed > unverifiable > valid`. A UTF-8 BOM is accepted with or without, since Python's decoder drops it.

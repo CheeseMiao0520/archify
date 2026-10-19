@@ -2190,14 +2190,19 @@ function invalidProvenance(artifactPath, sidecar, reason, evidence = {}) {
 }
 
 const COMMAND_USAGE = {
-  start: '<repo-root> --ir <architecture.json> [--out <dir>] [--language ts|py] [--map file] [--config file] [--quality standard|showcase]',
-  'code-analysis': 'serve <repo-root> --ir <architecture.json> --out <dir> [--language ts|py] [--map file] [--config file] [--quality standard|showcase]',
+  start: '<repo-root> --ir <architecture.json> [--out <dir>] [--language ts|py] [--map file] [--config file] [--baseline file] [--quality standard|showcase]',
+  'code-analysis': [
+    'serve <repo-root> --ir <architecture.json> --out <dir> [--language ts|py] [--map file] [--config file] [--baseline file] [--quality standard|showcase]',
+    'check <repo-root> [--language ts|py] [--config file] [--baseline file] [--compare findings.json] [--out dir] [--fail-on error|warning|info|never] [--new-only] [--update-baseline] [--reason text] [--json]',
+    'task <analysis-dir> --finding <id> [--finding <id> …] [--root <repo-root>] [--command cmd] [--format md|json] [--out file] [--require-valid]',
+    'task --verify <task.json> --root <repo-root> [--format md|json] [--out file] [--require-valid]',
+  ],
   render: '<type> <input.json> [output.html] [--quality standard|showcase] [--repo-root path]',
   compare: 'architecture <base.json> <head.json> [output.html] [--receipt path] [--json] [--quality standard|showcase] [--repo-root path]',
   deliver: '<type> <input.json> [output.html] [--json] [--open] [--quality standard|showcase] [--repo-root path]',
   patch: 'explainer <artifact.html> <panel-id> <replacement-file> <output.html> [--json] [--quality standard|showcase] [--repo-root path]',
   finalize: '<type> <input.json> <output.html> [--json] [--browser-check] [--receipt path] [--out-dir <dir>] [--quality standard|showcase] [--repo-root path] [--candidate-sha256 hex]',
-  preview: '<type> <input.json> [output.html] [--no-open] [--quality standard|showcase] [--repo-root path]',
+  preview: '<diagram-type (excludes explainer)> <input.json> [output.html] [--no-open] [--quality standard|showcase] [--repo-root path]',
   validate: '<type> <input.json> [--json] [--layout-json] [--quality standard|showcase] [--repo-root path]',
   migrate: 'workflow <old.json> <new.json> --to-schema 2 [--output portable.html] [--json] [--repo-root path]',
   inspect: '<type> <input.json>',
@@ -5361,6 +5366,7 @@ async function commandPreview(args) {
   const positional = repoArgs.rest.filter((arg) => !knownOptions.has(arg));
   const [type, input, output] = positional;
   if (!type || !input || positional.length > 3) fail(usage());
+  if (type === 'explainer') fail('Live preview supports the ten diagram types only. For explainer, run finalize explainer <draft.md> <output.html>, then open the HTML in your browser.');
   rendererPath(type);
 
   try {
@@ -7221,7 +7227,7 @@ try {
       break;
     case 'start': {
       if (!args.length || args[0] === '--help' || args[0] === '-h') {
-        console.log('Usage: archify start <repo-root> --ir <architecture.json> [--out <dir>] [--language ts|py] [--map file] [--config file] [--quality standard|showcase]');
+        console.log('Usage: archify start <repo-root> --ir <architecture.json> [--out <dir>] [--language ts|py] [--map file] [--config file] [--baseline file] [--quality standard|showcase]');
         break;
       }
       const { startAnalysisView } = await import('../modules/code-analysis/bin/serve.mjs');
@@ -7232,13 +7238,16 @@ try {
       break;
     }
     case 'code-analysis': {
-      // One path only: deliver the authored diagram, serve it, analyze on click.
-      if (args[0] !== 'serve') {
-        console.error(`archify code-analysis has one command: serve.\n${usage()}`);
+      // serve: deliver the authored diagram, serve it, analyze on click.
+      // check: headless analysis with baseline, comparison and an exit code for CI.
+      // task: an AI optimization task from a finished run, with an evidence check.
+      const commands = { serve: 'serve.mjs', check: 'check.mjs', task: 'task.mjs' };
+      if (!commands[args[0]]) {
+        console.error(`archify code-analysis commands: serve, check, task.\n${usage()}`);
         process.exitCode = 1;
         break;
       }
-      const result = runNode([path.join(skillRoot, 'modules', 'code-analysis', 'bin', 'serve.mjs'), ...args.slice(1)]);
+      const result = runNode([path.join(skillRoot, 'modules', 'code-analysis', 'bin', commands[args[0]]), ...args.slice(1)]);
       if (result.error) throw result.error;
       process.exitCode = result.status ?? 1;
       break;

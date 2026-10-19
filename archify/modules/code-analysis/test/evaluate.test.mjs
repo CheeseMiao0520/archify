@@ -28,7 +28,7 @@ test('cycle: a DAG yields no finding; a 3-cycle yields one finding naming exactl
   assert.deepEqual(f.subject.modules, ['a', 'b', 'c']);
   assert.deepEqual(f.evidence.path, ['a', 'b', 'c']);
   assert.equal(f.evidence.edges.length, 3, 'd is outside the cycle and its edge is not evidence');
-  assert.equal(f.id, 'COUP-0001');
+  assert.match(f.id, /^COUP-[0-9a-f]{12}$/);
   assert.deepEqual(schemaErrors('findings', out), []);
 });
 
@@ -38,6 +38,56 @@ test('cycle: two separate cycles are two findings; a self-contained 2-cycle quot
   assert.deepEqual(out.diagnostics.map((d) => d.subject.modules), [['a', 'b'], ['x', 'y', 'z']]);
   assert.equal(out.diagnostics[0].evidence.imports.length, 2);
   assert.equal(out.summary.info, 2);
+});
+
+test('ids: a finding keeps its id when an unrelated finding sorting before it appears or disappears', () => {
+  const alone = evaluate(graphOf([['x', 'y'], ['y', 'x']])).diagnostics;
+  const withEarlier = evaluate(graphOf([['a', 'b'], ['b', 'a'], ['x', 'y'], ['y', 'x']])).diagnostics;
+  assert.equal(alone.length, 1);
+  assert.equal(withEarlier.length, 2);
+  assert.deepEqual(withEarlier.map((d) => d.subject.modules), [['a', 'b'], ['x', 'y']], 'the new finding sorts first');
+  assert.equal(withEarlier[1].id, alone[0].id, 'x <-> y is the same problem in both runs');
+  assert.notEqual(withEarlier[0].id, withEarlier[1].id);
+});
+
+test('ids: module findings are identified by grouping path, not by the generated module id', () => {
+  const withPaths = (graph, paths) => ({ ...graph, modules: graph.modules.map((m) => ({ ...m, path: paths[m.id] })) });
+  // Same directories; the second run's module id carries a collision suffix.
+  const before = evaluate(withPaths(graphOf([['a', 'b'], ['b', 'a']]), { a: 'src/a', b: 'src/b' })).diagnostics[0];
+  const after = evaluate(withPaths(graphOf([['a-1f2e3d4c5b6a', 'b'], ['b', 'a-1f2e3d4c5b6a']]), { 'a-1f2e3d4c5b6a': 'src/a', b: 'src/b' })).diagnostics[0];
+  assert.equal(after.id, before.id);
+  // A different directory behind the same module id is a different problem.
+  const moved = evaluate(withPaths(graphOf([['a', 'b'], ['b', 'a']]), { a: 'lib/a', b: 'src/b' })).diagnostics[0];
+  assert.notEqual(moved.id, before.id);
+});
+
+test('evidenceDigest: tracks only the files a finding is about, and is omitted without facts', () => {
+  const graph = graphOf([['a', 'b'], ['b', 'a']]);
+  const imports = [{ from: 'a/x.py', to: 'b/y.py' }, { from: 'b/y.py', to: 'a/x.py' }];
+  const run = (texts) => {
+    const facts = factsOf(imports);
+    facts.files.push({ path: 'c/z.py', loc: 1, role: 'source' });
+    for (const f of facts.files) f.sourceText = texts[f.path] ?? `# ${f.path}`;
+    const out = evaluate(graph, {}, facts);
+    assert.deepEqual(schemaErrors('findings', out), []);
+    return out.diagnostics.find((d) => d.code === 'coupling/import-cycle');
+  };
+  const base = run({});
+  assert.deepEqual(base.evidenceDigest.files, ['a/x.py', 'b/y.py']);
+  assert.match(base.evidenceDigest.sha256, /^[0-9a-f]{64}$/);
+  const unrelated = run({ 'c/z.py': '# edited elsewhere' });
+  assert.deepEqual(unrelated.evidenceDigest, base.evidenceDigest, 'an edit outside the cycle keeps the evidence current');
+  const involved = run({ 'a/x.py': '# edited inside the cycle' });
+  assert.notEqual(involved.evidenceDigest.sha256, base.evidenceDigest.sha256);
+  assert.equal(involved.id, base.id, 'same problem, stale evidence');
+  assert.ok(!('evidenceDigest' in evaluate(graph).diagnostics[0]), 'no facts, no digest');
+});
+
+test('evidenceDigest: module findings cover every file of their modules', () => {
+  const graph = { ...graphOf([['a', 'b'], ['b', 'a']]), fileModules: { 'a/x.py': 'a', 'a/w.py': 'a', 'b/y.py': 'b', 'c/z.py': 'c' } };
+  const facts = factsOf([{ from: 'a/x.py', to: 'b/y.py' }, { from: 'b/y.py', to: 'a/w.py' }]);
+  const cycle = evaluate(graph, {}, facts).diagnostics.find((d) => d.code === 'coupling/cycle');
+  assert.deepEqual(cycle.evidenceDigest.files, ['a/w.py', 'a/x.py', 'b/y.py']);
 });
 
 test('hub: fires only when both fan-in and fan-out meet the configured thresholds, echoed in evidence', () => {

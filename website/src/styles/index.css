@@ -90,7 +90,8 @@
     .cmd-chip code { font-family:inherit; white-space:nowrap; }
     .cmd-copy { display:inline-flex; align-items:center; gap:.4rem; min-height:34px; padding:0 .65rem; border:1px solid transparent; border-radius:7px; background:rgba(var(--fg-rgb),.06); color:var(--text-2); font-family:var(--font-mono); font-size:.6875rem; letter-spacing:.04em; cursor:pointer; transition:color .18s var(--ease-out),background .18s var(--ease-out); }
     .cmd-copy:hover { color:var(--text); background:rgba(var(--fg-rgb),.12); }
-    .cmd-copy.is-copied { color:var(--signal); }
+    .copy-status { color:var(--text-2); font-size:.85rem; overflow-wrap:anywhere; }
+    .copy-status:empty { display:block; margin:0; }
     .demo-trigger .play-ring { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; background:var(--accent); color:var(--on-accent); padding-left:1px; }
 
     .hero-meta { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:.5rem 1.5rem; margin-top:1.75rem; font-size:.8125rem; color:var(--text-3); }
@@ -146,7 +147,7 @@
     /* the page is a scripted demo: wheel and clicks pass to the site, "Open artifact" opens it for real */
     /* narrower than a desktop page, the frame keeps the desktop layout and scales it (--page-scale, set by the script) */
     .hero-frame .page-frame { width:calc(100% / var(--page-scale,1)); height:calc(100% / var(--page-scale,1)); transform-origin:0 0; opacity:0; visibility:hidden; pointer-events:none; transform:translateY(24px) scale(calc(var(--page-scale,1) * .985)); transition:opacity .6s var(--ease-out),transform .8s var(--ease-out),visibility 0s linear .6s; }
-    .stage-window[data-mode="page"] .page-frame { opacity:1; visibility:visible; transform:scale(var(--page-scale,1)); transition:opacity .6s var(--ease-out),transform .8s var(--ease-out); }
+    .stage-window[data-mode="page"] .page-frame { opacity:1; visibility:visible; transform:scale(var(--page-scale,1)); transition:opacity .6s var(--ease-out); }
     .stage-window[data-mode="page"] #hero-proof-frame { opacity:0; }
     .stage-window[data-mode="page"].is-page-loading .page-frame { opacity:.3; }
     /* wide screens: in the page chapter the caption moves into a rail beside the page instead of over it */
@@ -403,6 +404,8 @@
     .step a:hover { border-bottom-color:var(--accent); }
     .step code { font-family:var(--font-mono); font-size:.85em; padding:.1em .4em; border-radius:5px; background:rgba(var(--fg-rgb),.07); }
 
+    .guide-discovery { margin-top:2rem; line-height:1.7; }
+    .guide-discovery a { color:var(--text); text-decoration:underline; text-underline-offset:4px; }
     .shortcut-box { margin-top:3rem; padding:1.5rem 1.75rem; border:1px solid var(--line-hi); border-radius:16px; background:var(--bg-2); }
     .shortcut-title { margin-bottom:1.1rem; font-family:var(--font-mono); font-size:.625rem; font-weight:500; letter-spacing:.16em; text-transform:uppercase; color:var(--text-3); }
     .shortcut-rows { display:grid; grid-template-columns:repeat(4,1fr); gap:.6rem 2rem; }
@@ -505,7 +508,9 @@
     @media(max-width:640px) {
       .container { padding:0 1.25rem; }
       .hero { min-height:0; padding:calc(var(--nav-h) + 3rem) 1.25rem 3rem; }
-      .hero-eyebrow { margin-bottom:1.5rem; }
+      .hero-copy { min-width:0; width:100%; }
+      .hero-eyebrow { max-width:100%; white-space:normal; margin-bottom:1.5rem; }
+      .eyebrow-tag { flex-shrink:0; }
       .hero-works { display:none; }
       .hero-stars { padding-left:0; border-left:0; }
       .hero h1 { font-size:clamp(2.2rem,9.4vw,3.2rem); }
@@ -513,6 +518,8 @@
       .hero-actions { flex-direction:column; align-items:stretch; width:100%; margin-top:2rem; }
       .hero-actions .btn { width:100%; }
       .cmd-chip { justify-content:space-between; font-size:.75rem; }
+      .cmd-chip code { min-width:0; white-space:normal; overflow-wrap:anywhere; }
+      .cmd-copy { flex-shrink:0; }
       .stage { height:320svh; margin-top:0; }
       .stage-pin { padding:calc(var(--nav-h) + .5rem) .75rem .75rem; align-items:flex-start; }
       .stage-window { height:auto; max-height:100%; border-radius:14px; }

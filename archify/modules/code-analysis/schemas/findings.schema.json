@@ -20,6 +20,29 @@
         "suppressed": { "type": "integer", "minimum": 0 }
       }
     },
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["analyzer", "language", "adapter", "configDigest", "ruleVersions", "coverage"],
+      "description": "What the findings depend on besides the source: analyzer version, effective configuration, rules run and scan coverage. Optional so findings written before it existed stay valid; a comparison with such a run is reported as not verifiable.",
+      "properties": {
+        "analyzer": { "type": "object", "additionalProperties": false, "required": ["name", "version"], "properties": { "name": { "type": "string" }, "version": { "type": "string" } } },
+        "language": { "type": ["string", "null"] },
+        "adapter": { "type": ["string", "null"] },
+        "configDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "sha256 of the effective (merged) configuration in its key order, schema_version excluded." },
+        "ruleVersions": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 1 }, "description": "Rules that ran (suppressed rules excluded) and the version of their logic." },
+        "coverage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["files", "excludedRoles", "parseErrors"],
+          "properties": {
+            "files": { "type": ["integer", "null"], "minimum": 0 },
+            "excludedRoles": { "type": "array", "items": { "type": "string" } },
+            "parseErrors": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
     "diagnostics": {
       "type": "array",
       "items": {
@@ -27,15 +50,26 @@
         "additionalProperties": false,
         "required": ["id", "code", "dimension", "severity", "confidence", "message", "subject", "evidence", "supportedFixes"],
         "properties": {
-          "id": { "type": "string", "pattern": "^[A-Z]{2,4}-[0-9]{4}$" },
+          "id": { "type": "string", "pattern": "^[A-Z]{2,4}-(?:[0-9a-f]{12}|[0-9]{4,})$", "description": "Stable id: dimension prefix + 12 hex digits of a hash of the rule and subject. Findings written before stable ids used a position number (COUP-0001); those stay valid schema-v1 documents but their ids cannot be matched across runs." },
           "code": { "type": "string", "pattern": "^[a-z-]+/[a-z-]+$" },
-          "dimension": { "enum": ["coupling", "complexity", "redundancy", "error-handling", "impact", "ai-smell"] },
+          "dimension": { "enum": ["coupling", "architecture", "complexity", "redundancy", "error-handling", "impact", "ai-smell"] },
           "severity": { "enum": ["error", "warning", "info"] },
           "confidence": { "enum": [1, 0.7, 0.5] },
           "message": { "type": "string", "minLength": 1 },
           "subject": { "type": "object" },
           "evidence": { "type": "object", "required": ["threshold"] },
-          "supportedFixes": { "type": "array", "items": { "type": "string" } }
+          "supportedFixes": { "type": "array", "items": { "type": "string" } },
+          "evidenceDigest": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["files", "sha256"],
+            "description": "Hash over the source text of only the files this finding is about; present when raw facts were available. A changed digest means the evidence must be re-checked.",
+            "properties": {
+              "files": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+              "lines": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "integer", "minimum": 1 }, "description": "For a function finding: the first and last line hashed." },
+              "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+            }
+          }
         }
       }
     }

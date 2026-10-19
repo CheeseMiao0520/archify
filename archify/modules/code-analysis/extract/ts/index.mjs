@@ -8,6 +8,7 @@ import { matcher } from '../shared/glob.mjs';
 import { snapshotHost } from './snapshot-host.mjs';
 import { describeRepository } from '../shared/git.mjs';
 import { fail } from '../shared/diagnostics.mjs';
+import { measureFunctions } from './functions.mjs';
 
 export const id = 'ts';
 
@@ -17,6 +18,10 @@ export const OPAQUE = '<computed>';
 
 export function detect(root, config) {
   return listFiles(root, config).some((f) => SOURCE_EXT.test(f));
+}
+
+export function countSources(root, config) {
+  return listFiles(root, config).filter((f) => SOURCE_EXT.test(f)).length;
 }
 
 const COMPILER_OPTIONS = {
@@ -55,11 +60,23 @@ export function extract(root, config) {
   const imports = [];
   const unresolved = { external: 0, outside: 0, unknown: 0, opaque: 0 };
   const fileRecords = [];
+  const functions = [];
+  const parseErrors = [];
 
   for (const rel of files) {
     const abs = path.join(absRoot, rel);
     const source = program.getSourceFile(abs);
+    // TypeScript recovers from syntax errors and returns a partial tree, so a broken
+    // file can silently lose its imports and functions. Record it like Python's
+    // parse_errors: coverage shows it, and run comparisons treat it as a scope change.
+    const syntax = program.getSyntacticDiagnostics(source);
+    if (syntax.length) {
+      const first = syntax[0];
+      const line = first.start === undefined ? null : source.getLineAndCharacterOfPosition(first.start).line + 1;
+      parseErrors.push({ path: rel, message: `${line ? `line ${line}: ` : ''}${ts.flattenDiagnosticMessageText(first.messageText, ' ')}${syntax.length > 1 ? ` (+${syntax.length - 1} more)` : ''}` });
+    }
     fileRecords.push({ path: rel, loc: lineCount(source.text), role: classifyRole(rel, config.roles), sourceText: source.text });
+    if (!source.isDeclarationFile) functions.push(...measureFunctions(source, rel));
     for (const found of collectImports(source, checker, options)) {
       const record = { from: rel, specifier: found.specifier, kind: found.kind, line: found.line, resolved: false };
       if (found.names.length) record.names = found.names;
@@ -85,7 +102,9 @@ export function extract(root, config) {
     packageMarkers,
     imports,
     symbols: [],
+    functions: functions.sort((a, b) => compareText(a.file, b.file) || a.line - b.line || compareText(a.qualname, b.qualname)),
     calls: [],
+    ...(parseErrors.length ? { parse_errors: parseErrors } : {}),
     unresolved,
   };
 }

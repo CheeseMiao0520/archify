@@ -16,6 +16,16 @@ test('source listed in a mapped module is embedded even without import evidence'
   const data=JSON.parse(result.html.match(/id="bauify-analysis">([\s\S]*?)<\/script>/)[1]);
   assert.deepEqual(data.snippets['asr/worker.py'].lines,['first','second','third']);
 });
+test('an unmapped hub keeps its files and captured source available to the reader', t => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'analysis-unmapped-source-'));
+  t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const finding={id:'hub-asr',code:'coupling/hub',severity:'warning',subject:{module:'asr'},evidence:{fanIn:5,fanOut:5,dependents:[],dependencies:[],threshold:{fanIn:5,fanOut:5}},supportedFixes:[]};
+  const result=buildOverlay({ir:{components:[]},graph,html,findings:[finding],sourceRoot:root,facts:{files:[{path:'asr/worker.py',loc:3,role:'source',sourceText:'first\nsecond\nthird\n'}],imports:[]}});
+  const data=JSON.parse(result.html.match(/id="bauify-analysis">([\s\S]*?)<\/script>/)[1]);
+  assert.equal(data.findings[0].componentIds.length,0);
+  assert.equal(data.unmapped[0].fileList[0].path,'asr/worker.py');
+  assert.deepEqual(data.snippets['asr/worker.py'].lines,['first','second','third']);
+});
 test('hub arrows and all Bezier controls stay outside the node columns', () => {
   const result=buildOverlay({ir,graph,html});
   const script=result.html.match(/id="bauify-script">([\s\S]*?)<\/script>/)[1];
@@ -49,11 +59,16 @@ test('source links preserve distinct finding lines and never invent line one', (
   assert.match(render({incoming:[],outgoing:[{evidence:[{file:'hub.py',line:28}]}]},'hub.py'),/data-line="28"/);
   const start=script.indexOf('  function showCode('),end=script.indexOf('  function showDetail(',start);
   let pane={hidden:true,innerHTML:'',querySelector:()=>({addEventListener(){},scrollIntoView(){}})};
-  const show=new Function('codePane','data','detail','function esc(x){return x} '+script.slice(start,end)+';return showCode;')(pane,{snippets:{'worker.py':{lines:Array.from({length:100},(_,i)=>'code '+(i+1))}}},{});
+  const show=new Function('codePane','data','detail','function readerPage(){} const document={documentElement:{setAttribute(){},removeAttribute(){}}}; function esc(x){return x} '+script.slice(start,end)+';return showCode;')(pane,{snippets:{'worker.py':{lines:Array.from({length:100},(_,i)=>'code '+(i+1))}}},{});
   show('worker.py',47,'','amber');
   assert.match(pane.innerHTML,/Source · line 47/);
   assert.match(pane.innerHTML,/<span class="ln hit amber"><i>47<\/i>code 47/);
+  assert.equal((pane.innerHTML.match(/class="ln/g)||[]).length,9);
+  assert.doesNotMatch(pane.innerHTML,/<i>1<\/i>code 1</);
+  show('worker.py',47,'','amber',true);
+  assert.equal((pane.innerHTML.match(/class="ln/g)||[]).length,100);
   show('worker.py',null,'','');
   assert.doesNotMatch(pane.innerHTML,/class="ln hit/);
-  assert.match(pane.innerHTML,/full file/);
+  assert.match(pane.innerHTML,/file preview/);
+  assert.equal((pane.innerHTML.match(/class="ln/g)||[]).length,12);
 });

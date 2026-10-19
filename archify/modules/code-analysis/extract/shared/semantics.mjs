@@ -12,6 +12,7 @@ export function semanticErrors(name, data) {
     });
     return seen;
   };
+  if (name === 'baseline') unique(data.accepted, 'id', '/accepted');
   if (name === 'raw-facts') {
     const unresolved = data.imports.filter((edge) => !edge.resolved).length;
     if (Object.values(data.unresolved).reduce((sum, count) => sum + count, 0) !== unresolved) {
@@ -24,6 +25,11 @@ export function semanticErrors(name, data) {
     });
     data.symbols.forEach((symbol, i) => {
       if (!files.has(symbol.file)) add(`/symbols/${i}/file`, 'must reference a recorded file');
+    });
+    data.functions?.forEach((fn, i) => {
+      if (!files.has(fn.file)) add(`/functions/${i}/file`, 'must reference a recorded file');
+      if (fn.endLine < fn.line) add(`/functions/${i}/endLine`, 'must not precede line');
+      if (fn.deepestLine < fn.line || fn.deepestLine > fn.endLine) add(`/functions/${i}/deepestLine`, 'must lie inside the function');
     });
     data.parse_errors?.forEach((error, i) => {
       if (!files.has(error.path)) add(`/parse_errors/${i}/path`, 'must reference a recorded file');

@@ -3,7 +3,7 @@ name: archify
 description: "Create validated architecture, workflow, sequence, data-flow, lifecycle/state, ERD, class, tree, timeline, and waterfall diagrams as explorable standalone HTML with dark/light themes, motion and image/SVG/WebM export. Accept requirements or Mermaid; inspect repository evidence for code-backed diagrams. Use when visualizing systems, API calls, pipelines, schemas, histories, timings, or everyday steps, parts, relationships and states. Also turn an answer into a one-page explainer, with the conclusion first, structured panels, native diagrams and charts, when the user asks for a page, an explainer or an answer to share (做成一页, 用页面讲), or proactively when the user's rules opt in with an [archify explainer: ...] line. Not for dashboards."
 license: MIT
 metadata:
-  version: "3.1"
+  version: "3.2"
   author: tt-a1i
 ---
 
@@ -104,7 +104,7 @@ When reporting verification details, distinguish artifact checks, browser eviden
 
 ## Code Analysis (architecture diagrams that must reflect real code)
 
-For coupling, circular dependencies, and hub modules, use Code Analysis on a validated architecture candidate: `node bin/archify.mjs code-analysis serve <repo-root> --ir <candidate.json> --out <dir> [--language ts|py]`. It delivers first, installs its dependencies on first use, and analyzes only after the reader opens the printed URL and clicks **Code Analysis**.
+For coupling, circular dependencies, and hub modules, use Code Analysis on a validated architecture candidate: `node bin/archify.mjs code-analysis serve <repo-root> --ir <candidate.json> --out <dir> [--language ts|py]`. It delivers first, installs its dependencies on first use, and analyzes only after the reader opens the printed URL and clicks **Code Analysis**. For a terminal or CI run without a diagram, use `node bin/archify.mjs code-analysis check <repo-root> [--baseline baseline.json] [--fail-on warning]`; it exits 1 when an open finding reaches the gate.
 
 Analysis describes the working tree, not a committed snapshot. Keep authored commit evidence separate; never pin uncommitted content to HEAD. Use verified `sources` or an explicit `--map` to associate components with modules. Source panels retain the extracted text. If the architecture JSON changes, regenerate the diagram before analysis. Findings describe static evidence, not proven runtime failures. Read `modules/code-analysis/docs/USAGE.md` for the workflow and `modules/code-analysis/README.md` for options.
 

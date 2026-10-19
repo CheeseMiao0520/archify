@@ -4,7 +4,7 @@ All notable changes are documented here. Format loosely follows [Keep a Changelo
 
 ## [Unreleased]
 
-> Development identity: `v3.1.1-dev.1`. Not a stable release.
+## [3.2.0] — 2026-10-18
 
 ### Added
 
@@ -34,7 +34,13 @@ All notable changes are documented here. Format loosely follows [Keep a Changelo
 - **Timeline 时区刻度（#926）。** 刻度按显示时区在各真实时刻的 UTC 偏移对齐，修复跨夏令时后日刻度漂移到 01:00／23:00、半小时跳变后小时刻度漂移的问题。回拨的重复时刻保持独立，跳过的小时或日期不生成虚构刻度；事件时间、标签精度、时间轴比例与断轴规则保持不变。
 
 ### Changed
-- **发布后的开发基线。** 在已发布的 3.1.0 代码和验证产物基础上开启 3.1.1-dev.1 开发周期，同步开发身份与可重现的示例、比较图和网站产物。稳定更新清单继续指向已发布的 3.1.0；本次不创建发布或更改已发布版本。
+- **Reader controls and node index.** Compact bottom index rows keep descriptions below titles; menu and roving keyboard navigation respect modifier keys.
+- **Update notices.** Available updates include a release summary and an offer to help update. Network failures remain non-blocking.
+- **Website and portability.** The bilingual homepage and gallery introduce one-page answers while retaining guides and source-backed cases. Browser discovery, Windows command paths, source-directory whitespace and temporary-worktree cleanup receive focused fixes.
+
+### Release follow-up
+- The stable update manifest remains on v3.1.0 until the v3.2.0 GitHub Release is published and its ZIP digest is verified.
+- The separately versioned DSH plugin is not republished with this release; maintainers must select a pinned source and complete its host/package acceptance in a separate follow-up.
 
 ## [3.1.0] — 2026-10-14
 

@@ -179,7 +179,7 @@ test('cli: help lists commands and diagram types', () => {
   assert.match(result.stdout, /archify compare architecture <base\.json> <head\.json>/);
   assert.match(result.stdout, /archify deliver <type>/);
   assert.match(result.stdout, /archify finalize <type>/);
-  assert.match(result.stdout, /archify preview <type>/);
+  assert.match(result.stdout, /archify preview <diagram-type \(excludes explainer\)>/);
   assert.match(result.stdout, /archify browser-check <output\.html>/);
   assert.match(result.stdout, /archify visual-check <output\.html>/);
   assert.match(result.stdout, /--open/);

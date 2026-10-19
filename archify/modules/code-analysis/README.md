@@ -6,20 +6,28 @@ Start Archify with `npm start -- "/path/to/project" --ir architecture.json` from
 
 Code Analysis is Archify's integrated static code analysis module, imported from
 Bauify (commit 4bb811c) and maintained here. It reads a repository's imports
-(Python and JS/TS), folds files into modules, checks coupling and import cycles,
-and shows the result on the architecture diagram Archify delivered — as an
+(Python and JS/TS), folds files into modules, checks import cycles, coupling,
+function complexity and configured architecture boundaries, and shows the result on the architecture diagram Archify delivered — as an
 extra layer the reader switches on, never as a change to the diagram itself.
 
-There is exactly one way to use it, and it follows Archify's own order:
+It has two entry points that share the same pipeline:
 
-1. **Archify delivers the authored diagram** (`archify deliver architecture …`),
-   exactly as it would without this module.
-2. The delivered page is served locally with one extra toolbar button,
-   **Code Analysis**.
-3. **Clicking the button runs the analysis** — source extraction, module graph,
-   rules, overlay — and switches the page to the analysis view. Nothing is
-   analyzed before the click. From then on the same button shows or hides the
-   layer; a second click never re-runs the analysis.
+- **On the diagram** (`serve`, also reached through `npm start`):
+  1. **Archify delivers the authored diagram** (`archify deliver architecture …`),
+     exactly as it would without this module.
+  2. The delivered page is served locally with one extra toolbar button,
+     **Code Analysis**.
+  3. **Clicking the button runs the analysis** — source extraction, module graph,
+     rules, overlay — and switches the page to the analysis view. Nothing is
+     analyzed before the click. From then on the same button shows or hides the
+     layer; **Re-analyze** on the overview runs the analysis again after code or
+     config changes, without a restart.
+- **In a terminal or CI** (`check`): the same analysis without a diagram, with a
+  baseline, a comparison with the previous run, and an exit code.
+
+`archify code-analysis task` turns findings of a finished run into an AI
+optimization task (JSON or Markdown) and checks its evidence against the current
+working tree; the page uses the same logic through the server.
 
 From the `archify/` package directory:
 
@@ -38,9 +46,11 @@ exclude, roles), `--quality standard|showcase` (passed to `archify deliver`).
 
 Output under `--out`: `architecture.html` (Archify's artifact, untouched) and,
 after the click, `analysis/raw-facts.json`, `analysis/module-graph.json`,
-`analysis/findings.json`, and `analysis/repo.analysis.html` — the delivered page
-plus the appended analysis layer, self-contained. Restart the command for a
-fresh analysis after changing source code.
+`analysis/findings.json`, `analysis/review.json`, `analysis/overview.json` and
+`analysis/repo.analysis.html` — the delivered page plus the appended analysis
+layer, self-contained. Click **Re-analyze** for a fresh analysis after changing
+source code or the `--config` file; only a changed architecture JSON needs a
+restart. The previous run is kept in `analysis.previous/` and compared with.
 
 The local process exists because a standalone HTML cannot run the Python /
 TypeScript extractor. It listens only on loopback and accepts analysis requests

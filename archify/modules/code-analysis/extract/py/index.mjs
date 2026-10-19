@@ -22,6 +22,10 @@ export function detect(root, config) {
   return listFiles(root, config).some((f) => PY_EXT.test(f));
 }
 
+export function countSources(root, config) {
+  return listFiles(root, config).filter((f) => PY_EXT.test(f)).length;
+}
+
 export function runPython(request, candidates = CANDIDATES, spawn = spawnSync) {
   const input = JSON.stringify(request);
   const attempts = [];
@@ -59,9 +63,11 @@ export function extract(root, config) {
   const parseErrors = [];
   const fileRecords = [];
   const symbols = [];
+  const functions = [];
   for (const record of output.files) {
     fileRecords.push({ path: record.path, loc: record.loc, role: classifyRole(record.path, config.roles), sourceText: record.sourceText });
     for (const b of record.symbols || []) symbols.push({ file: record.path, name: b.name, kind: b.kind, line: b.line });
+    for (const fn of record.functions || []) functions.push({ file: record.path, ...fn });
     if (record.error) { parseErrors.push({ path: record.path, message: record.error }); continue; }
     const implicitStatements = new Set();
     for (const found of record.imports) {
@@ -96,6 +102,7 @@ export function extract(root, config) {
     packageMarkers,
     imports,
     symbols: symbols.sort((a, b) => compareText(a.file, b.file) || a.line - b.line || compareText(a.name, b.name)),
+    functions: functions.sort((a, b) => compareText(a.file, b.file) || a.line - b.line || compareText(a.qualname, b.qualname)),
     calls: [],
     unresolved,
   };

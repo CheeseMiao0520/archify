@@ -25,3 +25,12 @@ export function selectAdapter(root, config, requested) {
   });
   return detected[0];
 }
+
+// One analysis reads one language. When another adapter's sources are also
+// present (only possible when the language was chosen explicitly), say how
+// many files were left out so a clean result is not read as covering them.
+export function otherLanguageFiles(root, config, selectedId) {
+  return ADAPTERS.filter((a) => a.id !== selectedId)
+    .map((a) => ({ adapter: a.id, files: a.countSources(root, config) }))
+    .filter((x) => x.files > 0);
+}

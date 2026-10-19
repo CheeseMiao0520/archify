@@ -33,7 +33,7 @@
   <a href="https://skills.sh/tt-a1i/archify/archify"><img src="https://img.shields.io/badge/installs-130K%2B-0EA5E9?style=flat-square" alt="130K+ installs on skills.sh" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square" alt="MIT License" /></a>
   <a href="#安装方式"><img src="https://img.shields.io/badge/works_with-Claude_Code_%7C_Codex_%7C_Cursor_%7C_OpenCode-7C3AED?style=flat-square" alt="Works with Claude Code, Codex, Cursor, and OpenCode" /></a>
-  <a href="CHANGELOG.md#unreleased"><img src="https://img.shields.io/badge/version-3.1.1--dev.1-0891b2?style=flat-square" alt="Development version 3.1.1-dev.1" /></a>
+  <a href="CHANGELOG.md#320--2026-10-18"><img src="https://img.shields.io/badge/version-3.2.0-0891b2?style=flat-square" alt="Stable version 3.2.0" /></a>
 </p>
 
 <p align="center">
@@ -75,7 +75,7 @@ API 优先读取 Redis，缓存未命中时查询 PostgreSQL 并回填缓存。
 
 **不需要绑定代码库：**从描述开始即可。也可以让 Agent 阅读仓库，生成有源码依据的架构图。
 
-[按 Agent 选择安装方式](https://archify.si/zh/start?agent=cursor&type=architecture) · [安装细节与更新检查](#快速开始)
+[按 Agent 选择安装方式](https://archify.si/zh/start?agent=cursor&type=architecture) · [安装细节与更新检查](#快速开始) · [用 Agent 画图并检查结果](https://archify.si/zh/agent-diagrams)
 
 ## 问一个问题，得到一页讲清楚的答案
 
@@ -121,10 +121,6 @@ API 优先读取 Redis，缓存未命中时查询 PostgreSQL 并回填缓存。
 <tr>
 <td align="center" width="240"><a href="https://www.aicodemirror.ai/register?invitecode=WC26FL"><img src="docs/assets/sponsors/aicodemirror-logo.jpg" alt="AICodeMirror" width="200" /></a><br/><strong><a href="https://www.aicodemirror.ai/register?invitecode=WC26FL">AICodeMirror</a></strong></td>
 <td>感谢 AICodeMirror 赞助 Archify！AICodeMirror 提供 Claude / Codex / Gemini API 中转服务，支持企业级高并发、开票和 7×24 技术支持。Codex 通道低至基准价格 0.7 折，充值还有额外优惠。<br/><br/>Archify 专属福利：通过专属链接注册，可享首充 8 折。<br/><br/><a href="https://www.aicodemirror.ai/register?invitecode=WC26FL">立即体验 AICodeMirror →</a></td>
-</tr>
-<tr>
-<td align="center" width="240"><a href="https://zturbo.top"><img src="docs/assets/sponsors/zturbo-logo.png" alt="ZTURBO" width="200" /></a><br/><strong><a href="https://zturbo.top">ZTURBO</a></strong></td>
-<td>为开发者和 AI 用户提供高速、稳定的连接体验。<br/>新用户注册即可免费体验，首次充值还有专属加赠；支持 Windows、macOS、iOS 和 Android 多端使用，长期套餐折算每天不到 ¥1。<br/><br/>免费体验 · 首充加赠 · 多端畅连<br/><br/><a href="https://zturbo.top">立即体验 ZTURBO →</a></td>
 </tr>
 <tr>
 <td align="center" width="240"><a href="https://www.infistar.cc/register?aff=9N89LEMV&amp;ref_source=link"><img src="docs/assets/sponsors/infistar-logo.svg" alt="Infistar.cc 无限星河" width="140" /></a><br/><strong><a href="https://www.infistar.cc/register?aff=9N89LEMV&amp;ref_source=link">Infistar.cc 无限星河</a></strong></td>
@@ -215,7 +211,7 @@ Export 菜单支持复制 PNG，并下载静态或动态格式：
 
 ## 快速开始
 
-**当前开发版本：** `v3.1.1-dev.1`。详见[版本历史](CHANGELOG.md#unreleased)。
+**当前稳定版本：** `v3.2.0`。详见[版本历史](CHANGELOG.md#320--2026-10-18)。
 
 ### 1. 安装
 
