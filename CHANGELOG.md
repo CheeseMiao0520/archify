@@ -8,6 +8,8 @@ All notable changes are documented here. Format loosely follows [Keep a Changelo
 
 ### Fixed
 
+- **Explainer chart data (#1008, #1011).** Preserve quotes and backslashes in labels, parse quoted multiline CSV records, and normalize ordinary display whitespace without rewriting source data. Malformed records, missing values and unsupported control characters still fail before replacing an existing delivery.
+
 - Viewer toolbar arrow-key and Home/End navigation includes visible Style and Export triggers (#899).
 - Finder and Semantic Lens preserve input-method composition before handling navigation shortcuts (#928).
 
@@ -35,6 +37,7 @@ All notable changes are documented here. Format loosely follows [Keep a Changelo
 - **Explainer long images keep the page's style and theme.** A PNG, WebP or JPG export of a dark page, or of the editorial, product or Swiss style, came out in the light clean style, because the page is drawn inside an SVG where its `<html>` is not `:root`. The export now selects the page root by its own attribute.
 
 - **Blank chart data is an error, not zero.** An empty CSV cell, a JSON `null` or a missing field in a charted column no longer becomes a zero bar. Finalize names the column and row instead.
+
 
 - **Workflow migration semantic contracts (#497).** Layout planning no longer checks full-topology requirements against a temporary graph with routed edges removed. Migrated documents retain their authored contracts and must pass complete validation before publication.
 
