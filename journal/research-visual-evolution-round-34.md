@@ -109,7 +109,7 @@ finite pulse overlay. Reduced motion and embed suppress the pulse. Canonical SVG
 export removes preview attributes and runtime overlays, while CSS changes only
 opacity, filter, and stroke emphasis rather than coordinates or transforms
 ([preview and pulse implementation](../archify/assets/template.html),
-[export-clean regression tests](../test/relationship-lens.test.mjs),
+[export-clean regression tests](../test/export-cleanup-browser.test.mjs),
 [pulse regression tests](../archify/test/relationship-pulse.test.mjs)).
 
 The Motion Governor already recognizes `data-relationship-preview-active` as the
