@@ -217,6 +217,7 @@
       closeBtn.addEventListener('click', function () { close(); });
       input.addEventListener('input', function () { render(input.value); });
       input.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         if (event.key === 'ArrowDown' && buttons.length) {
@@ -228,6 +229,7 @@
         }
       });
       results.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         var index = buttons.indexOf(document.activeElement);
@@ -243,6 +245,7 @@
         }
       });
       panel.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key !== 'Escape') return;
         event.preventDefault();
         event.stopPropagation();
