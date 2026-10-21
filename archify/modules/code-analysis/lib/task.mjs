@@ -56,8 +56,13 @@ const PRESERVE = {
 
 const ACCEPTANCE = {
   'complexity/function': (d) => {
-    // The finding disappears only below the info level; a warning's own threshold is higher.
-    const floor = d.evidence.thresholds?.info || (d.severity === 'info' ? d.evidence.threshold : null);
+    // The finding disappears only below every level that reports it. Usually
+    // that is the info level, but a config may set a warning threshold below
+    // its info threshold, so take the lower value per metric.
+    const levels = d.evidence.thresholds;
+    const floor = levels?.info && levels?.warning
+      ? { complexity: Math.min(levels.info.complexity, levels.warning.complexity), nesting: Math.min(levels.info.nesting, levels.warning.nesting) }
+      : levels?.info || (d.severity === 'info' ? d.evidence.threshold : null);
     return [floor
       ? `\`${d.subject.function}\` is below the level at which the rule reports at all (complexity < ${floor.complexity} and nesting < ${floor.nesting}), or the remaining branching is explained as inherent.`
       : `\`${d.subject.function}\` is no longer reported by complexity/function (below its info thresholds in the analysis config; this ${d.severity} was reported at complexity ≥ ${d.evidence.threshold.complexity} or nesting ≥ ${d.evidence.threshold.nesting}), or the remaining branching is explained as inherent.`];
