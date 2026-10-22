@@ -2,11 +2,15 @@
 const facts = [
   {
     question: ['What is Archify?', 'Archify 是什么？'],
-    answer: ['Archify is an open-source Agent Skill for turning a system, process, or plan into a diagram. The agent authors typed JSON, then Archify renders and validates a self-contained interactive HTML artifact. The Skill and renderers are licensed under MIT.', 'Archify 是一个开源 Agent Skill，把系统、流程或计划变成图表。Agent 编写类型化 JSON，再由 Archify 渲染、校验并交付独立的交互 HTML 成品。Skill 和渲染器采用 MIT 许可证。'],
+    answer: ['Archify is an open-source Agent Skill for turning a system, process, or plan into a diagram, or a question into a one-page answer. For a diagram the agent authors typed JSON; for a page, a Markdown draft. Archify renders and validates a self-contained interactive HTML artifact. The Skill and renderers are licensed under MIT.', 'Archify 是一个开源 Agent Skill，把系统、流程或计划变成图表，也能把一个问题变成一页式解答。画图时 Agent 编写类型化 JSON，写一页答案时编写 Markdown 草稿，再由 Archify 渲染、校验并交付独立的交互 HTML 成品。Skill 和渲染器采用 MIT 许可证。'],
+  },
+  {
+    question: ['What is a one-page answer?', '一页式解答是什么？'],
+    answer: ['A page that leads with the conclusion and its reasons, then answers one question per panel with prose, tables, steps, charts, code and validated diagrams. Claims cite numbered sources, repository excerpts are read from a pinned commit, and blank chart data is rejected rather than drawn as zero. Readers can switch between four styles, export a long image or PDF, and ask about a single panel.', '一页先给结论和理由，再按问题分成几个面板，用文字、表格、步骤、图表、代码和经过校验的图讲清楚。结论标注编号来源，仓库代码从固定的提交读取，图表数据留空会报错而不是画成零。读者可以在四种样式间切换、导出长图或 PDF，也可以只追问其中一个面板。'],
   },
   {
     question: ['What can I provide as input?', '可以提供哪些输入？'],
-    answer: ['Start with a plain-language description, a plan, existing Mermaid text, or repository evidence. A repository is optional. Your agent interprets the input and creates Archify JSON; Archify does not promise automatic parsing of every Mermaid construct. Missing facts should be marked or clarified.', '可以从自然语言描述、计划、已有 Mermaid 文本或代码库证据开始，代码库并非必需。Agent 理解输入后创建 Archify JSON；Archify 不承诺自动解析全部 Mermaid 语法。缺失的事实应标明或进一步确认。'],
+    answer: ['Start with a plain-language description, a plan, existing Mermaid text, or repository evidence. A repository is optional. Your agent interprets the input and creates typed JSON for a diagram or a Markdown draft for a one-page answer; Archify does not promise automatic parsing of every Mermaid construct. Missing facts should be marked or clarified.', '可以从自然语言描述、计划、已有 Mermaid 文本或代码库证据开始，代码库并非必需。Agent 理解输入后，为图表创建类型化 JSON，为一页式解答编写 Markdown 草稿；Archify 不承诺自动解析全部 Mermaid 语法。缺失的事实应标明或进一步确认。'],
   },
   {
     question: ['Which agents can use it?', '哪些 Agent 可以使用？'],
@@ -14,13 +18,13 @@ const facts = [
   },
   {
     question: ['What do I receive, and what are the limits?', '会得到什么？有哪些边界？'],
-    answer: ['The primary deliverable is an HTML file with inline SVG and its typed JSON source. Open the HTML in a browser to inspect, search, trace routes, switch themes, and export. Validation checks the authored diagram; it does not prove runtime system behavior. Archify is not a hosted collaboration service or a general-purpose WYSIWYG editor.', '主要交付物是内含 SVG 的 HTML 文件和类型化 JSON 源。在浏览器里可以检查、搜索、追踪路径、切换主题和导出。校验检查的是编写出的图表，不证明系统的实际运行行为。Archify 不提供托管协作服务，也不是通用的所见即所得编辑器。'],
+    answer: ['The primary deliverable is a self-contained HTML file with its source: typed JSON for diagrams or a Markdown draft for one-page answers. Open it in a browser to explore and export; available interactions depend on the artifact type. Validation checks the authored artifact, not the truth of every claim or runtime system behavior. Archify is not a hosted collaboration service or a general-purpose WYSIWYG editor.', '主要交付物是独立 HTML 文件及其源稿：图表使用类型化 JSON，一页式解答使用 Markdown 草稿。在浏览器里可以浏览和导出，具体交互取决于成品类型。校验检查编写出的成品，不证明每项内容的真实性或系统的实际运行行为。Archify 不提供托管协作服务，也不是通用的所见即所得编辑器。'],
   },
 ];
 ---
 <section class="product-facts" id="about-archify" aria-labelledby="product-facts-title">
   <div class="container">
-    <div class="facts-heading"><span class="section-eyebrow" data-en="Product facts" data-zh="产品事实">Product facts</span><h2 id="product-facts-title" data-en="A diagram you can inspect and keep." data-zh="一张能检查、能保留的图。">A diagram you can inspect and keep.</h2></div>
+    <div class="facts-heading"><span class="section-eyebrow" data-en="Product facts" data-zh="产品事实">Product facts</span><h2 id="product-facts-title" data-en="A map or a page you can inspect and keep." data-zh="能检查、能保留的图和答案。">A map or a page you can inspect and keep.</h2></div>
     <div class="facts-grid">
       {facts.map(fact => <article><h3 data-en={fact.question[0]} data-zh={fact.question[1]}>{fact.question[0]}</h3><p data-en={fact.answer[0]} data-zh={fact.answer[1]}>{fact.answer[0]}</p></article>)}
     </div>
@@ -35,11 +39,22 @@ const facts = [
   </div>
 </section>
 <style>
- .product-facts { padding:80px 0; border-top:1px solid var(--line); }
- .facts-heading h2 { margin:12px 0 32px; font-size:clamp(28px,3vw,40px); line-height:1.2; }
- .facts-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:30px 48px; }
- h3 { font-size:17px; margin:0 0 10px; } p { font-size:14px; line-height:1.8; color:var(--text-2); }
- .facts-exports { margin-top:28px; } .facts-links { display:flex; flex-wrap:wrap; gap:14px 24px; margin-top:20px; font-size:13px; }
- .facts-links a { color:var(--hue-blue); text-decoration:none; } .facts-channel { font-size:12px; margin-top:20px; }
- @media(max-width:680px) { .facts-grid { grid-template-columns:1fr; gap:24px; } .product-facts { padding:56px 0; } }
+ /* a sticky heading beside question-and-answer rows, in the homepage's section language */
+ .product-facts { padding:8rem 0 2rem; }
+ .product-facts .container { display:grid; grid-template-columns:minmax(0,4fr) minmax(0,8fr); gap:0 4rem; }
+ .facts-heading { position:sticky; top:calc(var(--nav-h) + 2rem); align-self:start; grid-row:1 / span 4; }
+ .section-eyebrow { font-family:var(--font-mono); font-size:.6875rem; font-weight:500; letter-spacing:.16em; text-transform:uppercase; color:var(--accent-text); }
+ .facts-heading h2 { margin:1.1rem 0 0; font-family:var(--font-grot); font-size:clamp(2rem,3.4vw,2.9rem); font-weight:500; letter-spacing:-.035em; line-height:1.05; color:var(--text); text-wrap:balance; }
+ .facts-grid { grid-column:2; border-top:1px solid var(--line-hi); }
+ article { display:grid; grid-template-columns:minmax(0,4fr) minmax(0,7fr); gap:.5rem 2rem; padding:1.5rem 0; border-bottom:1px solid var(--line-hi); }
+ h3 { margin:0; font-family:var(--font-grot); font-size:1.0625rem; font-weight:500; letter-spacing:-.015em; line-height:1.35; color:var(--text); }
+ p { margin:0; font-size:.875rem; line-height:1.75; color:var(--text-2); text-wrap:pretty; }
+ .facts-exports, .facts-links, .facts-channel { grid-column:2; }
+ .facts-exports { margin-top:1.5rem; color:var(--text-3); }
+ .facts-links { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:1.25rem; font-size:.8125rem; }
+ .facts-links a { padding:.4rem .8rem; border:1px solid var(--line-hi); border-radius:999px; color:var(--text); text-decoration:none; transition:border-color .2s,color .2s; }
+ .facts-links a:hover { border-color:var(--accent); color:var(--accent-text); }
+ .facts-channel { margin-top:1.25rem; font-size:.75rem; color:var(--text-3); }
+ @media(max-width:900px) { .product-facts .container { grid-template-columns:1fr; } .facts-heading { position:static; grid-row:auto; margin-bottom:2rem; } .facts-grid, .facts-exports, .facts-links, .facts-channel { grid-column:1; } }
+ @media(max-width:600px) { article { grid-template-columns:1fr; } .product-facts { padding:5rem 0 1rem; } }
 </style>

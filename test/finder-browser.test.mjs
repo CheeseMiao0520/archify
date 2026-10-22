@@ -183,6 +183,7 @@ test('Finder preserves search, keyboard, contextual Route selection and cleanup'
     await key('/', 'Slash', 191); await opened(); await search('API Server');
     // Slash in an input must not reopen the panel and erase the query.
     await key('/', 'Slash', 191); assert.equal(await run(`document.getElementById('node-finder-input').value`), 'API Server');
+    assert.deepEqual(await run(`(()=>{const input=document.getElementById('node-finder-input'),event=new KeyboardEvent('keydown',{key:'Enter',keyCode:229,bubbles:true,cancelable:true});input.dispatchEvent(event);return {prevented:event.defaultPrevented,open:Archify.finder.isOpen(),focus:document.activeElement.id};})()`),{prevented:false,open:true,focus:'node-finder-input'});
     await key('Enter', 'Enter', 13);
     await run(`finderWait(() => !document.querySelector('.diagram-container').hasAttribute('data-camera-transaction'))`);
     const selected = await snapshot('normal-selection');

@@ -460,6 +460,7 @@
         chooseRail(RAIL_PLACEMENT_KEY, toBottom ? 'bottom' : 'right');
       });
       document.addEventListener('keydown', function (event) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === 'Escape' && html.getAttribute('data-reader-rail') === 'overlay') collapseRail();
       });
       document.addEventListener('pointerdown', function (event) {
