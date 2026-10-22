@@ -7,8 +7,8 @@ import {createHash} from 'node:crypto';
 import {ChromeVisualBrowser,findChrome,runBrowserCheck} from '../archify/bin/visual-check.mjs';
 import {unpackPageBundle} from '../archify/explainer/page-bundle.mjs';
 import {inspectPublicHtml,inspectExplainerBrowser,inspectNativePreviewLayout,inspectNativeViewer,explainerObservation,explainerObservationDiagnostics} from '../archify/explainer/browser-check.mjs';
-// Explicit developer diagnostics only; ordinary explainer tests never launch Chrome.
-const chrome=process.env.ARCHIFY_EXPLAINER_BROWSER_TESTS==='1' ? findChrome() : null;
+// The maintained browser runner supplies ARCHIFY_CHROME; ordinary Node runs stay headless.
+const chrome=process.env.ARCHIFY_CHROME || process.env.ARCHIFY_EXPLAINER_BROWSER_TESTS==='1' ? findChrome() : null;
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'archify-explainer-browser-tests-'));
 function artifact(name,html){const file=path.join(dir,name+'.html');fs.writeFileSync(file,html);return file;}
 const style='<style>body{font:16px/1.5 sans-serif;margin:20px;color:#171717;background:white}button{font:inherit}:focus-visible{outline:2px solid blue}@media(prefers-color-scheme:dark){body{background:#171717;color:white}}</style>';
@@ -32,8 +32,61 @@ test('formal renderer retains keyboard navigation, static reading and print mode
 });
 test.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
 
+test('retry layout and referenced node explanations remain readable and keyboard accessible after a prose edit',{skip:!chrome},async()=>{
+ const {renderExplainer}=await import('../archify/explainer/render.mjs');
+ const {compileExplainerDiagram,prepareExplainerDiagrams}=await import('../archify/explainer/diagrams.mjs');
+ const rows=['enter | Enter','check | Check?','verify | Verify?','record | Record','done | Done','revise | Revise',
+  'enter > check','check > verify | yes','verify > record | yes','record > done',
+  'check > revise | no','verify > revise | no','record > revise | error','revise > enter | retry | dashed'];
+ const doc=formalDocument();doc.meta.id='shared-explanation';
+ doc.panels.push({id:'retry-panel',title:'How does a retry work?',blocks:[{id:'retry',type:'diagram',diagramType:'workflow',
+  spec:compileExplainerDiagram('workflow',rows,{id:'retry',title:'Review and retry'}),nodeBlocks:{check:'claim'}}]});
+ const preparedDiagrams=await prepareExplainerDiagrams(doc,{baseDir:dir,quality:'showcase'});
+ const browser=new ChromeVisualBrowser(chrome);
+ try {
+  for (const text of ['One original explanation.','An edited explanation with literal `<script>` text.']) {
+   doc.panels[0].blocks[0].text=text;
+   const file=artifact(text.startsWith('One')?'content-original':'content-edited',renderExplainer(doc,{preparedDiagrams,sourceText:JSON.stringify(doc)}));
+   await browser.resetPage();const measured=await inspectPublicHtml(browser,{artifactPath:file,width:1440,keyboard:false});
+   assert.deepEqual(measured.consoleErrors,[]);assert.deepEqual(measured.overflowElements,[]);
+   const shown=await pageValue(browser,`(function(){const node=document.querySelector('#retry [data-node-id="check"]');node.focus();const card=document.querySelector('.source-card');return {focused:document.activeElement===node,visible:!card.hidden,text:card.querySelector('.source-content').textContent,target:card.querySelector('a').getAttribute('href'),nodes:document.querySelectorAll('#retry [data-node-id]').length,edges:new Set([...document.querySelectorAll('#retry [data-edge-id]')].map(e=>e.dataset.edgeId)).size,uniqueIds:new Set([...document.querySelectorAll('[id]')].map(e=>e.id)).size===document.querySelectorAll('[id]').length};})()`);
+   assert.equal(shown.focused,true);assert.equal(shown.visible,true);assert.equal(shown.text,text.replaceAll('`',''));
+   assert.equal(shown.target,'#claim');assert.equal(shown.nodes,6);assert.equal(shown.edges,8);assert.equal(shown.uniqueIds,true);
+   const tree=await browser.cdp.send('Accessibility.getFullAXTree',{},await browser.sessionPromise);
+   const accessible=tree.nodes.find(node=>node.role?.value==='button'&&node.name?.value==='Check?');
+   assert.equal(accessible?.description?.value,text.replaceAll('`',''),'assistive readers get the same current paragraph');
+  }
+  await pageValue(browser,'document.querySelector(\'#retry [data-node-id="check"]\').focus();document.querySelector(".source-card").hidden=true');
+  await keyboardActivate(browser,'#retry [data-node-id="check"]','Tab');
+  const nextFocus = await pageValue(browser,'document.activeElement.dataset.qaKey');
+  assert.ok(nextFocus, 'the invoking node has a normal next keyboard destination');
+  await keyboardActivate(browser,'#retry [data-node-id="check"]','Tab');
+  assert.equal(await pageValue(browser,'new Promise(resolve=>setTimeout(()=>{const card=document.querySelector(".source-card");resolve(!card.hidden&&document.activeElement===card.querySelector("a"));},220))'),true,'Tab reaches a paragraph link that remains visible after the hide delay');
+  await keyboardActivate(browser,'.source-card a','Tab',true);
+  assert.equal(await pageValue(browser,'document.activeElement===document.querySelector(\'#retry [data-node-id="check"]\')'),true,'Shift+Tab returns to the invoking node');
+  await keyboardActivate(browser,'#retry [data-node-id="check"]','Tab');
+  await keyboardActivate(browser,'.source-card a','Tab');
+  assert.equal(await pageValue(browser,'document.activeElement.dataset.qaKey'),nextFocus,'Tab leaves the card in the normal document order after its invoking node');
+  await keyboardActivate(browser,'#retry [data-node-id="check"]','Tab');
+  await keyboardActivate(browser,'.source-card a','Escape');
+  assert.equal(await pageValue(browser,'document.querySelector(".source-card").hidden&&document.activeElement===document.querySelector(\'#retry [data-node-id="check"]\')'),true,'Escape closes the card and returns focus');
+  await keyboardActivate(browser,'#retry [data-node-id="check"]','Tab');
+  assert.equal(await pageValue(browser,'document.activeElement.dataset.qaKey'),nextFocus,'after dismissal, Tab proceeds without reopening the card');
+  await keyboardActivate(browser,'#retry [data-node-id="check"]','Tab');
+  await keyboardActivate(browser,'.source-card a');
+  assert.equal(await pageValue(browser,'location.hash'), '#claim', 'the focused paragraph link navigates with Enter');
+  for(const key of ['Enter',' ']) {
+   await keyboardActivate(browser,'#retry [data-node-id="check"]',key);
+   let focused;for(let attempt=0;attempt<40;attempt++){focused=await inspectNativeViewer(browser);if(focused.available&&focused.nodes.includes('check'))break;await new Promise(resolve=>setTimeout(resolve,50));}
+   assert.deepEqual(focused.nodes,['check'],'keyboard activation keeps the existing native Viewer action');
+   await keyboardActivate(browser,'[data-close-diagram]');
+   assert.equal(await pageValue(browser,'document.activeElement===document.querySelector(\'#retry [data-node-id="check"]\')'),true,'closing the Viewer returns to its invoking node');
+  }
+ }finally{await browser.close();}
+});
+
 async function pageValue(browser,expression){const result=await browser.cdp.send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true},await browser.sessionPromise);if(result.exceptionDetails)throw new Error(result.exceptionDetails.exception?.description||result.exceptionDetails.text);return result.result.value;}
-async function keyboardActivate(browser,selector,key='Enter') {assert.equal(await pageValue(browser,`(function(){const e=document.querySelector(${JSON.stringify(selector)});if(!e)return false;e.scrollIntoView({block:'center'});e.focus();return document.activeElement===e;})()`),true,selector);for(const type of ['keyDown','keyUp'])await browser.cdp.send('Input.dispatchKeyEvent',{type,key,code:key,windowsVirtualKeyCode:key==='Escape'?27:13,...(key==='Enter'&&type==='keyDown'?{text:'\r',unmodifiedText:'\r'}:{})},await browser.sessionPromise);await pageValue(browser,'new Promise(resolve=>setTimeout(resolve,0))');}
+async function keyboardActivate(browser,selector,key='Enter',shift=false) {assert.equal(await pageValue(browser,`(function(){const e=document.querySelector(${JSON.stringify(selector)});if(!e)return false;e.scrollIntoView({block:'center'});e.focus();return document.activeElement===e;})()`),true,selector);for(const type of ['keyDown','keyUp'])await browser.cdp.send('Input.dispatchKeyEvent',{type,key,code:key===' '?'Space':key,windowsVirtualKeyCode:key==='Escape'?27:key===' '?32:key==='Tab'?9:13,modifiers:shift?8:0,...(key==='Enter'&&type==='keyDown'?{text:'\r',unmodifiedText:'\r'}:{})},await browser.sessionPromise);await pageValue(browser,'new Promise(resolve=>setTimeout(resolve,0))');}
 test('native step opens the complete Viewer and focuses exact nodes and edges with readable graph text',{skip:!chrome},async()=>{
  const {renderExplainer}=await import('../archify/explainer/render.mjs');const {compileExplainerDiagram,prepareExplainerDiagrams}=await import('../archify/explainer/diagrams.mjs');
  const spec=compileExplainerDiagram('sequence',['actor api | API | backend','actor redis | Redis | database','api | redis | Read cache','redis | api | Return cache'],{title:'Cache lookup',id:'native',quality:'showcase'});

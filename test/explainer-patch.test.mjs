@@ -31,6 +31,21 @@ test('panel patch preserves original source outside target token range',t=>{
   const check=run(['check',output,'--json','--require-provenance']);assert.equal(check.status,0,check.stdout+check.stderr);
 });
 
+test('patching referenced prose keeps the diagram and its frozen native artifact unchanged',t=>{
+  const dir=temp(t),doc=fixture();
+  const spec=compileExplainerDiagram('sequence',['actor api | API','actor db | DB','api | db | Read'],{id:'request'});
+  doc.panels[1].blocks.push({id:'request',type:'diagram',diagramType:'sequence',spec,nodeBlocks:{api:'first-text'}});
+  const {input,artifact}=deliver(dir,doc),previous=read(artifact),inputBytes=fs.readFileSync(input);
+  const next=structuredClone(doc.panels[0]);next.blocks[0].text='The updated explanation is shared with the node.';
+  const replacement=path.join(dir,'replacement.json'),output=path.join(dir,'patched.html');fs.writeFileSync(replacement,JSON.stringify(next));
+  const result=run(['patch','explainer',artifact,'first',replacement,output,'--json']);assert.equal(result.status,0,result.stdout+result.stderr);
+  const patched=read(output);
+  assert.equal(patched.document.panels[0].blocks[0].text,next.blocks[0].text);
+  assert.deepEqual(patched.document.panels[1],previous.document.panels[1]);
+  assert.deepEqual(patched.preparedDiagrams,previous.preparedDiagrams);
+  assert.deepEqual(fs.readFileSync(input),inputBytes,'rendering and patching never rewrite the original draft');
+});
+
 test('panel patch rejects missing target and changed identity without overwriting existing output',t=>{
   const dir=temp(t),{artifact}=deliver(dir),replacement=path.join(dir,'replacement.json'),output=path.join(dir,'patched.html');fs.writeFileSync(output,'last good output');
   fs.writeFileSync(replacement,JSON.stringify({...fixture().panels[0],id:'foreign-panel'}));

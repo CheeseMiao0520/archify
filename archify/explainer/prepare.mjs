@@ -123,6 +123,7 @@ export function validatePreparedTargets(document, diagrams, options = {}) {
     panel.blocks.forEach((block,blockIndex)=>{
       const pointer=`/panels/${index}/blocks/${blockIndex}`;
       visit(block,pointer,panel.id,block.type);
+      if(block.type==='diagram')for(const key of ['nodeSources','nodeBlocks'])for(const node of Object.keys(block[key]||{}))validateExplainerDiagramTarget(diagrams,{diagram:block.id,node},{...options,pointer:`${pointer}/${key}/${node}`,line:options.sourceMap?.[`${pointer}/${key}/${node}`]?.line || options.sourceMap?.[pointer]?.line || 1});
       if(block.type==='steps') block.items.forEach((item,itemIndex)=>{
         if(item.target)validateExplainerDiagramTarget(diagrams,item.target,{...options,pointer:`${pointer}/items/${itemIndex}/target`,line:options.sourceMap?.[`${pointer}/items/${itemIndex}`]?.line || options.sourceMap?.[pointer]?.line || 1});
       });

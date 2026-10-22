@@ -11,8 +11,8 @@ import { brandLabelFitWidth, brandMetadataFor, brandTopRailProblem, renderBrandM
 import { minimumReadableSourceTextPx } from '../shared/desktop-readability.mjs';
 import { translateMessage as i18nText } from '../shared/i18n.mjs';
 import { gridLayout, resolveComponentPos, validateGridPlacement } from './grid.mjs';
-import { createRouter } from './routing.mjs';
-import { placeAutomaticLabels, reservedLabelRect } from '../shared/automatic-labels.mjs';
+import { createArchitectureRouter, connectionLabelBoxAt } from './routing.mjs';
+import { placeAutomaticLabels } from '../shared/automatic-labels.mjs';
 import { cleanRouteDetourProblems } from '../shared/route-quality.mjs';
 import {
   asArray,
@@ -164,11 +164,6 @@ const resolvedLabelPoints = new Map();
 function connectionLabelBox(conn) {
   if (!conn.label) return null;
   return connectionLabelBoxAt(conn, resolvedLabelPoints.get(conn) || labelPoint(conn, pathFor(conn).points));
-}
-
-function connectionLabelBoxAt(conn, [lx, ly]) {
-  const width = Math.max(30, textUnits(conn.label) * 4.8 + 10);
-  return { x: lx - width / 2, y: ly - 10, width, height: 14, lx, ly };
 }
 
 function connectionLabelRects() {
@@ -355,25 +350,13 @@ function layoutBoundaryTitles(rawBoundaries, minimumFontSize) {
 // automatic route never borrows a frame border as its corridor), never the
 // title-expanded frames or the viewBox.
 const rawBoundaries = asArray(arch.boundaries).map(boundaryRect).filter(Boolean);
-const routerOptions = {
-  distinctAutomaticPorts: true,
-  preferReadableRoutes: true,
-  // A single outward stub below the scene can remove a crossing without
-  // widening the canvas or shrinking its text. Fixed canvases keep their bounds.
-  readabilityBottomMargin: arch.meta?.viewBox ? 0 : 24,
+const { pathFor, connectionSides, connectionEndpointSide } = createArchitectureRouter(components, arch.connections, {
+  fixedCanvas: Boolean(arch.meta?.viewBox),
   frames: rawBoundaries.map((boundary) => ({
     ...boundary,
     radius: boundary.kind === 'security-group' ? 8 : 12,
   })),
-  labelRectFor: (conn, points, { routes, labels }) => (conn.label ? reservedLabelRect({
-    label: { relation: conn, label: conn.label, ...connectionLabelBoxAt(conn, labelPoint(conn, points)) },
-    points,
-    routes: routes.map((route, index) => ({ relationIndex: index, points: route })),
-    labels,
-    components: [...components.values()],
-  }) : null),
-};
-const { pathFor, connectionSides, connectionEndpointSide } = createRouter(components, arch.connections, routerOptions);
+});
 function hasAutomaticRouteGeometry(connection) {
   return !Array.isArray(connection?.via)
     && (!connection?.route || connection.route === 'auto')
