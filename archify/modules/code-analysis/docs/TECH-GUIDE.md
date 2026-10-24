@@ -4,6 +4,11 @@ Written for someone reading this module for the first time. Each section answers
 
 The suggested reading order follows the pipeline: the runtime first (Node, ESM), then the contracts (JSON Schema), then the technology behind each stage in the order extract → graphs → evaluate → overlay, then the `serve` process that ties them to the click, and finally tests and cross-platform issues.
 
+For the Java adapter, see [Java source analysis](JAVA.md): parser selection,
+syntax/error coverage, conservative type-to-file resolution, method complexity,
+and structural cycle semantics. Java parsing runs in Node.js; the adapter reduces
+each file's CST immediately instead of retaining all project syntax trees.
+
 ---
 
 ## 1. Runtime: Node.js and ES modules
@@ -177,6 +182,8 @@ The Python script only emits raw import statements; turning `from utils import l
 | `outside` | resolved, but the file is outside the analyzed root | usually a test referencing a script one level up |
 | `unknown` | looks like a path but no file is there | **should be 0**; non-zero means a resolution gap or a broken reference in the code |
 | `opaque` | the argument of `import()` / `require()` / `import_module()` is not a string literal | the blind spot of static analysis; it must stay visible |
+
+Java keeps the same meanings: an import of a package no analyzed file declares (JDK, third party) is `external`; an import in an analyzed package, or a type reference that matches an analyzed type, that cannot be resolved is `unknown`. The Java adapter does not model reflective loading such as `Class.forName` or `ServiceLoader`, so its `opaque` stays 0; that does not mean the code has none. See [Java source analysis](JAVA.md#dependencies).
 
 `opaque` is the important one. Archify's `bin/archify.mjs` starts renderers with `spawnSync(process.execPath, [rendererPath])` and loads the delta module with `import(pathToFileURL(path.join(...)))` — both are calls whose target is only known at run time. The diagram has **no edge** from `bin` to the renderers, and that is a fact; but if the edge were merely missing, a reader would assume `bin` does not depend on the renderers. The count says "there are 3 dynamic loads here that cannot be seen", which is what ARCHITECTURE.md means by "omissions stay visible".
 
