@@ -1,8 +1,9 @@
 import * as tsAdapter from './ts/index.mjs';
 import * as pyAdapter from './py/index.mjs';
+import * as javaAdapter from './java/index.mjs';
 import { fail } from './shared/diagnostics.mjs';
 
-const ADAPTERS = [tsAdapter, pyAdapter];
+const ADAPTERS = [tsAdapter, pyAdapter, javaAdapter];
 
 export function selectAdapter(root, config, requested) {
   const supported = ADAPTERS.map((a) => a.id);
@@ -17,7 +18,7 @@ export function selectAdapter(root, config, requested) {
   const detected = ADAPTERS.filter((a) => a.detect(root, config));
   if (!detected.length) fail('extract/adapter-undetected', 'No language adapter matched the analyzed directory.', {
     subject: { root }, evidence: { supported },
-    supportedFixes: ['point at a directory containing JS/TS or Python sources', 'pass --language explicitly'],
+    supportedFixes: ['point at a directory containing JS/TS, Python or Java sources', 'pass --language explicitly'],
   });
   if (detected.length > 1) fail('extract/adapter-ambiguous', 'More than one language adapter matches; choose one explicitly.', {
     subject: { root }, evidence: { detected: detected.map((a) => a.id) },
