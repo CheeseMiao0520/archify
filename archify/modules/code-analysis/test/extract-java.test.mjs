@@ -303,7 +303,19 @@ test('java: the public pipeline preserves deterministic facts, structural cycles
 
 test('java: CLI check writes every stage and mixed-language selection reports omitted files', t => {
   const root = fixture(t, { 'A.java': 'class A {}', 'other.py': 'pass' });
-  assert.throws(() => extractFacts(root), e => e.diagnostics?.[0]?.code === 'extract/adapter-ambiguous');
+  const automatic = extractFacts(root);
+  assert.equal(automatic.adapter, 'py', 'Java sources beside another language keep that language');
+  assert.deepEqual(automatic.otherLanguages, [{ adapter: 'java', files: 1 }]);
+  const tsRoot = fixture(t, { 'src/a.js': 'export const a = 1;', 'android/Main.java': 'class Main {}' });
+  assert.equal(extractFacts(tsRoot).adapter, 'ts');
+  const mixed = fixture(t, { 'A.java': 'class A {}', 'a.js': 'export const a = 1;', 'b.py': 'pass' });
+  assert.throws(() => extractFacts(mixed), e => e.diagnostics?.[0]?.code === 'extract/adapter-ambiguous'
+    && e.diagnostics[0].evidence.detected.join() === 'ts,py');
+  const spring = fixture(t, { 'pom.xml': '<project/>', 'src/main/java/A.java': 'class A {}', 'src/main/resources/static/app.js': 'export {};' });
+  assert.throws(() => extractFacts(spring), e => e.diagnostics?.[0]?.code === 'extract/adapter-ambiguous'
+    && e.diagnostics[0].evidence.detected.join() === 'ts,java', 'a root build file marks a Java project');
+  const gradle = fixture(t, { 'settings.gradle.kts': '', 'core/build.gradle.kts': '', 'core/src/main/java/c/C.java': 'package c; class C {}', 'scripts/release.py': 'pass' });
+  assert.throws(() => extractFacts(gradle), e => e.diagnostics?.[0]?.code === 'extract/adapter-ambiguous', 'a Gradle settings file marks one too');
   const selected = extractFacts(root, { language: 'java' });
   assert.deepEqual(selected.otherLanguages, [{ adapter: 'py', files: 1 }]);
   const out = path.join(root, 'out');

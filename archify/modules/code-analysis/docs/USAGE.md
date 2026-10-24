@@ -23,7 +23,7 @@ The source panel marks captured changes against the base commit: green gutters f
 
 If the architecture JSON changes or becomes unavailable after startup, the analysis request is rejected and the page asks you to regenerate the diagram. Restart with the updated JSON and open the new URL. The server never rewrites your input JSON or silently combines a new architecture with the previous diagram.
 
-Python, JS/TS and Java are supported. For mixed-language projects, add `--language py`, `--language ts` or `--language java`; each run analyzes one language. A JS/TS or Python tree whose scan also includes `.java` files now needs `--language` as well (see the [upgrade note](JAVA.md)). Add `--map overlay-map.json` when you need an explicit mapping between diagram components and code modules.
+Python, JS/TS and Java are supported. For mixed-language projects, add `--language py`, `--language ts` or `--language java`; each run analyzes one language. A JS/TS or Python tree that also holds `.java` files keeps its language unless its root has a Maven/Gradle build file (see the [upgrade note](JAVA.md)). Add `--map overlay-map.json` when you need an explicit mapping between diagram components and code modules.
 
 For a Java analysis without a diagram, run `node bin/archify.mjs code-analysis check /path/to/java-repo --language java --out out/java`. No JDK or project build is required. See [Java support and limitations](JAVA.md) for conservative dependency resolution, complexity measurements and syntax coverage.
 

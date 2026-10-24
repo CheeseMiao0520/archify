@@ -7,18 +7,23 @@ node bin/archify.mjs code-analysis check /path/to/java-repo --language java --ou
 ```
 
 The diagram workflow accepts the same `--language java`. A run analyzes one
-language; roots whose configured scan matches multiple supported languages
-require an explicit choice. The run reports omitted other-language files. `build/` directories and Java sources under
+language. When the scan also finds JS/TS or Python sources, Java is left out
+automatically unless the root holds `pom.xml`, `build.gradle(.kts)` or
+`settings.gradle(.kts)`; such a Java project, like any root matching both
+JS/TS and Python, requires an explicit choice. A root without one (for example
+`backend/pom.xml` beside `frontend/package.json`) is analyzed as JS/TS or
+Python. The run reports omitted other-language files. `build/` directories and
+Java sources under
 `target/` are excluded by default; JS/TS and Python files under `target/` are
 still analyzed as before. `src/test/` files are extracted as tests and excluded
 from the dependency graph by the existing role policy.
 
-Upgrade note: a JS/TS or Python tree whose configured scan also includes
-`.java` files (for example a React Native `android/` folder) was previously analyzed without
-`--language`. It now stops with `extract/adapter-ambiguous`; pass
-`--language ts` or `--language py` to keep the previous run. The default
-configuration also changed, so the first comparison after upgrading reports
-`config-changed` and is not directly comparable.
+Upgrade note: a JS/TS or Python tree that also holds `.java` files (for
+example a React Native `android/` folder) and has no root Maven/Gradle build
+file is still analyzed in its earlier language without `--language`; its
+coverage now lists the Java files it left out. The default configuration
+changed, so the first comparison after upgrading reports `config-changed` and
+is not directly comparable.
 
 The adapter reads captured UTF-8 source, accepts a UTF-8 BOM, and retains the
 decoded text and source locations. Broken or unsupported files remain in

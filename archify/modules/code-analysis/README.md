@@ -39,7 +39,7 @@ No separate setup: the first run installs the module's parser and schema depende
 (typescript, java-parser, ajv) into `modules/code-analysis/node_modules`; `npm ci` in
 `archify/` does the same through its `postinstall`. Open the URL the command
 prints and keep the process running. Options:
-`--language ts|py|java` (required when the scan matches more than one supported language), `--map overlay-map.json`
+`--language ts|py|java` (required when the scan matches both JS/TS and Python, or Java beside them under a root Maven/Gradle build file), `--map overlay-map.json`
 (`{"componentId": ["moduleId", …]}` when the IR's `sources` do not say which
 modules a component stands for), `--config file.json` (thresholds, include /
 exclude, roles), `--quality standard|showcase` (passed to `archify deliver`).
