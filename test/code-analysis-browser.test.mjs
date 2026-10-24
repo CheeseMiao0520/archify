@@ -16,7 +16,7 @@ test('Code Analysis presents Java cycles as structural dependencies in the brows
   t.after(() => fs.rmSync(scratch, { recursive: true, force: true }));
   const root = path.join(scratch, 'repo');
   for (const name of ['a', 'b']) fs.mkdirSync(path.join(root, name), { recursive: true });
-  fs.writeFileSync(path.join(root, 'a/A.java'), 'package a; import b.B; class A { B b; }');
+  fs.writeFileSync(path.join(root, 'a/A.java'), 'package a; import b.B; class A { B b; b.Gone gone; }');
   fs.writeFileSync(path.join(root, 'b/B.java'), 'package b; import a.A; class B { A a; }');
   const ir = path.join(scratch, 'input.json');
   fs.writeFileSync(ir, JSON.stringify({ schema_version: 1, diagram_type: 'architecture', meta: { title: 'Java dependency cycle', output: 'architecture.html' },
@@ -46,6 +46,10 @@ test('Code Analysis presents Java cycles as structural dependencies in the brows
     setTimeout(poll, 25);
   }; poll(); })`);
   assert.match(await run("document.querySelector('details.coverage summary').textContent"), /^Coverage · Java · 2 files/);
+  // Java counts unresolved type references too, so the page does not call them imports.
+  const coverage = await run("document.querySelector('details.coverage').textContent");
+  assert.match(coverage, /1 dependency record could not be resolved/);
+  assert.doesNotMatch(coverage, /imports? could not be resolved/);
   for (const title of ['Module cycle', 'Import cycle']) {
     await run(`[...document.querySelectorAll('#bauify-overview .bauify-item')].find(el => el.querySelector('b').textContent.startsWith(${JSON.stringify(title)})).click()`);
     await run(`new Promise((resolve, reject) => { const deadline = Date.now() + 5000; const poll = () => {
