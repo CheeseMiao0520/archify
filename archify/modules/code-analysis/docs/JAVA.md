@@ -47,7 +47,10 @@ Recorded reference forms:
   constructor references `T::new` and `T[]::new`, and class literals `T.class`.
 
 Resolution follows lexical type scope, declarations in the file, single-type
-imports and same-package types. Fully qualified names use the source index.
+imports and same-package types. Fully qualified names use the source index; a
+qualified name never starts at a subpackage of the current package, and one
+whose first segment names a type an on-demand import declares stays
+unresolved (inherited members of on-demand imported types are not checked).
 The guards below leave uncertain bindings unresolved.
 
 Remaining unresolved, by design:
@@ -60,10 +63,17 @@ Remaining unresolved, by design:
   import (the import itself is still recorded). Types declared in any block (methods, interface
   methods, constructors, initializers, lambdas, switch-rule blocks) are local
   and are not indexed.
-- References inside the body of a class, interface, enum or record that
-  extends or implements any type, since an inherited member type could bind the
-  name. Ordinary class and interface declaration headers are outside this
-  body guard; the other scope guards still apply.
+- References inside the body of a type whose supertypes do not all resolve,
+  transitively, to one analyzed declaration each (external, duplicate or
+  cyclic supertypes), since an inherited member type could bind the name.
+  When every supertype is analyzed, a name matching an inherited member type
+  stays unresolved and counts as `unknown`, even over an external import of
+  the same name; so does a member type declared by an analyzed ancestor when
+  another ancestor is external. Enum bodies leave `EnumDesc` (a member type of
+  `java.lang.Enum`) unresolved. A type's own members are not in scope in its
+  extends/implements clauses, so declaration headers are outside this body
+  guard; a record's component list does see its members. The other scope
+  guards still apply.
 - References inside local and anonymous class bodies, whose member and
   inherited scopes are not modeled. Their methods still receive complexity
   metrics.
@@ -135,9 +145,11 @@ patterns/guards. These probes do not establish complete coverage of every Java
 release or preview feature. Unsupported syntax is reported as a parse error.
 
 One known misparse is corrected: `java-parser@3.0.1`
-reads a member record whose body is empty, such as `record Value(int x) {}`, as
+reads a member record whose body is also a valid block, such as
+`record Value(int x) {}` or `record Value(int x) { static class Part {} }`, as
 a method returning type `record`. No such method compiles, so the adapter
-rewrites these nodes into record declarations.
+rewrites these nodes into record declarations and restores the nested types
+as member types.
 
 Java Unicode escapes are expanded before lexing, including inside comments.
 This parser does not implement that preprocessing. Files containing a

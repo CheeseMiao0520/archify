@@ -396,7 +396,7 @@ class Other { Instance.Local one; Static.Local two; }`,
   assert.ok(valid.every(i => i.resolved && i.to === 'Member.java'), 'genuine member classes remain accessible');
 });
 
-test('java: ordinary declaration headers resolve proven types without opening inherited class bodies', t => {
+test('java: ordinary declaration headers resolve proven types, and analyzed supertypes open class bodies', t => {
   const root = fixture(t, {
     'Base.java': 'package demo; public class Base {}',
     'Api.java': 'package demo; public interface Api {}',
@@ -420,10 +420,115 @@ test('java: ordinary declaration headers resolve proven types without opening in
   ]) {
     assert.equal(imports.find(i => i.from === from && i.line === line && i.specifier === specifier)?.to, to, `${from}:${line} ${specifier}`);
   }
-  for (const [from, line] of [['SamePackage.java', 3], ['Imported.java', 4], ['Qualified.java', 2], ['Subinterface.java', 3]]) {
-    const body = imports.filter(i => i.from === from && i.line === line);
-    assert.ok(body.length > 0 && body.every(i => !i.resolved), `${from} body retains the inheritance guard`);
+  // Analyzed supertypes without member types cannot shadow these body names.
+  for (const [from, line, specifier, to] of [
+    ['SamePackage.java', 3, 'Base', 'Base.java'], ['SamePackage.java', 3, 'Api', 'Api.java'], ['Imported.java', 4, 'Base', 'Base.java'],
+    ['Qualified.java', 2, 'demo.Base', 'Base.java'], ['Subinterface.java', 3, 'Api', 'Api.java'],
+  ]) {
+    assert.equal(imports.find(i => i.from === from && i.line === line && i.specifier === specifier)?.to, to, `${from}:${line} ${specifier}`);
   }
+});
+
+test('java: inherited member types bind body names; unknown supertype chains keep the body guard', t => {
+  // Each binding was checked with javac: Base.Helper, Api.Nested and java.lang.Enum.EnumDesc win.
+  const root = fixture(t, {
+    'p/Base.java': 'package p; public class Base { public static class Helper {} }',
+    'p/Api.java': 'package p; public interface Api { class Nested {} }',
+    'p/Mid.java': 'package p; public class Mid extends Base implements Api {}',
+    'p/Helper.java': 'package p; public class Helper {}',
+    'p/Nested.java': 'package p; public class Nested {}',
+    'p/EnumDesc.java': 'package p; public class EnumDesc {}',
+    'p/Target.java': 'package p; public class Target {}',
+    'p/Deep.java': 'package p; class Deep extends Mid { Target target; }',
+    'p/Shadowed.java': 'package p; class Shadowed extends Mid { Helper helper; Nested nested; }',
+    // The nested header is bound in Outer's body, where Base.Helper is inherited.
+    'p/Outer.java': 'package p; class Outer extends Base { static class Inner extends Helper { Target target; } }',
+    'p/Color.java': 'package p; enum Color { RED; Object desc = EnumDesc.class; Target target; }',
+    'p/External.java': 'package p; class External extends java.util.AbstractMap<String, String> { Target target; }',
+    'p/CycleA.java': 'package p; class CycleA extends CycleB { Target target; }',
+    'p/CycleB.java': 'package p; class CycleB extends CycleA {}',
+    'p/Dup.java': 'package p; class Dup {}',
+    'alt/p/Dup.java': 'package p; class Dup {}',
+    'p/FromDup.java': 'package p; class FromDup extends Dup { Target target; }',
+    // An inherited member shadows external imports, single-type and static (javac: Base.Helper).
+    'ext/Helper.java': 'package ext; public class Helper { public static class Inner {} }',
+    'p/OverImport.java': 'package p; import ext.Helper; class OverImport extends Mid { Helper helper; }',
+    'p/OverStatic.java': 'package p; import static ext.Helper.Inner; class OverStatic extends Base { static class Inner {} Inner own; }',
+    // javac: p.Partial$N, declared by an analyzed class whose own supertype is external.
+    'p/Partial.java': 'package p; public class Partial extends java.util.AbstractList<String> { public static class N {} }',
+    'ext/N.java': 'package ext; public class N {}',
+    'p/OverPartial.java': 'package p; import ext.N; class OverPartial extends Partial { N n; }',
+  });
+  const { imports, unresolved } = resolveImports(parseSources(root, { ...config(), exclude: ['ext/**'] }).units);
+  const find = (from, specifier) => imports.find(i => i.from === from && i.specifier === specifier);
+  assert.equal(find('p/OverImport.java', 'Helper')?.resolved, false, 'counted, not dropped behind the external import');
+  assert.ok(!find('p/OverStatic.java', 'Inner'), 'a declared member shadows a static import and binds in the same file');
+  assert.equal(find('p/OverPartial.java', 'N')?.resolved, false, 'a member known from an analyzed ancestor is counted');
+  assert.ok(unresolved.unknown >= 2);
+  assert.equal(find('p/Deep.java', 'Target')?.to, 'p/Target.java', 'a chain of analyzed supertypes opens the body');
+  assert.equal(find('p/Color.java', 'Target')?.to, 'p/Target.java', 'an enum body resolves names java.lang.Enum does not declare');
+  for (const [from, specifier] of [['p/Shadowed.java', 'Helper'], ['p/Shadowed.java', 'Nested'], ['p/Outer.java', 'Helper'],
+    ['p/Outer.java', 'Target'], ['p/Color.java', 'EnumDesc'], ['p/External.java', 'Target'], ['p/CycleA.java', 'Target'], ['p/FromDup.java', 'Target']]) {
+    assert.equal(find(from, specifier)?.resolved, false, `${from} ${specifier}`);
+  }
+});
+
+test('java: member records holding only member types keep those members, in the owner and in subclasses', t => {
+  // javac binds Base$Pair, Base$Box and Owner$Point; the parser reads these records as methods.
+  const root = fixture(t, {
+    'p/Base.java': 'package p; public class Base { public record Pair(int a) { public static class Helper {} } public record Box(int v) { interface Marker {} ; } }',
+    'p/Pair.java': 'package p; public class Pair {}',
+    'p/Box.java': 'package p; public class Box {}',
+    'p/Point.java': 'package p; public class Point {}',
+    'p/Sub.java': 'package p; class Sub extends Base { Pair pair; Box box; }',
+    'p/Owner.java': 'package p; class Owner { public record Point(int x, int y) { public static final class Builder {} } Point origin; }',
+    'q/Use.java': 'package q; import p.Base.Pair.Helper; import p.Shapes.Shape.Part; class Use { Helper helper; Part part; }',
+    'p/Shapes.java': 'package p; public interface Shapes { record Shape(int s) { class Part {} } }',
+  });
+  const { facts } = extractFacts(root, { language: 'java' });
+  assert.equal(facts.parse_errors, undefined);
+  for (const specifier of ['Pair', 'Box']) assert.equal(facts.imports.find(i => i.from === 'p/Sub.java' && i.specifier === specifier)?.resolved, false, specifier);
+  assert.ok(!facts.imports.some(i => i.from === 'p/Owner.java' && i.specifier === 'Point'), 'Point binds the same-file member record');
+  assert.equal(facts.imports.find(i => i.from === 'q/Use.java' && i.specifier === 'p.Base.Pair.Helper')?.to, 'p/Base.java');
+  assert.equal(facts.imports.find(i => i.from === 'q/Use.java' && i.specifier === 'p.Shapes.Shape.Part')?.to, 'p/Shapes.java', 'records in interfaces too');
+  assert.deepEqual(facts.functions.filter(f => /Base|Owner/.test(f.file)), [], 'misparsed records emit no function records');
+});
+
+test('java: enum and record members are out of scope in their own implements clauses', t => {
+  // javac binds both clauses to p.I; a record's component types still see its members.
+  const root = fixture(t, {
+    'p/I.java': 'package p; public interface I {}',
+    'p/Api.java': 'package p; public class Api {}',
+    'p/Target.java': 'package p; public class Target {}',
+    'p/E.java': 'package p; enum E implements I { A; interface I {} }',
+    'p/R.java': 'package p; record R(int x) implements I { interface I {} }',
+    'p/C.java': 'package p; record C(Api api) { static class Api {} }',
+    'p/Mode.java': 'package p; enum Mode implements I { ON; Target target; }',
+  });
+  const { imports } = resolveImports(parseSources(root, config()).units);
+  for (const from of ['p/E.java', 'p/R.java', 'p/Mode.java']) assert.equal(imports.find(i => i.from === from && i.specifier === 'I')?.to, 'p/I.java', from);
+  assert.ok(!imports.some(i => i.from === 'p/C.java' && i.specifier === 'Api'), 'a record component type binds the record member');
+  assert.equal(imports.find(i => i.from === 'p/Mode.java' && i.specifier === 'Target')?.to, 'p/Target.java', 'an enum implementing an analyzed interface opens its body');
+});
+
+test('java: qualified names start at a package or an in-scope type, never at a subpackage', t => {
+  // javac: p.A for `p.A` in package x, and q.r.R for `r.R` under `import q.*`.
+  const root = fixture(t, {
+    'p/A.java': 'package p; public class A {}',
+    'x/p/A.java': 'package x.p; public class A {}',
+    'x/C.java': 'package x; public class C { p.A field; }',
+    'r/R.java': 'package r; public class R {}',
+    'q/r.java': 'package q; public class r { public static class R {} }',
+    'q/B2.java': 'package q; public class B2 { public static class r { public static class R {} } }',
+    'u/Use.java': 'package u; import q.*; class Use { r.R field; }',
+    'u/UseStatic.java': 'package u; import static q.B2.*; class UseStatic { r.R field; }',
+    'u/Plain.java': 'package u; class Plain { r.R field; }',
+  });
+  const { imports } = resolveImports(parseSources(root, config()).units);
+  const find = (from, specifier) => imports.find(i => i.from === from && i.specifier === specifier);
+  assert.equal(find('x/C.java', 'p.A')?.to, 'p/A.java');
+  for (const from of ['u/Use.java', 'u/UseStatic.java']) assert.equal(find(from, 'r.R')?.resolved, false, `${from}: a type imported on demand obscures the package`);
+  assert.equal(find('u/Plain.java', 'r.R')?.to, 'r/R.java');
 });
 
 test('java: declaration headers preserve outer, local, parameter and static-import guards', t => {

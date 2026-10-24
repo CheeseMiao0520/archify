@@ -3,6 +3,9 @@ const TYPE_REFERENCES = new Set(['classType', 'unannClassType', 'typeName']);
 // Types declared in any block are local (JLS 14.3), including interface method
 // bodies and switch-rule blocks inside field initializers.
 const LOCAL_SCOPES = new Set(['methodDeclaration', 'interfaceMethodDeclaration', 'constructorDeclaration', 'compactConstructorDeclaration', 'lambdaExpression', 'instanceInitializer', 'staticInitializer', 'block']);
+// No candidates: the name binds an inherited member type of an analyzed type.
+const INHERITED = Object.freeze([]);
+const BODIES = { normalClassDeclaration: 'classBody', normalInterfaceDeclaration: 'interfaceBody', enumDeclaration: 'enumBody', annotationInterfaceDeclaration: 'annotationInterfaceBody' };
 const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 const identifiers = node => (node?.children.Identifier || []).map(t => t.image).join('.');
 
@@ -17,16 +20,18 @@ export function describeUnit(unit) {
     if (TYPE_DECLARATIONS.has(node.name)) {
       const name = typeName(node);
       if (name) {
-        // Ordinary class/interface members are in scope only in the body,
-        // not in their own extends/implements clauses or type bounds.
-        // Record headers have different scope rules; retain their guard.
-        const body = node.name === 'normalClassDeclaration' ? node.children.classBody?.[0]
-          : node.name === 'normalInterfaceDeclaration' ? node.children.interfaceBody?.[0] : null;
+        // Members are in scope in the body, not in the type's own
+        // extends/implements clauses or type bounds (JLS 6.3). A record's
+        // members are also in scope in its header, its component list.
+        const body = node.name === 'recordDeclaration' ? node.children.recordHeader?.[0]
+          : node.children[BODIES[node.name]]?.[0];
         if (local) { shadowed.add(name); uncertainScopes.push(node.location); }
         else types.push({ name, fullName: [packageName, ...owners, name].filter(Boolean).join('.'), file: unit.file, owners,
           startOffset: node.location.startOffset, endOffset: node.location.endOffset,
           memberScopeStartOffset: body?.location.startOffset ?? node.location.startOffset,
-          staticMembers: staticMembers(node), inherited: Boolean(node.children.classExtends || node.children.interfaceExtends || node.children.classImplements) });
+          // A record's implements clause follows its header but is outside the member scope.
+          scopeGap: node.name === 'recordDeclaration' ? node.children.classImplements?.[0]?.location : undefined,
+          staticMembers: staticMembers(node), kind: node.name, supertypes: supertypes(node) });
         owners = [...owners, name];
       }
     }
@@ -89,6 +94,39 @@ export function resolveImports(units) {
     const enclosingUnique = type => type.owners.every((_, i) => index.get(type.fullName.split('.').slice(0, -(i + 1)).join('.'))?.length === 1);
     return candidates.every(enclosingUnique) ? candidates : [];
   };
+  // Member type names a type inherits (JLS 8.5). `names` maps each known name
+  // to whether an analyzed declaration contributes it; `complete` holds only
+  // when every supertype resolves to one analyzed declaration, since an
+  // external, ambiguous or cyclic supertype may contribute any member.
+  const unitOf = new Map(described.map(unit => [unit.file, unit]));
+  const declaredMembers = new Map();
+  for (const unit of described) for (const type of unit.types) if (type.owners.length) {
+    const owner = type.fullName.slice(0, -type.name.length - 1);
+    if (!declaredMembers.has(owner)) declaredMembers.set(owner, new Set());
+    declaredMembers.get(owner).add(type.name);
+  }
+  const inherited = new Map();
+  const inheritedMembers = type => {
+    if (inherited.has(type)) return inherited.get(type);
+    // A cyclic chain is reported as incomplete.
+    inherited.set(type, { names: new Map(), complete: false });
+    // Every enum implicitly extends java.lang.Enum, which declares EnumDesc.
+    const names = new Map(type.kind === 'enumDeclaration' ? [['EnumDesc', false]] : []);
+    const inherit = (name, analyzed) => names.set(name, names.get(name) || analyzed);
+    let complete = true;
+    for (const supertype of type.supertypes) {
+      // A supertype name is bound in the scope of its declaration header.
+      const targets = referenceTargets(unitOf.get(type.file), supertype, supertype.name, index, lookup, inheritedMembers);
+      if (targets.length !== 1) { complete = false; continue; }
+      const deeper = inheritedMembers(targets[0]);
+      complete &&= deeper.complete;
+      for (const name of declaredMembers.get(targets[0].fullName) || []) inherit(name, true);
+      for (const [name, analyzed] of deeper.names) inherit(name, analyzed);
+    }
+    const result = { names, complete };
+    inherited.set(type, result);
+    return result;
+  };
   // The shared unresolved contract, as for the other adapters: `external` is
   // outside the analyzed sources (standard library, third party), `unknown` is
   // a dependency that looks internal but could not be resolved.
@@ -142,8 +180,8 @@ export function resolveImports(units) {
       const key = `${ref.startOffset}:${name}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      const candidates = referenceTargets(unit, ref, name, index, lookup);
-      add(unit, name, ref.line, candidates, referenceReason(unit, name));
+      const candidates = referenceTargets(unit, ref, name, index, lookup, inheritedMembers);
+      add(unit, name, ref.line, candidates, candidates === INHERITED ? 'unknown' : referenceReason(unit, name));
     }
   }
   // Several CST wrappers can refer to the same source-level type at a line.
@@ -156,37 +194,57 @@ export function resolveImports(units) {
 
 // `index` decides which declaration binds a name; `lookup` decides whether
 // that binding is certain enough to become an edge.
-function referenceTargets(unit, node, name, index, lookup) {
+function referenceTargets(unit, node, name, index, lookup, inheritedMembers) {
   if (node.uncertain) return [];
   const first = name.split('.')[0];
   if (unit.shadowed.has(first)) return [];
-  // A single static import may name a member type and override package lookup.
-  // Its declaration is recorded above; do not infer the reference's type scope.
-  if (unit.imports.some(i => i.isStatic && !i.wildcard && i.name.split('.').at(-1) === first)) return [];
-  const enclosing = unit.types.filter(t => t.memberScopeStartOffset <= node.startOffset && t.endOffset >= node.endOffset);
-  // An inherited member type can shadow a package type or an imported type.
-  // Resolving those scopes would require superclass/interface symbol lookup.
-  if (enclosing.some(t => t.inherited)) return [];
+  const enclosing = unit.types.filter(t => t.memberScopeStartOffset <= node.startOffset && t.endOffset >= node.endOffset
+    && !(t.scopeGap && t.scopeGap.startOffset <= node.startOffset && t.scopeGap.endOffset >= node.endOffset));
   // Bind the first segment in the nearest lexical scope before looking up
   // members. A missing (possibly inherited) member must not change that
-  // binding into an unrelated import or package name.
+  // binding into an unrelated import or package name. An inherited member
+  // type can shadow a package or imported type: an inherited match, or a
+  // scope whose inherited members are unknown, leaves the name unresolved.
   for (const scope of [...enclosing].reverse()) {
     const prefix = index.get(`${scope.fullName}.${first}`) || [];
     if (prefix.length) return prefix.length === 1 ? lookup(`${scope.fullName}.${name}`) : [];
+    const { names, complete } = inheritedMembers(scope);
+    // An analyzed inherited member type binds the name even over an external
+    // import; it stays unresolved but counts as an internal gap.
+    if (names.get(first)) return INHERITED;
+    if (!complete || names.has(first)) return [];
   }
+  // Member types in scope shadow imports (JLS 6.4.1). Below them, a single
+  // static import may name a member type and override package lookup. Its
+  // declaration is recorded above; do not infer the reference's type scope.
+  if (unit.imports.some(i => i.isStatic && !i.wildcard && i.name.split('.').at(-1) === first)) return [];
   const own = unit.types.filter(t => !t.owners.length && t.name === first);
   if (own.length) return name.includes('.') ? lookup(`${unit.packageName ? unit.packageName + '.' : ''}${name}`) : own;
   const singles = unit.imports.filter(i => !i.wildcard && !i.isStatic && i.name.split('.').at(-1) === first);
   if (singles.length) return singles.length === 1 ? lookup(singles[0].name + name.slice(first.length)) : [];
-  const samePackage = [unit.packageName, name].filter(Boolean).join('.');
-  if (index.has(samePackage)) return lookup(samePackage);
+  const inPackage = part => [unit.packageName, part].filter(Boolean).join('.');
+  // A qualified name is relative to the package only through a type declared
+  // there: Java has no package names relative to the current package.
+  if ((!name.includes('.') || index.has(inPackage(first))) && index.has(inPackage(name))) return lookup(inPackage(name));
   if (name.includes('.')) {
     // A project type named like the first package segment would make the
     // qualified name's meaning uncertain; do not guess its interpretation.
-    if (index.has([unit.packageName, first].filter(Boolean).join('.'))) return [];
+    if (index.has(inPackage(first))) return [];
+    // So would a type imported on demand under that name, which obscures the
+    // package (JLS 6.5.2); on-demand imports are not expanded.
+    if (unit.imports.some(i => i.wildcard && index.has(`${i.name}.${first}`))) return [];
     return lookup(name);
   }
   return [];
+}
+
+// Supertypes named in an extends/implements clause, as references that are
+// resolved later in the scope of that clause.
+function supertypes(type) {
+  const { classExtends = [], classImplements = [], interfaceExtends = [] } = type.children;
+  const listed = [...classImplements, ...interfaceExtends].flatMap(clause => clause.children.interfaceTypeList?.[0]?.children.interfaceType || []);
+  return [...classExtends, ...listed].flatMap(node => node.children.classType || [])
+    .map(node => ({ name: identifiers(node), startOffset: node.location.startOffset, endOffset: node.location.endOffset }));
 }
 
 function staticMembers(type) {

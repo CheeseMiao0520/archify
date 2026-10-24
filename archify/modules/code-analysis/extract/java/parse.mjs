@@ -49,9 +49,11 @@ export function parseSources(root, config, consume = unit => unit) {
 }
 
 // java-parser 3.0.1 reads a member record whose body is also a valid block,
-// such as `record Value(int x) {}`, as a method returning type `record`. No
-// such method compiles in any Java version: it returns a class type but has
-// no statement. Rewrite those nodes into the record declarations they denote.
+// such as `record Value(int x) {}` or `record Value(int x) { class Part {} }`,
+// as a method returning type `record`. No such method compiles in any Java
+// version: it returns a class type but declares no statement, only empty
+// statements and local types. Rewrite those nodes into the record
+// declarations they denote, with the local types restored as member types.
 function restoreEmptyRecords(node) {
   for (const values of Object.values(node.children || {})) {
     values.forEach((child, i) => {
@@ -71,7 +73,14 @@ function misparsedRecord(node) {
     || declarator.children.dims || declarator.children.receiverParameter) return null;
   if (tokensOf(header.children.result[0]).map(t => t.image).join(' ') !== 'record') return null;
   const statements = block.children.blockStatements?.[0]?.children.blockStatement || [];
-  if (!statements.every(statement => tokensOf(statement).every(t => t.image === ';'))) return null;
+  const members = [];
+  for (const statement of statements) {
+    if (tokensOf(statement).every(t => t.image === ';')) continue;
+    const [declaration, ...rest] = children(statement);
+    if (rest.length || !['classDeclaration', 'interfaceDeclaration'].includes(declaration?.name)) return null;
+    members.push(declaration);
+  }
+  const wrap = (kind, location, child) => ({ name: kind, location, children: { [child.name]: [child] } });
   const name = declarator.children.Identifier[0];
   const { methodHeader: _header, methodBody: _body, ...modifiers } = node.children;
   return {
@@ -80,7 +89,10 @@ function misparsedRecord(node) {
       ...modifiers,
       typeIdentifier: [{ name: 'typeIdentifier', location: tokenLocation(name), children: { Identifier: [name] } }],
       recordHeader: [{ name: 'recordHeader', location: declarator.location, children: { formalParameterList: declarator.children.formalParameterList || [] } }],
-      recordBody: [{ name: 'recordBody', location: block.location, children: {} }],
+      recordBody: [{ name: 'recordBody', location: block.location, children: members.length ? {
+        recordBodyDeclaration: members.map(member => wrap('recordBodyDeclaration', member.location,
+          wrap('classBodyDeclaration', member.location, wrap('classMemberDeclaration', member.location, member)))),
+      } : {} }],
     },
   };
 }
