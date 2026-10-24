@@ -153,6 +153,16 @@ Explicit `modules.groups` still win, and the files they claim do not shape the
 split. Setting `modules.depth` or `modules.packageBoundaries: false` restores
 directory-depth grouping. JPMS modules are not read.
 
+This grouping is inferred from build-file locations and source directories;
+Maven and Gradle models (declared modules, source sets, dependencies) are not
+evaluated. Adding a second build module, moving sources or changing a shared
+directory prefix can change the modules, and with them module edges, module
+cycles and hubs, without any dependency change. Compare module-level findings
+across runs only under the same grouping: for longitudinal comparison, pin
+the modules with `modules.groups`, for example
+`{ "modules": { "groups": { "core": ["core/src/main/java/**"], "web": ["web/src/main/java/**"] } } }`.
+A module cycle that disappears after a grouping change has not been fixed.
+
 ## Complexity
 
 Methods, interface methods with bodies, constructors and record compact

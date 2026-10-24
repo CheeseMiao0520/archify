@@ -601,6 +601,8 @@ test('java: modules follow Maven/Gradle modules, or packages in a single-module 
   const grouped = buildGraph(looseFacts.facts, { ...looseFacts.config, modules: { groups: { tooling: ['o/y/**'] } } });
   assert.deepEqual(grouped.modules.map(m => m.path).sort(), ['o/x/a', 'o/x/b', 'tooling'], 'grouped files do not narrow the package split');
   assert.equal(grouped.edges.length, 1);
+  const pinned = buildGraph(looseFacts.facts, { ...looseFacts.config, modules: { groups: { all: ['o/**'] } } });
+  assert.equal(pinned.grouping.java, undefined, 'groups claiming every file leave no Java default');
   const plain = fixture(t, { 'src/main/java/a/one/A.java': 'package a.one; class A {}', 'src/main/java/a/two/B.java': 'package a.two; class B {}' });
   const noBuild = extractFacts(plain);
   assert.deepEqual(buildGraph(noBuild.facts, noBuild.config).modules.map(m => m.path), ['src/main/java/a/one', 'src/main/java/a/two'], 'no build file: packages');

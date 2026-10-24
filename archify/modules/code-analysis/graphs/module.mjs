@@ -109,6 +109,8 @@ function collectPackageDirs(paths) {
 const SOURCE_ROOT = /^(?:.*\/)?src\/[^/]+\/java(?=\/)/;
 
 function javaModules(paths, markers) {
+  // Explicit groups claim every nested file: no Java default applies.
+  if (!paths.some((p) => p.includes('/'))) return null;
   const buildDirs = [...new Set(markers.filter((p) => JAVA_BUILD_MARKERS.includes(p.slice(p.lastIndexOf('/') + 1)))
     .map((p) => p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : ''))];
   // Deepest first, so the nearest build file owns a source; the root is last.
