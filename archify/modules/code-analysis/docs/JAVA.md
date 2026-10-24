@@ -107,9 +107,24 @@ and type references, rather than import declarations alone.
 
 File cycles and module cycles are informational structural findings. Their
 messages, task exports and UI do not infer Python-style partial initialization
-or claim a Java runtime failure. Directory grouping and explicit `modules.groups`
-still control modules; Java package names, Maven modules and JPMS modules are
-not substituted for that existing contract.
+or claim a Java runtime failure.
+
+Java has no package marker files, so its default modules are build units:
+each directory holding `pom.xml`, `build.gradle` or `build.gradle.kts` owns
+the sources below it, at any depth (`grouping.java: "build-modules"`); files
+outside every build module keep directory-depth grouping. A tree where at most
+one build module owns analyzed (non-test, non-generated) sources would be one
+module with nothing to compare, so it is split by package
+(`grouping.java: "packages"`): within each conventional source root
+`src/<set>/java`, at the first directory below the one shared by that root's
+files, typically the first package level below `src/main/java/<common prefix>`.
+Files directly in a source root, such as `module-info.java`, form that root's
+own module. Other files keep directory depth; a tree without such roots splits
+below the directory all its files share.
+
+Explicit `modules.groups` still win, and the files they claim do not shape the
+split. Setting `modules.depth` or `modules.packageBoundaries: false` restores
+directory-depth grouping. JPMS modules are not read.
 
 ## Complexity
 

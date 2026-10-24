@@ -1,7 +1,7 @@
 // Parse only captured source text. No application code, build files or annotation
 // processors are executed. The CST keeps source offsets for evidence/navigation.
 import { lexAndParse } from 'java-parser';
-import { classifyRole, lineCount, snapshotSources } from '../shared/files.mjs';
+import { classifyRole, lineCount, snapshotSources, PACKAGE_MARKERS, JAVA_BUILD_MARKERS } from '../shared/files.mjs';
 
 export const PARSER = 'java-parser@3.0.1';
 export const isJavaSource = file => file.endsWith('.java');
@@ -12,7 +12,7 @@ export function typeName(node) {
 }
 
 export function parseSources(root, config, consume = unit => unit) {
-  const snapshot = snapshotSources(root, config, isJavaSource);
+  const snapshot = snapshotSources(root, config, isJavaSource, [...PACKAGE_MARKERS, ...JAVA_BUILD_MARKERS]);
   const files = [], units = [], parse_errors = [];
   for (const [file, bytes] of snapshot.contents) {
     let sourceText;

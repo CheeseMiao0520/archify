@@ -209,7 +209,7 @@ Every file is tagged `source` / `test` / `generated`. The rules are globs, with 
 
 ### From a file graph to a module graph
 
-Edges in raw-facts go from file to file. `graphs/module.mjs` maps every file to a module (by configured groups, package boundary, or directory depth; root-level files become modules of their own). Package boundaries come from marker files — `package.json`, `pyproject.toml`, `__init__.py` — which the extractors record in `packageMarkers` because they are not parsed sources and so never appear in `files`. The graph then **merges** file edges into module edges: several file edges between the same pair of modules become one, `weight` is the count, `kinds` counts static versus dynamic, and `evidence` keeps up to five file:line entries.
+Edges in raw-facts go from file to file. `graphs/module.mjs` maps every file to a module (by configured groups, package boundary, or directory depth; root-level files become modules of their own). Package boundaries come from marker files — `package.json`, `pyproject.toml`, `__init__.py` — which the extractors record in `packageMarkers` because they are not parsed sources and so never appear in `files`. Java records `pom.xml` and `build.gradle(.kts)` as well, and groups by build module or, in a single-module build, by package unless `modules.depth` or `modules.packageBoundaries: false` is set (see [Java source analysis](JAVA.md)). The graph then **merges** file edges into module edges: several file edges between the same pair of modules become one, `weight` is the count, `kinds` counts static versus dynamic, and `evidence` keeps up to five file:line entries.
 
 Deduplicating with a `Map` is the idiomatic JS pattern:
 

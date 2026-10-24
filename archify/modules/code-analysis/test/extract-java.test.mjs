@@ -511,6 +511,54 @@ test('java: enum and record members are out of scope in their own implements cla
   assert.equal(imports.find(i => i.from === 'p/Mode.java' && i.specifier === 'Target')?.to, 'p/Target.java', 'an enum implementing an analyzed interface opens its body');
 });
 
+test('java: modules follow Maven/Gradle modules, or packages in a single-module build', t => {
+  const multi = fixture(t, {
+    'pom.xml': '<project/>',
+    'core/pom.xml': '<project/>',
+    'core/src/main/java/x/core/Core.java': 'package x.core; public class Core {}',
+    'plugins/web/build.gradle': '',
+    'plugins/web/src/main/java/x/web/Web.java': 'package x.web; import x.core.Core; class Web { Core core; }',
+    'plugins/web/api/pom.xml': '<project/>',
+    'plugins/web/api/src/main/java/x/api/Api.java': 'package x.api; import x.core.Core; class Api { Core core; }',
+  });
+  const first = extractFacts(multi);
+  const graph = buildGraph(first.facts, first.config);
+  assert.equal(graph.grouping.java, 'build-modules');
+  assert.deepEqual(graph.modules.map(m => m.path).sort(), ['core', 'plugins/web', 'plugins/web/api'], 'build modules deeper than the depth budget stay apart');
+  assert.deepEqual(schemaErrors('module-graph', graph), []);
+
+  const single = fixture(t, {
+    'pom.xml': '<project/>',
+    'src/main/java/org/x/lib/Root.java': 'package org.x.lib; public class Root {}',
+    'src/main/java/org/x/lib/bag/Bag.java': 'package org.x.lib.bag; import org.x.lib.Root; public class Bag { Root root; }',
+    'src/main/java/org/x/lib/map/Map.java': 'package org.x.lib.map; import org.x.lib.bag.Bag; class Map { Bag bag; }',
+    'src/main/java/org/x/lib/map/impl/Hash.java': 'package org.x.lib.map.impl; class Hash {}',
+    'src/test/java/org/x/lib/BagTest.java': 'package org.x.lib; class BagTest {}',
+    'src/integrationTest/java/org/x/lib/it/Flow.java': 'package org.x.lib.it; class Flow {}',
+    'tools/gen/Gen.java': 'class Gen {}',
+    'src/main/java/module-info.java': 'module org.x.lib {}',
+  });
+  const facts = extractFacts(single);
+  const packages = buildGraph(facts.facts, facts.config);
+  assert.equal(packages.grouping.java, 'packages');
+  assert.deepEqual(packages.modules.map(m => m.path).sort(), ['src/integrationTest/java/org/x/lib/it', 'src/main/java', 'src/main/java/org/x/lib',
+    'src/main/java/org/x/lib/bag', 'src/main/java/org/x/lib/map', 'tools/gen'], 'each source root splits by package; other files keep depth');
+  assert.equal(packages.edges.length, 2);
+  const depth = buildGraph(facts.facts, { ...facts.config, modules: { depth: 2 } });
+  assert.equal(depth.grouping.java, undefined, 'a configured depth keeps directory-depth grouping');
+  assert.deepEqual(depth.modules.map(m => m.path).sort(), ['src/integrationTest', 'src/main', 'tools/gen']);
+  const flat = buildGraph(facts.facts, { ...facts.config, modules: { packageBoundaries: false } });
+  assert.equal(flat.grouping.java, undefined, 'packageBoundaries: false also keeps directory depth');
+  const loose = fixture(t, { 'o/x/a/A.java': 'package o.x.a; public class A {}', 'o/x/b/B.java': 'package o.x.b; class B { o.x.a.A a; }', 'o/y/Y.java': 'package o.y; class Y {}' });
+  const looseFacts = extractFacts(loose);
+  const grouped = buildGraph(looseFacts.facts, { ...looseFacts.config, modules: { groups: { tooling: ['o/y/**'] } } });
+  assert.deepEqual(grouped.modules.map(m => m.path).sort(), ['o/x/a', 'o/x/b', 'tooling'], 'grouped files do not narrow the package split');
+  assert.equal(grouped.edges.length, 1);
+  const plain = fixture(t, { 'src/main/java/a/one/A.java': 'package a.one; class A {}', 'src/main/java/a/two/B.java': 'package a.two; class B {}' });
+  const noBuild = extractFacts(plain);
+  assert.deepEqual(buildGraph(noBuild.facts, noBuild.config).modules.map(m => m.path), ['src/main/java/a/one', 'src/main/java/a/two'], 'no build file: packages');
+});
+
 test('java: qualified names start at a package or an in-scope type, never at a subpackage', t => {
   // javac: p.A for `p.A` in package x, and q.r.R for `r.R` under `import q.*`.
   const root = fixture(t, {
