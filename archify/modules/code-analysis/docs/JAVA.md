@@ -69,8 +69,12 @@ Remaining unresolved, by design:
   methods, constructors, initializers, lambdas, switch-rule blocks) are local
   and are not indexed.
 - References inside the body of a type whose supertypes do not all resolve,
-  transitively, to one analyzed declaration each (external, duplicate or
-  cyclic supertypes), since an inherited member type could bind the name.
+  transitively, to one analyzed declaration or a listed JDK type each
+  (external, duplicate or cyclic supertypes), since an inherited member type
+  could bind the name. This includes same-package references, which need no
+  import: in a typical Spring or JPA model whose base class extends a
+  framework type, `Owner`'s use of `Pet` in the same package is not recorded.
+  A missing edge there is not evidence of absent coupling.
   When every supertype is analyzed, a name matching an inherited member type
   stays unresolved and counts as `unknown`, even over an external import of
   the same name; so does a member type declared by an analyzed ancestor when
@@ -79,6 +83,24 @@ Remaining unresolved, by design:
   extends/implements clauses, so declaration headers are outside this body
   guard; a record's component list does see its members. The other scope
   guards still apply.
+
+  The listed JDK types are `Comparable`, `Cloneable`, `AutoCloseable`,
+  `Iterable`, `Runnable`, `Throwable`, `Exception`, `RuntimeException`,
+  `Error`, `IllegalArgumentException`, `IllegalStateException` and
+  `UnsupportedOperationException` in `java.lang`; `Serializable`,
+  `Closeable` and `IOException` in `java.io`; `Iterator`, `Collection`,
+  `List`, `Set`, `Map` and `EventListener` in `java.util`; and
+  `java.util.concurrent.Callable`. Of these only `Map` contributes a member
+  type (`Entry`), which stays unresolved in such bodies. The list was generated
+  from JDK 17 and these types have had the same member types since Java 8. A
+  supertype counts as one of them only when it is named by a single-type
+  import (`import java.io.Serializable;`), which outranks same-package and
+  on-demand types, or fully qualified (`java.io.Serializable`), and no member
+  type in scope or type parameter binds the name first. An implicit
+  `java.lang` name (`extends RuntimeException`) or one reached through an
+  on-demand import keeps the guard: a same-package source that is not
+  analyzed, such as an excluded generated file or one with a parse error,
+  could declare a type of that name.
 - References inside local and anonymous class bodies, whose member and
   inherited scopes are not modeled. Their methods still receive complexity
   metrics.

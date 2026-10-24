@@ -5,6 +5,18 @@ const TYPE_REFERENCES = new Set(['classType', 'unannClassType', 'typeName']);
 const LOCAL_SCOPES = new Set(['methodDeclaration', 'interfaceMethodDeclaration', 'constructorDeclaration', 'compactConstructorDeclaration', 'lambdaExpression', 'instanceInitializer', 'staticInitializer', 'block']);
 // No candidates: the name binds an inherited member type of an analyzed type.
 const INHERITED = Object.freeze([]);
+// Common JDK supertypes and the member type names a subclass inherits from
+// them (public or protected, transitively). Generated from JDK 17; these types
+// have had the same member types since Java 8. A body whose supertypes are all
+// analyzed or listed here opens; the names they contribute stay unresolved.
+const JDK_MEMBERS = new Map([
+  ...['Comparable', 'Cloneable', 'AutoCloseable', 'Iterable', 'Runnable', 'Throwable', 'Exception', 'RuntimeException', 'Error',
+    'IllegalArgumentException', 'IllegalStateException', 'UnsupportedOperationException'].map(name => [`java.lang.${name}`, []]),
+  ...['Serializable', 'Closeable', 'IOException'].map(name => [`java.io.${name}`, []]),
+  ...['Iterator', 'Collection', 'List', 'Set', 'EventListener'].map(name => [`java.util.${name}`, []]),
+  ['java.util.Map', ['Entry']],
+  ['java.util.concurrent.Callable', []],
+]);
 const BODIES = { normalClassDeclaration: 'classBody', normalInterfaceDeclaration: 'interfaceBody', enumDeclaration: 'enumBody', annotationInterfaceDeclaration: 'annotationInterfaceBody' };
 const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 const identifiers = node => (node?.children.Identifier || []).map(t => t.image).join('.');
@@ -96,8 +108,8 @@ export function resolveImports(units) {
   };
   // Member type names a type inherits (JLS 8.5). `names` maps each known name
   // to whether an analyzed declaration contributes it; `complete` holds only
-  // when every supertype resolves to one analyzed declaration, since an
-  // external, ambiguous or cyclic supertype may contribute any member.
+  // when every supertype resolves to one analyzed declaration or a listed JDK
+  // type, since any other supertype may contribute any member.
   const unitOf = new Map(described.map(unit => [unit.file, unit]));
   const declaredMembers = new Map();
   for (const unit of described) for (const type of unit.types) if (type.owners.length) {
@@ -116,8 +128,14 @@ export function resolveImports(units) {
     let complete = true;
     for (const supertype of type.supertypes) {
       // A supertype name is bound in the scope of its declaration header.
-      const targets = referenceTargets(unitOf.get(type.file), supertype, supertype.name, index, lookup, inheritedMembers);
-      if (targets.length !== 1) { complete = false; continue; }
+      const unit = unitOf.get(type.file);
+      const targets = referenceTargets(unit, supertype, supertype.name, index, lookup, inheritedMembers);
+      if (targets.length !== 1) {
+        const jdk = targets.length ? null : jdkSupertype(unit, supertype);
+        if (jdk) for (const name of JDK_MEMBERS.get(jdk)) inherit(name, false);
+        else complete = false;
+        continue;
+      }
       const deeper = inheritedMembers(targets[0]);
       complete &&= deeper.complete;
       for (const name of declaredMembers.get(targets[0].fullName) || []) inherit(name, true);
@@ -131,6 +149,31 @@ export function resolveImports(units) {
   // outside the analyzed sources (standard library, third party), `unknown` is
   // a dependency that looks internal but could not be resolved.
   const packages = new Set(described.map(unit => unit.packageName).filter(Boolean));
+  // The listed JDK type an unresolved supertype name binds, or null. Only
+  // positive evidence counts: a single-type import, which outranks same-package
+  // and on-demand types (JLS 6.4.1), or a fully qualified name. An implicit
+  // java.lang or on-demand binding is not inferred, since an unanalyzed
+  // same-package source (generated, excluded or unparsable) could declare it.
+  const jdkSupertype = (unit, ref) => {
+    const first = ref.name.split('.')[0];
+    if (unit.shadowed.has(first)) return null;
+    // A member type in scope binds the name before any import.
+    for (const scope of enclosingTypes(unit, ref)) {
+      const { names, complete } = inheritedMembers(scope);
+      if (index.has(`${scope.fullName}.${first}`) || !complete || names.has(first)) return null;
+    }
+    if (unit.imports.some(i => i.isStatic && !i.wildcard && i.name.split('.').at(-1) === first)) return null;
+    const single = unit.imports.find(i => !i.wildcard && !i.isStatic && i.name.split('.').at(-1) === first);
+    if (single) return JDK_MEMBERS.has(single.name + ref.name.slice(first.length)) ? single.name + ref.name.slice(first.length) : null;
+    if (!ref.name.includes('.') || !JDK_MEMBERS.has(ref.name)) return null;
+    // A type named like the first package segment would obscure the package
+    // (JLS 6.4.2): one in the file or package, or one an on-demand import of an
+    // unanalyzed package could contribute.
+    const inPackage = part => [unit.packageName, part].filter(Boolean).join('.');
+    if (unit.types.some(t => !t.owners.length && t.name === first) || index.has(inPackage(first))) return null;
+    if (unit.imports.some(i => i.wildcard && (index.has(`${i.name}.${first}`) || (!packages.has(i.name) && !index.has(i.name))))) return null;
+    return ref.name;
+  };
   const typeNames = new Set(described.flatMap(unit => unit.types.map(type => type.name)));
   const inProject = name => name.split('.').some((_, i, parts) => i > 0 && packages.has(parts.slice(0, i).join('.')));
   const importReason = imp => (imp.wildcard ? packages.has(imp.name) || inProject(imp.name) : inProject(imp.name)) ? 'unknown' : 'external';
@@ -192,14 +235,19 @@ export function resolveImports(units) {
   return { imports: entries.map(entry => entry.record), unresolved };
 }
 
+// Types whose member scope contains the node, outermost first.
+function enclosingTypes(unit, node) {
+  return unit.types.filter(t => t.memberScopeStartOffset <= node.startOffset && t.endOffset >= node.endOffset
+    && !(t.scopeGap && t.scopeGap.startOffset <= node.startOffset && t.scopeGap.endOffset >= node.endOffset));
+}
+
 // `index` decides which declaration binds a name; `lookup` decides whether
 // that binding is certain enough to become an edge.
 function referenceTargets(unit, node, name, index, lookup, inheritedMembers) {
   if (node.uncertain) return [];
   const first = name.split('.')[0];
   if (unit.shadowed.has(first)) return [];
-  const enclosing = unit.types.filter(t => t.memberScopeStartOffset <= node.startOffset && t.endOffset >= node.endOffset
-    && !(t.scopeGap && t.scopeGap.startOffset <= node.startOffset && t.scopeGap.endOffset >= node.endOffset));
+  const enclosing = enclosingTypes(unit, node);
   // Bind the first segment in the nearest lexical scope before looking up
   // members. A missing (possibly inherited) member must not change that
   // binding into an unrelated import or package name. An inherited member

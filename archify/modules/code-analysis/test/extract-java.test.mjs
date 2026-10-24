@@ -485,6 +485,41 @@ test('java: inherited member types bind body names; unknown supertype chains kee
   }
 });
 
+test('java: listed JDK supertypes named by a single import or qualified name open class bodies', t => {
+  // javac: Owner, Registry, Task, Both and Unknown's `pet` is p.Pet; Registry's `entry` is java.util.Map$Entry;
+  // Fault's is p.Error$Pet (an unanalyzed Error shadows java.lang.Error); Inner's is lib.Base$Serializable$Pet.
+  const root = fixture(t, {
+    'p/BaseEntity.java': 'package p; import java.io.Serializable; public class BaseEntity implements Serializable {}',
+    'p/Person.java': 'package p; public class Person extends BaseEntity {}',
+    'p/Owner.java': 'package p; public class Owner extends Person { Pet pet; }',
+    'p/Pet.java': 'package p; public class Pet {}',
+    'p/Entry.java': 'package p; public class Entry {}',
+    'p/Task.java': 'package p; abstract class Task implements Runnable, Comparable<Task> { Pet pet; }',
+    'p/Registry.java': 'package p; abstract class Registry implements java.util.Map<String, String> { Entry entry; Pet pet; }',
+    'p/Both.java': 'package p; import java.awt.*; import java.util.*; abstract class Both implements Collection<String> { Pet pet; }',
+    'p/Unknown.java': 'package p; import org.lib.*; abstract class Unknown implements Runnable { Pet pet; }',
+    'p/Unlisted.java': 'package p; abstract class Unlisted extends java.util.AbstractMap<String, String> { Pet pet; }',
+    // Unparsable, so unanalyzed: only an implicit java.lang binding would claim Error.
+    'p/Error.java': 'package p; public class Error { public static class Pet {} } // caf\\u00e9',
+    'p/Fault.java': 'package p; abstract class Fault extends Error { Pet pet; }',
+    'lib/Base.java': 'package lib; public class Base { public interface Serializable { class Pet {} } }',
+    'p/Enclosed.java': 'package p; import java.io.Serializable; class Enclosed extends lib.Base { class Inner implements Serializable { Pet pet; } }',
+    'p/Base2.java': 'package p; public class Base2 { public interface Serializable { class Pet {} } }',
+    'p/Enclosed2.java': 'package p; import java.io.Serializable; class Enclosed2 extends Base2 { class Inner implements Serializable { Pet pet; } }',
+    'p/Obscured.java': 'package p; import other.*; abstract class Obscured implements java.io.Serializable { Pet pet; }',
+  });
+  const parsed = parseSources(root, { ...config(), exclude: ['lib/**'] });
+  assert.deepEqual(parsed.parse_errors.map(e => e.path), ['p/Error.java']);
+  const { imports } = resolveImports(parsed.units);
+  const find = (from, specifier) => imports.find(i => i.from === from && i.specifier === specifier);
+  for (const from of ['p/Owner.java', 'p/Registry.java']) assert.equal(find(from, 'Pet')?.to, 'p/Pet.java', from);
+  assert.equal(find('p/Registry.java', 'Entry')?.resolved, false, 'Map contributes Entry');
+  // Implicit java.lang and on-demand bindings are not inferred; nor is one under an unknown enclosing chain.
+  for (const from of ['p/Task.java', 'p/Both.java', 'p/Unknown.java', 'p/Unlisted.java', 'p/Fault.java', 'p/Enclosed.java', 'p/Enclosed2.java', 'p/Obscured.java']) {
+    assert.equal(find(from, 'Pet')?.resolved, false, `${from} keeps the guard`);
+  }
+});
+
 test('java: member records holding only member types keep those members, in the owner and in subclasses', t => {
   // javac binds Base$Pair, Base$Box and Owner$Point; the parser reads these records as methods.
   const root = fixture(t, {
