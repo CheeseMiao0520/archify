@@ -149,30 +149,23 @@ export function resolveImports(units) {
   // outside the analyzed sources (standard library, third party), `unknown` is
   // a dependency that looks internal but could not be resolved.
   const packages = new Set(described.map(unit => unit.packageName).filter(Boolean));
-  // The listed JDK type an unresolved supertype name binds, or null. Only
-  // positive evidence counts: a single-type import, which outranks same-package
-  // and on-demand types (JLS 6.4.1), or a fully qualified name. An implicit
-  // java.lang or on-demand binding is not inferred, since an unanalyzed
-  // same-package source (generated, excluded or unparsable) could declare it.
+  // The listed JDK type an unresolved supertype name binds, or null. Only a
+  // single-type import counts: it outranks same-package and on-demand types
+  // (JLS 6.4.1), so no unanalyzed source can claim the name. A member type in
+  // scope, possibly inherited, or a type parameter or local type binds it
+  // first. Implicit java.lang names, on-demand imports and fully qualified
+  // names keep the guard: an unanalyzed same-package source could declare the
+  // name, or an unseen type named like the first segment obscure the package.
   const jdkSupertype = (unit, ref) => {
     const first = ref.name.split('.')[0];
     if (unit.shadowed.has(first)) return null;
-    // A member type in scope binds the name before any import.
     for (const scope of enclosingTypes(unit, ref)) {
       const { names, complete } = inheritedMembers(scope);
       if (index.has(`${scope.fullName}.${first}`) || !complete || names.has(first)) return null;
     }
-    if (unit.imports.some(i => i.isStatic && !i.wildcard && i.name.split('.').at(-1) === first)) return null;
     const single = unit.imports.find(i => !i.wildcard && !i.isStatic && i.name.split('.').at(-1) === first);
-    if (single) return JDK_MEMBERS.has(single.name + ref.name.slice(first.length)) ? single.name + ref.name.slice(first.length) : null;
-    if (!ref.name.includes('.') || !JDK_MEMBERS.has(ref.name)) return null;
-    // A type named like the first package segment would obscure the package
-    // (JLS 6.4.2): one in the file or package, or one an on-demand import of an
-    // unanalyzed package could contribute.
-    const inPackage = part => [unit.packageName, part].filter(Boolean).join('.');
-    if (unit.types.some(t => !t.owners.length && t.name === first) || index.has(inPackage(first))) return null;
-    if (unit.imports.some(i => i.wildcard && (index.has(`${i.name}.${first}`) || (!packages.has(i.name) && !index.has(i.name))))) return null;
-    return ref.name;
+    const name = single && single.name + ref.name.slice(first.length);
+    return name && JDK_MEMBERS.has(name) ? name : null;
   };
   const typeNames = new Set(described.flatMap(unit => unit.types.map(type => type.name)));
   const inProject = name => name.split('.').some((_, i, parts) => i > 0 && packages.has(parts.slice(0, i).join('.')));

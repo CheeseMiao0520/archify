@@ -485,9 +485,10 @@ test('java: inherited member types bind body names; unknown supertype chains kee
   }
 });
 
-test('java: listed JDK supertypes named by a single import or qualified name open class bodies', t => {
-  // javac: Owner, Registry, Task, Both and Unknown's `pet` is p.Pet; Registry's `entry` is java.util.Map$Entry;
-  // Fault's is p.Error$Pet (an unanalyzed Error shadows java.lang.Error); Inner's is lib.Base$Serializable$Pet.
+test('java: listed JDK supertypes named by a single-type import open class bodies', t => {
+  // javac: Owner, Registry, Task, Both, Unknown and Qualified's `pet` is p.Pet; Registry's `entry` is
+  // java.util.Map$Entry; Fault's is p.Error$Pet (an unanalyzed Error shadows java.lang.Error); the Inner types'
+  // and Sub's are the enclosing supertypes' Serializable$Pet.
   const root = fixture(t, {
     'p/BaseEntity.java': 'package p; import java.io.Serializable; public class BaseEntity implements Serializable {}',
     'p/Person.java': 'package p; public class Person extends BaseEntity {}',
@@ -495,7 +496,8 @@ test('java: listed JDK supertypes named by a single import or qualified name ope
     'p/Pet.java': 'package p; public class Pet {}',
     'p/Entry.java': 'package p; public class Entry {}',
     'p/Task.java': 'package p; abstract class Task implements Runnable, Comparable<Task> { Pet pet; }',
-    'p/Registry.java': 'package p; abstract class Registry implements java.util.Map<String, String> { Entry entry; Pet pet; }',
+    'p/Registry.java': 'package p; import java.util.Map; abstract class Registry implements Map<String, String> { Entry entry; Pet pet; }',
+    'p/Qualified.java': 'package p; abstract class Qualified implements java.io.Serializable { Pet pet; }',
     'p/Both.java': 'package p; import java.awt.*; import java.util.*; abstract class Both implements Collection<String> { Pet pet; }',
     'p/Unknown.java': 'package p; import org.lib.*; abstract class Unknown implements Runnable { Pet pet; }',
     'p/Unlisted.java': 'package p; abstract class Unlisted extends java.util.AbstractMap<String, String> { Pet pet; }',
@@ -507,6 +509,9 @@ test('java: listed JDK supertypes named by a single import or qualified name ope
     'p/Base2.java': 'package p; public class Base2 { public interface Serializable { class Pet {} } }',
     'p/Enclosed2.java': 'package p; import java.io.Serializable; class Enclosed2 extends Base2 { class Inner implements Serializable { Pet pet; } }',
     'p/Obscured.java': 'package p; import other.*; abstract class Obscured implements java.io.Serializable { Pet pet; }',
+    // Inner's own body hits the unknown enclosing chain; Sub inherits only Inner's members.
+    'p/Enclosed3.java': 'package p; import java.io.Serializable; public class Enclosed3 extends lib.Base { public abstract static class Inner implements Serializable {} }',
+    'p/Sub.java': 'package p; abstract class Sub extends Enclosed3.Inner { Pet pet; }',
   });
   const parsed = parseSources(root, { ...config(), exclude: ['lib/**'] });
   assert.deepEqual(parsed.parse_errors.map(e => e.path), ['p/Error.java']);
@@ -514,8 +519,10 @@ test('java: listed JDK supertypes named by a single import or qualified name ope
   const find = (from, specifier) => imports.find(i => i.from === from && i.specifier === specifier);
   for (const from of ['p/Owner.java', 'p/Registry.java']) assert.equal(find(from, 'Pet')?.to, 'p/Pet.java', from);
   assert.equal(find('p/Registry.java', 'Entry')?.resolved, false, 'Map contributes Entry');
-  // Implicit java.lang and on-demand bindings are not inferred; nor is one under an unknown enclosing chain.
-  for (const from of ['p/Task.java', 'p/Both.java', 'p/Unknown.java', 'p/Unlisted.java', 'p/Fault.java', 'p/Enclosed.java', 'p/Enclosed2.java', 'p/Obscured.java']) {
+  // Implicit java.lang, on-demand and fully qualified names are not inferred; nor is a name under an
+  // enclosing scope that declares, inherits or may inherit it.
+  for (const from of ['p/Task.java', 'p/Both.java', 'p/Unknown.java', 'p/Unlisted.java', 'p/Fault.java', 'p/Qualified.java',
+    'p/Enclosed.java', 'p/Enclosed2.java', 'p/Obscured.java', 'p/Sub.java']) {
     assert.equal(find(from, 'Pet')?.resolved, false, `${from} keeps the guard`);
   }
 });

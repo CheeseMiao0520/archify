@@ -16,7 +16,7 @@
         "depth": { "type": "integer", "minimum": 1 },
         "packageBoundaries": { "type": "boolean" },
         "groups": { "type": "array", "items": { "type": "string" } },
-        "java": { "enum": ["build-modules", "packages"], "description": "Java default grouping: Maven/Gradle modules, or the first package level of a single-module build. Absent when modules.depth is configured, modules.packageBoundaries is false, or modules.groups claim every file." }
+        "java": { "enum": ["build-modules", "packages"], "description": "Java default grouping: Maven/Gradle modules, or the first package level of a single-module build. Absent when modules.depth is configured, modules.packageBoundaries is false, or no analyzed file below the root is left to it after modules.groups." }
       }
     },
     "excluded": {

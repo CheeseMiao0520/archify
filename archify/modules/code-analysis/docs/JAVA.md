@@ -72,9 +72,9 @@ Remaining unresolved, by design:
   transitively, to one analyzed declaration or a listed JDK type each
   (external, duplicate or cyclic supertypes), since an inherited member type
   could bind the name. This includes same-package references, which need no
-  import: in a typical Spring or JPA model whose base class extends a
-  framework type, `Owner`'s use of `Pet` in the same package is not recorded.
-  A missing edge there is not evidence of absent coupling.
+  import: in Spring PetClinic, `PetValidator implements Validator` (a Spring
+  interface), so its use of `Pet` in the same package is not recorded. A
+  missing edge there is not evidence of absent coupling.
   When every supertype is analyzed, a name matching an inherited member type
   stays unresolved and counts as `unknown`, even over an external import of
   the same name; so does a member type declared by an analyzed ancestor when
@@ -91,16 +91,21 @@ Remaining unresolved, by design:
   `Closeable` and `IOException` in `java.io`; `Iterator`, `Collection`,
   `List`, `Set`, `Map` and `EventListener` in `java.util`; and
   `java.util.concurrent.Callable`. Of these only `Map` contributes a member
-  type (`Entry`), which stays unresolved in such bodies. The list was generated
-  from JDK 17 and these types have had the same member types since Java 8. A
-  supertype counts as one of them only when it is named by a single-type
-  import (`import java.io.Serializable;`), which outranks same-package and
-  on-demand types, or fully qualified (`java.io.Serializable`), and no member
-  type in scope or type parameter binds the name first. An implicit
-  `java.lang` name (`extends RuntimeException`) or one reached through an
-  on-demand import keeps the guard: a same-package source that is not
-  analyzed, such as an excluded generated file or one with a parse error,
-  could declare a type of that name.
+  type (`Entry`), which stays unresolved in such bodies. The member types
+  were checked by reflection on JDK 17 (public and protected member types,
+  including inherited ones); other JDK versions were not checked.
+
+  A supertype counts as one of these types only when a single-type import
+  names it (`import java.io.Serializable;`), because such an import outranks
+  same-package and on-demand types and so no unanalyzed source can claim the
+  name; and only when no enclosing type declares, inherits or may inherit a
+  member type of that name, and no type parameter or local type in the file
+  uses it. Everything else keeps the guard: an implicit `java.lang` name
+  (`extends RuntimeException`) or an on-demand import, because a same-package
+  source that is not analyzed (an excluded generated file, one with a parse
+  error) could declare the name; and a fully qualified name
+  (`implements java.io.Serializable`), because an unseen type named `java`
+  could obscure the package.
 - References inside local and anonymous class bodies, whose member and
   inherited scopes are not modeled. Their methods still receive complexity
   metrics.
